@@ -41,7 +41,7 @@ public class WebFile {
     private boolean caching = false;
     private SearchEngine MyEngine;
     
-    public void setEngine(SearchEngineSolution CurrentEngine){
+    public void setEngine(AwesomeSearchEngine CurrentEngine){
         MyEngine = CurrentEngine;
     }
     

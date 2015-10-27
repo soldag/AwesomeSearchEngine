@@ -39,7 +39,7 @@ public abstract class SearchEngine {
         abstract void index(String directory);
         
         // load the index's seeklist from the teamDirectory
-	abstract boolean loadIndex(String directory);
+        abstract boolean loadIndex(String directory);
         
         // contruct a compressed version of the index and save it in a file in the teamDirectory
         abstract void compressIndex(String directory);
