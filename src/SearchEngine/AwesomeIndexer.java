@@ -34,7 +34,7 @@ public class AwesomeIndexer {
 	private static final String ABSTRACT_XPATH = "my-root/us-patent-grant/abstract";
 	
 	// Determines the limit of free bytes in memory. If this limit is exceeded, memory index has to be written to file.
-	private static final int FREE_MEMORY_LIMIT = 128000000;
+	private static final int FREE_MEMORY_LIMIT = 512000000;
 	
 	// Determines, how many often a token should be written to seek list (every n-th token).
 	private static final int SEEK_LIST_TOKEN_LIMIT = 200;
@@ -120,7 +120,7 @@ public class AwesomeIndexer {
 			    			this.add(currentDocumentId, token.getValue0(), token.getValue1());
 			    			
 			    			// If size of the memory index is too high, write index to new temporary file and clear index in memory
-			    			if(Runtime.getRuntime().freeMemory() < FREE_MEMORY_LIMIT) {
+			    			if(this.getFreeMemory() < FREE_MEMORY_LIMIT) {
 			    				this.writeToFile();
 			    				this.invertedIndex.clear();
 			    				
@@ -168,6 +168,13 @@ public class AwesomeIndexer {
 		// Reset state of indexer
 		this.clearTemporaryIndexes();
 		this.invertedIndex.clear();
+	}
+	
+	
+	// Returns number of free memory byte.
+	private long getFreeMemory() {
+		long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+		return Runtime.getRuntime().maxMemory() - usedMemory;
 	}
 	
 	
