@@ -33,11 +33,11 @@ public class AwesomeIndexer {
 	private static final String DOCUMENT_ID_XPATH = "my-root/us-patent-grant/us-bibliographic-data-grant/publication-reference/document-id/doc-number";
 	private static final String ABSTRACT_XPATH = "my-root/us-patent-grant/abstract";
 	
-	// Determines, how many tokens the memory index can contain, before it has to be written to file.
-	private static final int MEMORY_INDEX_LIMIT = 500;
+	// Determines the limit of free bytes in memory. If this limit is exceeded, memory index has to be written to file.
+	private static final int FREE_MEMORY_LIMIT = 128000000;
 	
 	// Determines, how many often a token should be written to seek list (every n-th token).
-	private static final int SEEK_LIST_TOKEN_LIMIT = 20;
+	private static final int SEEK_LIST_TOKEN_LIMIT = 200;
 	
 	// Constants for directory and file names of temporary indexes.
 	private static final String TEMP_INDEX_DIRECTORY = "tmp";
@@ -62,9 +62,6 @@ public class AwesomeIndexer {
 	
 	// Contains the currently constructed part of the index in memory
 	private HashMap<String, List<Pair<String, Integer>>> invertedIndex = new HashMap<String, List<Pair<String, Integer>>>();
-	
-	// Contains the number of token stored in the inverted index in memory
-	private int memoryTokenCount = 0;
 	
 	
 	public AwesomeIndexer(AwesomeTextProcessor textProcessor, Path indexDirectoryPath, File indexFile, File seekListFile, File documentMapFile) {
@@ -121,13 +118,15 @@ public class AwesomeIndexer {
 			    		// Tokenize(including stemming and stop-word-removal) abstract and add single tokens to index
 			    		for(Pair<String, Integer> token: this.textProcessor.getTokens(abstractBuilder.toString())) {
 			    			this.add(currentDocumentId, token.getValue0(), token.getValue1());
-			    			this.memoryTokenCount++;
 			    			
 			    			// If size of the memory index is too high, write index to new temporary file and clear index in memory
-			    			if(this.memoryTokenCount >= MEMORY_INDEX_LIMIT) {
+			    			if(Runtime.getRuntime().freeMemory() < FREE_MEMORY_LIMIT) {
 			    				this.writeToFile();
-			    				this.memoryTokenCount = 0;
 			    				this.invertedIndex.clear();
+			    				
+			    				// Run garbage collector
+			    				System.gc();
+			    				System.runFinalization();
 			    			}
 			    		}
 			    		
@@ -168,7 +167,7 @@ public class AwesomeIndexer {
 		
 		// Reset state of indexer
 		this.clearTemporaryIndexes();
-		this.reset();
+		this.invertedIndex.clear();
 	}
 	
 	
@@ -263,7 +262,7 @@ public class AwesomeIndexer {
 						if(tokenCount == SEEK_LIST_TOKEN_LIMIT) {
 							tokenCount = 0;
 						}
-						else if(tokenCount == 0) {
+						if(tokenCount == 0) {
 							// Write seek list entry for the current token
 							long offset = indexWriter.getFilePointer();
 							seekListWriter.write(token + KEY_VALUE_SEPARATOR + offset);
@@ -292,13 +291,6 @@ public class AwesomeIndexer {
 				}
 			}
 		}
-	}
-	
-	
-	// Reset indexer for reusage.
-	public void reset() {
-		this.memoryTokenCount = 0;
-		this.invertedIndex.clear();
 	}
 	
 	
