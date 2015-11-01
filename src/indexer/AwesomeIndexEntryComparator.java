@@ -1,4 +1,4 @@
-package SearchEngine;
+package indexer;
 
 import java.util.Comparator;
 

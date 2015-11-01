@@ -30,11 +30,12 @@ public class SearchEngineTest {
         start = System.currentTimeMillis();
         engine.loadIndex(dataDirectory);
         time = System.currentTimeMillis() - start;
-        System.out.println("Londing Index Time: " + time + "ms");
+        System.out.println("Loading Index Time: " + time + "ms");
         
         start = System.currentTimeMillis();
         String query = "selection";
         ArrayList<String> results = engine.search(query, 0, 0);
+        time = System.currentTimeMillis() - start;
         System.out.println("Search Time: " + time + "ms");
         
         System.out.println();

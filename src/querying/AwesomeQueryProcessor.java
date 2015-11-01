@@ -1,4 +1,4 @@
-package SearchEngine;
+package querying;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -14,17 +14,17 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.regex.Pattern;
 
-import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamReader;
 
 import org.javatuples.Pair;
 
-public class AwesomeQueryProcessor {
+import indexer.DocumentMapWriter;
+import indexer.IndexWriter;
+import indexer.SeekListWriter;
+import parsers.PatentTitleLookup;
+import textprocessing.AwesomeTextProcessor;
 
-	// XPaths constants for XML elements containing the document ID and title of a patent.
-	private static final String DOCUMENT_ID_XPATH = "my-root/us-patent-grant/us-bibliographic-data-grant/publication-reference/document-id/doc-number";
-	private static final String TITLE_XPATH = "my-root/us-patent-grant/us-bibliographic-data-grant/invention-title";
+public class AwesomeQueryProcessor {
 
 	// Contain instances of necessary services
 	private AwesomeTextProcessor textProcessor;
@@ -59,7 +59,7 @@ public class AwesomeQueryProcessor {
 			while(seekListScanner.hasNextLine()) {
 				String line = seekListScanner.nextLine();
 				
-				String[] splittedLine = line.split(Pattern.quote(AwesomeIndexer.KEY_VALUE_SEPARATOR));
+				String[] splittedLine = line.split(Pattern.quote(SeekListWriter.SEPARATOR));
 				String token = splittedLine[0];
 				long offset = Long.parseLong(splittedLine[1]);
 				
@@ -74,7 +74,7 @@ public class AwesomeQueryProcessor {
 			while(documentMapScanner.hasNextLine()) {
 				String line = documentMapScanner.nextLine();
 				
-				String[] splittedLine = line.split(Pattern.quote(AwesomeIndexer.KEY_VALUE_SEPARATOR));
+				String[] splittedLine = line.split(Pattern.quote(DocumentMapWriter.SEPARATOR));
 				this.documentMap.put(splittedLine[0], splittedLine[1]);
 			}
 		}
@@ -105,16 +105,16 @@ public class AwesomeQueryProcessor {
 					String line = indexFileReader.readLine();
 					
 					// Extract token from complete entry
-					int index = line.indexOf(AwesomeIndexer.KEY_VALUE_SEPARATOR);
+					int index = line.indexOf(IndexWriter.TOKEN_POSTINGS_SEPARATOR);
 					String token = line.substring(0, index);
 					
 					// If read token matches query token, get and return list of titles for the corresponding document IDs
 					if(token.equals(queryToken)) {
 						// Extract distinct document IDs from serialized posting lists
 						String serializedPostingList = line.substring(index + 1);
-						String[] serializedPostings = serializedPostingList.split(AwesomeIndexer.POSTINGS_SEPARATOR);
+						String[] serializedPostings = serializedPostingList.split(IndexWriter.POSTINGS_SEPARATOR);
 						String[] documentIds = Arrays.stream(serializedPostings)
-												.map(x -> x.substring(1, x.indexOf(AwesomeIndexer.POSTING_ENTRY_SEPARATOR)))
+												.map(x -> x.substring(1, x.indexOf(IndexWriter.POSTING_ENTRIES_SEPARATOR)))
 												.distinct()
 												.toArray(String[]::new);
 						
@@ -160,9 +160,7 @@ public class AwesomeQueryProcessor {
 	}
 	
 	// Extracts the titles of documents identified by its IDs.
-	private ArrayList<String> getDocumentTitles(String[] documentIds) throws FileNotFoundException, XMLStreamException {
-		ArrayList<String> titles = new ArrayList<String>();
-		
+	private ArrayList<String> getDocumentTitles(String[] documentIds) throws FileNotFoundException, XMLStreamException {		
 		// Construct a inverted document map for the documents searched-for, which maps each document file to a list of document IDs contained in it.
 		HashMap<String, List<String>> invertedDocumentMap = new HashMap<String, List<String>>();
 		for(String documentId: documentIds) {
@@ -183,50 +181,11 @@ public class AwesomeQueryProcessor {
 		}
 		
 		// Parse each document file and extract the titles of those documents searched-for.
+		ArrayList<String> titles = new ArrayList<String>();
 		for(Map.Entry<String, List<String>> entry: invertedDocumentMap.entrySet()) {
-			XMLInputFactory factory = XMLInputFactory.newInstance();
-			XMLStreamReader parser = factory.createXMLStreamReader(new FileInputStream(entry.getKey()));
-			
-			String currentXPath = "";
-			String currentDocumentId = "";
-			while (parser.hasNext())
-			{
-				int eventType = parser.getEventType();
-				if(eventType == XMLStreamReader.START_ELEMENT) {
-					// Update current path
-					if(currentXPath != null && !currentXPath.isEmpty()) 
-			    	{
-			        	currentXPath += "/";
-			    	}
-					currentXPath += parser.getLocalName();
-				}
-				else if(eventType == XMLStreamReader.END_ELEMENT) {
-					// Update current path
-					int index = currentXPath.lastIndexOf("/");
-			    	if(index == -1) 
-			    	{
-			    		currentXPath = "";
-			    	}
-			    	else
-			    	{
-			    		currentXPath = currentXPath.substring(0, index);
-			    	}
-				}
-				else if (eventType == XMLStreamReader.CHARACTERS) {
-					if(currentXPath.equals(DOCUMENT_ID_XPATH)) {
-						// Extract current document ID
-						currentDocumentId = parser.getText();
-			    	}
-					// If the current element contains the title of the patent and the document ID is searched-for, add title to result list.
-			    	else if(currentXPath.equals(TITLE_XPATH) && entry.getValue().contains(currentDocumentId))
-			    	{
-			    		titles.add(parser.getText());
-			    	}
-				}
-				
-				// Read next element
-				parser.next();
-			}
+			PatentTitleLookup lookup = new PatentTitleLookup(new FileInputStream(entry.getKey()));
+			Map<String, String> result = lookup.getTitles(entry.getValue());
+			titles.addAll(result.values());
 		}
 		
 		return titles;

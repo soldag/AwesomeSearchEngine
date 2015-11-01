@@ -25,6 +25,10 @@ import java.util.ArrayList;
 
 import javax.xml.stream.XMLStreamException;
 
+import indexer.AwesomeIndexer;
+import querying.AwesomeQueryProcessor;
+import textprocessing.AwesomeTextProcessor;
+
 public class AwesomeSearchEngine extends SearchEngine { 
 	
 	// Constants for index file names
@@ -81,7 +85,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     	}
     	
     	try {
-			this.indexer.parseDocument(directory + "/testData.xml");
+			this.indexer.indexDocument(directory + "/ipg050104.xml");
 		} catch (IOException|XMLStreamException e) {
 			e.printStackTrace();
 		}

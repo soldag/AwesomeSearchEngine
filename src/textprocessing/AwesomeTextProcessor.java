@@ -1,4 +1,4 @@
-package SearchEngine;
+package textprocessing;
 
 import java.io.BufferedReader;
 import java.io.IOException;
