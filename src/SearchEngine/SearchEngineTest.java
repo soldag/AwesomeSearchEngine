@@ -18,7 +18,7 @@ public class SearchEngineTest {
     
     public static void main(String args[]) throws Exception {
     	long start,time;
-    	String dataDirectory = "/Users/soldag/Copy/Studium/Master/1. Semester/Information Retrieval & Web Search/Excercises/Data";
+    	String dataDirectory = "/Users/Henni/Documents/Studium/7. Semester/Information Retrieval & Web Search/Data";
         SearchEngine engine = new AwesomeSearchEngine();
         
         start = System.currentTimeMillis();

@@ -18,7 +18,7 @@ public class DocumentMapWriter implements AutoCloseable {
 		this.fileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(documentMapFile), "UTF-8"));
 	}
 
-	public void write(String documentId, String documentPath) throws IOException {
+	public void write(Integer documentId, String documentPath) throws IOException {
 		this.fileWriter.write(documentId + SEPARATOR + documentPath);
 		this.fileWriter.newLine();
 	}

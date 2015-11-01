@@ -14,7 +14,7 @@ import javax.xml.stream.events.XMLEvent;
 
 import org.javatuples.Pair;
 
-public class PatentTitleLookup extends PatentParser<Pair<String, String>> {
+public class PatentTitleLookup extends PatentParser<Pair<Integer, String>> {
 	
 	/**
 	 * XPaths constant for XML elements containing the title of a patent.
@@ -45,10 +45,10 @@ public class PatentTitleLookup extends PatentParser<Pair<String, String>> {
 	 * @param event
 	 * @return Pair of document id and title, if it was extracted completely. Null, if title element was not reached, yet.
 	 */
-	protected Pair<String, String> processEvent(XMLEvent event) {
+	protected Pair<Integer, String> processEvent(XMLEvent event) {
 		if (event.getEventType() == XMLStreamReader.CHARACTERS && this.getCurrentPath().equals(TITLE_PATH)) {
 			Characters characters = event.asCharacters();
-			return new Pair<String, String>(this.getCurrentDocumentId(), characters.toString());
+			return new Pair<Integer, String>(this.getCurrentDocumentId(), characters.toString());
 		}
 		
 		return null;
@@ -60,8 +60,8 @@ public class PatentTitleLookup extends PatentParser<Pair<String, String>> {
 	 * @return Title of the specified document. If document cannot be found, null is returned.
 	 * @throws XMLStreamException
 	 */
-	public String getTitle(String documentId) throws XMLStreamException {
-		Map<String, String> result = this.getTitles(Arrays.asList(documentId));
+	public String getTitle(Integer documentId) throws XMLStreamException {
+		Map<Integer, String> result = this.getTitles(Arrays.asList(documentId));
 		if(result.containsKey(documentId)) {
 			return result.get(documentId);
 		}
@@ -75,10 +75,10 @@ public class PatentTitleLookup extends PatentParser<Pair<String, String>> {
 	 * @return Title of specified documents mapped to its document ids.
 	 * @throws XMLStreamException
 	 */
-	public Map<String, String> getTitles(List<String> documentIds) throws XMLStreamException {
-		Map<String, String> result = new HashMap<String, String>(documentIds.size());
+	public Map<Integer, String> getTitles(List<Integer> documentIds) throws XMLStreamException {
+		Map<Integer, String> result = new HashMap<Integer, String>(documentIds.size());
 		while(this.hasNext()) {
-			Pair<String, String> idTitleTuple = this.next();
+			Pair<Integer, String> idTitleTuple = this.next();
 			if(documentIds.contains(idTitleTuple.getValue0())) {
 				result.put(idTitleTuple.getValue0(), idTitleTuple.getValue1());
 			}

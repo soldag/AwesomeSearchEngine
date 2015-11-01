@@ -35,15 +35,18 @@ public class AwesomeQueryProcessor {
 	private File documentMapFile;
 	
 	private LinkedHashMap<String, Long> seekList = new LinkedHashMap<String, Long>();
-	private HashMap<String, String> documentMap = new HashMap<String, String>();
+	private HashMap<Integer, String> documentMap = new HashMap<Integer, String>();
+
+	private boolean compressed;
 	
 	
-	public AwesomeQueryProcessor(AwesomeTextProcessor textProcessor, File indexFile, File seekListFile, File documentMapFile) {
+	public AwesomeQueryProcessor(AwesomeTextProcessor textProcessor, File indexFile, File seekListFile, File documentMapFile, boolean compressed) {
 		this.textProcessor = textProcessor;
 
 		this.indexFile = indexFile;
 		this.seekListFile = seekListFile;
 		this.documentMapFile = documentMapFile;
+		this.compressed = compressed;
 	}
 	
 	
@@ -73,9 +76,10 @@ public class AwesomeQueryProcessor {
 		try (Scanner documentMapScanner = new Scanner(new FileInputStream(this.documentMapFile), "UTF-8")) {
 			while(documentMapScanner.hasNextLine()) {
 				String line = documentMapScanner.nextLine();
-				
-				String[] splittedLine = line.split(Pattern.quote(DocumentMapWriter.SEPARATOR));
-				this.documentMap.put(splittedLine[0], splittedLine[1]);
+				if(!line.isEmpty()){
+					String[] splittedLine = line.split(Pattern.quote(DocumentMapWriter.SEPARATOR));
+					this.documentMap.put(Integer.parseInt(splittedLine[0]), splittedLine[1]);
+				}
 			}
 		}
 	}
@@ -103,23 +107,16 @@ public class AwesomeQueryProcessor {
 				// Read line by line, until end offset is reached
 				while(indexFileReader.getFilePointer() < endOffset) {
 					String line = indexFileReader.readLine();
+					ArrayList<String> result;
 					
-					// Extract token from complete entry
-					int index = line.indexOf(IndexWriter.TOKEN_POSTINGS_SEPARATOR);
-					String token = line.substring(0, index);
-					
-					// If read token matches query token, get and return list of titles for the corresponding document IDs
-					if(token.equals(queryToken)) {
-						// Extract distinct document IDs from serialized posting lists
-						String serializedPostingList = line.substring(index + 1);
-						String[] serializedPostings = serializedPostingList.split(IndexWriter.POSTINGS_SEPARATOR);
-						String[] documentIds = Arrays.stream(serializedPostings)
-												.map(x -> x.substring(1, x.indexOf(IndexWriter.POSTING_ENTRIES_SEPARATOR)))
-												.distinct()
-												.toArray(String[]::new);
-						
-						// Return titles for the corresponding document IDs
-						return this.getDocumentTitles(documentIds);
+					if(this.compressed){
+						result = processCompressedLine(line, queryToken);
+					}
+					else {
+						result = processLine(line, queryToken);
+					}
+					if (result != null){
+						return result;
 					}
 				}
 			}
@@ -160,11 +157,11 @@ public class AwesomeQueryProcessor {
 	}
 	
 	// Extracts the titles of documents identified by its IDs.
-	private ArrayList<String> getDocumentTitles(String[] documentIds) throws FileNotFoundException, XMLStreamException {		
+	private ArrayList<String> getDocumentTitles(Integer[] documentIds) throws FileNotFoundException, XMLStreamException {		
 		// Construct a inverted document map for the documents searched-for, which maps each document file to a list of document IDs contained in it.
-		HashMap<String, List<String>> invertedDocumentMap = new HashMap<String, List<String>>();
-		for(String documentId: documentIds) {
-			List<String> idList;
+		HashMap<String, List<Integer>> invertedDocumentMap = new HashMap<String, List<Integer>>();
+		for(Integer documentId: documentIds) {
+			List<Integer> idList;
 			String filePath = this.documentMap.get(documentId);
 			if(invertedDocumentMap.containsKey(filePath)) {
 				// Get posting list for given token
@@ -172,7 +169,7 @@ public class AwesomeQueryProcessor {
 			}
 			else {
 				// Create new, empty posting list for given file path
-				idList = new ArrayList<String>();
+				idList = new ArrayList<Integer>();
 				invertedDocumentMap.put(filePath, idList);
 			}
 
@@ -182,12 +179,61 @@ public class AwesomeQueryProcessor {
 		
 		// Parse each document file and extract the titles of those documents searched-for.
 		ArrayList<String> titles = new ArrayList<String>();
-		for(Map.Entry<String, List<String>> entry: invertedDocumentMap.entrySet()) {
+		for(Map.Entry<String, List<Integer>> entry: invertedDocumentMap.entrySet()) {
 			PatentTitleLookup lookup = new PatentTitleLookup(new FileInputStream(entry.getKey()));
-			Map<String, String> result = lookup.getTitles(entry.getValue());
+			Map<Integer, String> result = lookup.getTitles(entry.getValue());
 			titles.addAll(result.values());
 		}
 		
 		return titles;
+	}
+	
+	private ArrayList<String> processLine(String line, String queryToken) throws FileNotFoundException, XMLStreamException{
+		
+		// Extract token from complete entry
+		int index = line.indexOf(IndexWriter.TOKEN_POSTINGS_SEPARATOR);
+		String token = line.substring(0, index);
+		
+		// If read token matches query token, get and return list of titles for the corresponding document IDs
+		if(token.equals(queryToken)) {
+			// Extract distinct document IDs from serialized posting lists
+			String serializedPostingList = line.substring(index + 1);
+			String[] serializedPostings = serializedPostingList.split(IndexWriter.POSTINGS_SEPARATOR);
+			Integer[] documentIds = Arrays.stream(serializedPostings)
+									.map(x -> Integer.parseInt(x.substring(1, x.indexOf(IndexWriter.POSTING_ENTRIES_SEPARATOR))))
+									.distinct()
+									.toArray(Integer[]::new);
+			
+			// Return titles for the corresponding document IDs
+			return this.getDocumentTitles(documentIds);
+		}
+		return null;
+	}
+	
+	private ArrayList<String> processCompressedLine(String line, String queryToken) throws FileNotFoundException, XMLStreamException{
+		
+		// Extract token from complete entry
+		int index = line.indexOf(IndexWriter.TOKEN_POSTINGS_SEPARATOR);
+		String token = line.substring(0, index);
+		
+		// If read token matches query token, get and return list of titles for the corresponding document IDs
+		if(token.equals(queryToken)) {
+			// Extract distinct document IDs from serialized posting lists
+			String serializedPostingList = line.substring(index + 1);
+			String[] serializedPostings = serializedPostingList.split(IndexWriter.POSTINGS_SEPARATOR);
+			int lastDocId = 0;
+			ArrayList<Integer> documentIds = new ArrayList<Integer>();
+			
+			for(int i = 0; i < serializedPostings.length; i++){
+				Integer documentId = Integer.parseInt(serializedPostings[i].substring(1, serializedPostings[i].indexOf(",["))) + lastDocId;
+				lastDocId = documentId;
+				
+				documentIds.add(documentId);
+			}
+			
+			// Return titles for the corresponding document IDs
+			return this.getDocumentTitles(documentIds.toArray(new Integer[documentIds.size()]));			 
+		}
+		return null;
 	}
 }

@@ -49,10 +49,11 @@ public class AwesomeIndexer {
 	private List<File> temporaryIndexFiles = new ArrayList<File>();
 	
 	// Contains the currently constructed part of the index in memory
-	private HashMap<String, List<Pair<String, Long>>> invertedIndex = new HashMap<String, List<Pair<String, Long>>>();
+	private HashMap<String, List<Pair<Integer, Long>>> invertedIndex = new HashMap<String, List<Pair<Integer, Long>>>();
 	
+	private boolean compressed;
 	
-	public AwesomeIndexer(AwesomeTextProcessor textProcessor, Path indexDirectoryPath, File indexFile, File seekListFile, File documentMapFile) {
+	public AwesomeIndexer(AwesomeTextProcessor textProcessor, Path indexDirectoryPath, File indexFile, File seekListFile, File documentMapFile, boolean compressed) {
 		this.textProcessor = textProcessor;
 		
 		this.indexFile = indexFile;
@@ -61,6 +62,7 @@ public class AwesomeIndexer {
 		this.tempIndexDirectory = indexDirectoryPath.resolve(TEMP_INDEX_DIRECTORY);
 		
 		this.indexEntryComparator = new AwesomeIndexEntryComparator(IndexWriter.TOKEN_POSTINGS_SEPARATOR);
+		this.compressed = compressed;
 	}
 	
 	
@@ -95,9 +97,9 @@ public class AwesomeIndexer {
 	public void parseDocument(String documentPath) throws XMLStreamException, IOException {
 		try (DocumentMapWriter documentMapWriter = new DocumentMapWriter(this.documentMapFile)) {	
 			PatentAbstractParser patentParser = new PatentAbstractParser(new FileInputStream(documentPath));
-			for(Pair<String, String> idAbstractTuple: patentParser) {
+			for(Pair<Integer, String> idAbstractTuple: patentParser) {
 				// Unpack tuple
-				String documentId = idAbstractTuple.getValue0();
+				Integer documentId = idAbstractTuple.getValue0();
 				String abstractText = idAbstractTuple.getValue1();
 				
 				// Add entry to document map
@@ -132,21 +134,21 @@ public class AwesomeIndexer {
 	
 	
 	// Adds new token to index.
-	private void add(String documentId, String token, long offset) throws UnsupportedEncodingException, FileNotFoundException, IOException {
+	private void add(Integer documentId, String token, long offset) throws UnsupportedEncodingException, FileNotFoundException, IOException {
 		// Get posting list
-		List<Pair<String, Long>> postingList;
+		List<Pair<Integer, Long>> postingList;
 		if(this.invertedIndex.containsKey(token)) {
 			// Get posting list for given token
 			postingList = this.invertedIndex.get(token);
 		}
 		else {
 			// Create new, empty posting list for given token
-			postingList = new ArrayList<Pair<String, Long>>();
+			postingList = new ArrayList<Pair<Integer, Long>>();
 			this.invertedIndex.put(token, postingList);
 		}
 		
 		// Add current document ID and offset to posting list
-		postingList.add(new Pair<String, Long>(documentId, offset));
+		postingList.add(new Pair<Integer, Long>(documentId, offset));
 	}
 	
 	
@@ -160,10 +162,10 @@ public class AwesomeIndexer {
 		File indexFile = File.createTempFile(TEMP_INDEX_PREFIX, "", this.tempIndexDirectory.toFile());
 		IndexWriter indexWriter;
 		if(writeSeekList) {
-			indexWriter = new IndexWriter(this.indexFile, this.seekListFile);
+			indexWriter = new IndexWriter(this.indexFile, this.seekListFile, this.compressed);
 		}
 		else {
-			indexWriter = new IndexWriter(this.indexFile);
+			indexWriter = new IndexWriter(this.indexFile, this.compressed);
 		}
 		for(String token: tokens) {
 			indexWriter.write(token, this.invertedIndex.get(token));

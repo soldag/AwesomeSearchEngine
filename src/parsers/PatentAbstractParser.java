@@ -10,7 +10,7 @@ import javax.xml.stream.events.XMLEvent;
 
 import org.javatuples.Pair;
 
-public class PatentAbstractParser extends PatentParser<Pair<String, String>> {
+public class PatentAbstractParser extends PatentParser<Pair<Integer, String>> {
 	
 	/**
 	 * XPaths constant for XML elements containing the abstract of a patent.
@@ -46,7 +46,7 @@ public class PatentAbstractParser extends PatentParser<Pair<String, String>> {
 	 * @param event
 	 * @return Pair of document id and abstract text, if it was extracted completely. Null, if abstract element was not reached or abstract was not read to end, yet.
 	 */
-	protected Pair<String, String> processEvent(XMLEvent event) {
+	protected Pair<Integer, String> processEvent(XMLEvent event) {
 		int eventType = event.getEventType();
 		if (eventType == XMLStreamConstants.CHARACTERS && this.getCurrentPath().startsWith(ABSTRACT_PATH)) {
     		// Append (next) part of the abstract text.
@@ -57,7 +57,7 @@ public class PatentAbstractParser extends PatentParser<Pair<String, String>> {
 			String abstractText = this.abstractBuilder.toString();
 			this.abstractBuilder = new StringBuilder();
 			
-			return new Pair<String, String>(this.getCurrentDocumentId(), abstractText);
+			return new Pair<Integer, String>(this.getCurrentDocumentId(), abstractText);
 		}
 		
 		return null;

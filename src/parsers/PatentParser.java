@@ -39,7 +39,7 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 	/**
 	 * Contains the id of the currently processing patent.
 	 */
-	private String currentDocumentId = "";
+	private Integer currentDocumentId = null;
 	
 	
 	/**
@@ -75,9 +75,9 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 	
 	/**
 	 * Gets the id of the currently processing patent. 
-	 * @return String
+	 * @return Integer
 	 */
-	protected String getCurrentDocumentId() {
+	protected Integer getCurrentDocumentId() {
 		return this.currentDocumentId;
 	}
 	
@@ -191,7 +191,7 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 	private void updateDocumentId(XMLEvent event) {
 		if(event.getEventType() == XMLStreamConstants.CHARACTERS && this.currentPath.equals(DOCUMENT_ID_PATH)) {
 			Characters characters = event.asCharacters();
-			this.currentDocumentId = characters.toString();
+			this.currentDocumentId = Integer.parseInt(characters.toString());
 		}
 	}
 	

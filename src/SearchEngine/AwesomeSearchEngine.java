@@ -55,7 +55,7 @@ public class AwesomeSearchEngine extends SearchEngine {
         super();
     }
     
-    public void initalize() {
+    public void initalize(boolean compressed) {
     	// Setup paths
     	Path indexDirectory = Paths.get(teamDirectory);
     	this.indexFile = indexDirectory.resolve(INDEX_FILE_NAME).toFile();
@@ -64,8 +64,8 @@ public class AwesomeSearchEngine extends SearchEngine {
     	
     	// Instantiate necessary services
         this.textProcessor = new AwesomeTextProcessor();
-        this.indexer = new AwesomeIndexer(this.textProcessor, indexDirectory, this.indexFile, this.seekListFile, this.documentIndexFile);
-        this.queryProcessor = new AwesomeQueryProcessor(this.textProcessor, this.indexFile, this.seekListFile, this.documentIndexFile);
+        this.indexer = new AwesomeIndexer(this.textProcessor, indexDirectory, this.indexFile, this.seekListFile, this.documentIndexFile, compressed);
+        this.queryProcessor = new AwesomeQueryProcessor(this.textProcessor, this.indexFile, this.seekListFile, this.documentIndexFile, compressed);
         
         // Load stop words for text processing
         try {
@@ -81,7 +81,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     @Override
     void index(String directory) {
     	if(!this.isInitialized) {
-    		this.initalize();
+    		this.initalize(false);
     	}
     	
     	try {
@@ -94,7 +94,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     @Override
     boolean loadIndex(String directory) {
     	if(!this.isInitialized) {
-    		this.initalize();
+    		this.initalize(false);
     	}
     	
     	try {
@@ -109,17 +109,38 @@ public class AwesomeSearchEngine extends SearchEngine {
     
     @Override
     void compressIndex(String directory) {
+    	if(!this.isInitialized) {
+    		this.initalize(true);
+    	}
+    	
+    	try {
+			this.indexer.indexDocument(directory + "/ipg050104.xml");
+		} catch (IOException|XMLStreamException e) {
+			e.printStackTrace();
+		}
     }
 
     @Override
     boolean loadCompressedIndex(String directory) {
-        return false;
+    	if(!this.isInitialized) {
+    		this.initalize(true);
+    	}
+    	
+    	try {
+			queryProcessor.loadIndex();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+			return false;
+		}
+        
+        return true;
     }
     
     @Override
     ArrayList<String> search(String query, int topK, int prf) {
     	if(!this.isInitialized) {
-    		this.initalize();
+    		System.out.println("Index has to be loaded first.");
+    		return null;
     	}
     	
     	try {
