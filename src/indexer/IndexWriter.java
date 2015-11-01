@@ -25,13 +25,13 @@ public class IndexWriter implements AutoCloseable {
 	private boolean compressed;
 	
 	public IndexWriter(File indexFile, boolean compressed) throws UnsupportedEncodingException, FileNotFoundException {
-		this(indexFile, null, compressed);
+		this(indexFile, null, null, compressed);
 	}
 	
-	public IndexWriter(File indexFile, File seekListFile, boolean compressed) throws UnsupportedEncodingException, FileNotFoundException {
+	public IndexWriter(File indexFile, File seekListFile, File secondarySeekListFile, boolean compressed) throws UnsupportedEncodingException, FileNotFoundException {
 		this.fileWriter = new RandomAccessFile(indexFile, "rw");
 		if(seekListFile != null) {
-			this.seekListWriter = new SeekListWriter(seekListFile);
+			this.seekListWriter = new SeekListWriter(seekListFile, secondarySeekListFile);
 		}
 		else {
 			this.seekListWriter = null;
@@ -74,14 +74,15 @@ public class IndexWriter implements AutoCloseable {
 											.collect(Collectors.joining(POSTINGS_SEPARATOR));
 		
 		}
-		// Write line to file
-		this.writeLine(token + TOKEN_POSTINGS_SEPARATOR + serializedPostingList);
 		
 		if(this.seekListWriter != null) {
 			// Write seek list entry for the current token
 			long offset = this.fileWriter.getFilePointer();
 			this.seekListWriter.write(token, offset);
 		}
+		
+		// Write line to file
+		this.writeLine(token + TOKEN_POSTINGS_SEPARATOR + serializedPostingList);
 	}
 	
 	private void writeLine(String line) throws IOException {

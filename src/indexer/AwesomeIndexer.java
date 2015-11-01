@@ -40,6 +40,7 @@ public class AwesomeIndexer {
 	// Contain various index files.
 	private File indexFile;
 	private File seekListFile;
+	private File secondarySeekListFile;
 	private File documentMapFile;
 	
 	// Contains path of the directory used for temporary indexes.
@@ -53,11 +54,12 @@ public class AwesomeIndexer {
 	
 	private boolean compressed;
 	
-	public AwesomeIndexer(AwesomeTextProcessor textProcessor, Path indexDirectoryPath, File indexFile, File seekListFile, File documentMapFile, boolean compressed) {
+	public AwesomeIndexer(AwesomeTextProcessor textProcessor, Path indexDirectoryPath, File indexFile, File seekListFile, File secondarySeekListFile, File documentMapFile, boolean compressed) {
 		this.textProcessor = textProcessor;
 		
 		this.indexFile = indexFile;
 		this.seekListFile = seekListFile;
+		this.secondarySeekListFile = secondarySeekListFile;
 		this.documentMapFile = documentMapFile;
 		this.tempIndexDirectory = indexDirectoryPath.resolve(TEMP_INDEX_DIRECTORY);
 		
@@ -162,7 +164,7 @@ public class AwesomeIndexer {
 		File indexFile = File.createTempFile(TEMP_INDEX_PREFIX, "", this.tempIndexDirectory.toFile());
 		IndexWriter indexWriter;
 		if(writeSeekList) {
-			indexWriter = new IndexWriter(this.indexFile, this.seekListFile, this.compressed);
+			indexWriter = new IndexWriter(this.indexFile, this.seekListFile, this.secondarySeekListFile, this.compressed);
 		}
 		else {
 			indexWriter = new IndexWriter(this.indexFile, this.compressed);
@@ -194,7 +196,7 @@ public class AwesomeIndexer {
 			// Write resulting, overall index file
 			try (
 				RandomAccessFile indexWriter = new RandomAccessFile(this.indexFile, "rw");
-				SeekListWriter seekListWriter = new SeekListWriter(this.seekListFile);
+				SeekListWriter seekListWriter = new SeekListWriter(this.seekListFile, this.secondarySeekListFile);
 			) {
 				// Read first line of each temporary index file
 				List<String> lines = tempIndexScanners.stream().map(x -> x.nextLine()).collect(Collectors.toList());

@@ -6,6 +6,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 
 public class SeekListWriter implements AutoCloseable {
@@ -17,12 +18,14 @@ public class SeekListWriter implements AutoCloseable {
 	 */
 	public static final int SEEK_LIST_TOKEN_LIMIT = 200;
 	
-	private BufferedWriter fileWriter;
+	private RandomAccessFile fileWriter;
+	private BufferedWriter secondarySeekListWriter;
 	
 	private int tokenCount = 0;
 	
-	public SeekListWriter(File seekListFile) throws UnsupportedEncodingException, FileNotFoundException {
-		this.fileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(seekListFile), "UTF-8"));
+	public SeekListWriter(File seekListFile, File secondarySeekListFile) throws UnsupportedEncodingException, FileNotFoundException {
+		this.fileWriter = new RandomAccessFile(seekListFile, "rw");
+		this.secondarySeekListWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(secondarySeekListFile), "UTF-8"));
 	}
 
 	public void write(String token, long offset) throws IOException {
@@ -32,13 +35,17 @@ public class SeekListWriter implements AutoCloseable {
 		}
 		if(this.tokenCount == 0) {
 			// Write seek list entry for the current token
-			this.fileWriter.write(token + SEPARATOR + offset);
-			this.fileWriter.newLine();
+			this.secondarySeekListWriter.write(token + SEPARATOR + this.fileWriter.getFilePointer());
+			this.secondarySeekListWriter.newLine();
 		}
-		this.tokenCount++;
+		this.tokenCount++;		
+		
+		String line = token + SEPARATOR + offset + System.getProperty("line.separator");
+		this.fileWriter.write(line.getBytes());
 	}
 	
 	public void close() throws IOException {
 		this.fileWriter.close();
+		this.secondarySeekListWriter.close();
 	}
 }

@@ -32,19 +32,23 @@ public class AwesomeQueryProcessor {
 	// Contain various index files
 	private File indexFile;
 	private File seekListFile;
+	private File secondarySeekListFile;
 	private File documentMapFile;
 	
 	private LinkedHashMap<String, Long> seekList = new LinkedHashMap<String, Long>();
 	private HashMap<Integer, String> documentMap = new HashMap<Integer, String>();
 
 	private boolean compressed;
+
 	
 	
-	public AwesomeQueryProcessor(AwesomeTextProcessor textProcessor, File indexFile, File seekListFile, File documentMapFile, boolean compressed) {
+	
+	public AwesomeQueryProcessor(AwesomeTextProcessor textProcessor, File indexFile, File seekListFile, File secondarySeekListFile, File documentMapFile, boolean compressed) {
 		this.textProcessor = textProcessor;
 
 		this.indexFile = indexFile;
 		this.seekListFile = seekListFile;
+		this.secondarySeekListFile = secondarySeekListFile;
 		this.documentMapFile = documentMapFile;
 		this.compressed = compressed;
 	}
@@ -52,7 +56,12 @@ public class AwesomeQueryProcessor {
 	
 	// Loads parts of the index from file into main memory.
 	public void loadIndex() throws FileNotFoundException {
-		this.loadSeekList();
+		if(this.compressed){
+			this.loadSecondarySeekList();
+		}
+		else{
+			this.loadSeekList();
+		}			
 		this.loadDocumentMap();
 	}
 	
@@ -61,12 +70,26 @@ public class AwesomeQueryProcessor {
 		try (Scanner seekListScanner = new Scanner(new FileInputStream(this.seekListFile), "UTF-8")) {
 			while(seekListScanner.hasNextLine()) {
 				String line = seekListScanner.nextLine();
-				
-				String[] splittedLine = line.split(Pattern.quote(SeekListWriter.SEPARATOR));
-				String token = splittedLine[0];
-				long offset = Long.parseLong(splittedLine[1]);
-				
-				this.seekList.put(token, offset);
+				if(!line.isEmpty()) {
+					String[] splittedLine = line.split(Pattern.quote(SeekListWriter.SEPARATOR));
+					String token = splittedLine[0];
+					long offset = Long.parseLong(splittedLine[1].trim());
+					this.seekList.put(token, offset);
+				}
+			}
+		}
+	}
+	
+	private void loadSecondarySeekList() throws FileNotFoundException{
+		try (Scanner seekListScanner = new Scanner(new FileInputStream(this.secondarySeekListFile), "UTF-8")) {
+			while(seekListScanner.hasNextLine()) {
+				String line = seekListScanner.nextLine();
+				if(!line.isEmpty()) {
+					String[] splittedLine = line.split(Pattern.quote(SeekListWriter.SEPARATOR));
+					String token = splittedLine[0];
+					long offset = Long.parseLong(splittedLine[1].trim());
+					this.seekList.put(token, offset);
+				}
 			}
 		}
 	}
@@ -88,41 +111,63 @@ public class AwesomeQueryProcessor {
 	public ArrayList<String> search(String query) throws IOException, XMLStreamException {
 		// Tokenize(including stemming and stop-word-removal) query
 		String[] queryTokens = this.textProcessor.getTokens(query).stream().map(x -> x.getValue0()).toArray(String[]::new);
-		String queryToken = queryTokens[0]; // For now only the first word
+		String queryToken = queryTokens[0]; // For now only the first word	
+		String seekListLine = null;
 		
-		Pair<Long, Long> indexOffsets = this.getIndexOffsets(queryToken);
-		Long startOffset = indexOffsets.getValue0();
-		Long endOffset = indexOffsets.getValue1();
-		
-		if(indexOffsets != null) {
-			try (RandomAccessFile indexFileReader = new RandomAccessFile(this.indexFile, "r")) {
-				// Correct end offset, if necessary ('null' means, read file to end)
-				if(endOffset == null) {
-					endOffset = indexFileReader.length();
-				}
-				
-				// Move file pointer to start offset
-				indexFileReader.seek(startOffset);
-				
-				// Read line by line, until end offset is reached
-				while(indexFileReader.getFilePointer() < endOffset) {
-					String line = indexFileReader.readLine();
-					ArrayList<String> result;
+		if(this.compressed){
+			Pair<Long, Long> indexOffsets = this.getIndexOffsets(queryToken);
+			Long startOffset = indexOffsets.getValue0();
+			Long endOffset = indexOffsets.getValue1();
+			
+			if(indexOffsets != null) {
+				try (RandomAccessFile indexFileReader = new RandomAccessFile(this.seekListFile, "r")) {
+					// Correct end offset, if necessary ('null' means, read file to end)
+					if(endOffset == null) {
+						endOffset = indexFileReader.length();
+					}
 					
-					if(this.compressed){
-						result = processCompressedLine(line, queryToken);
+					// Move file pointer to start offset
+					indexFileReader.seek(startOffset);
+					
+					// Read line by line, until end offset is reached
+					while(indexFileReader.getFilePointer() < endOffset) {
+						String line = indexFileReader.readLine();
+						String token = line.substring(0, line.indexOf(SeekListWriter.SEPARATOR));
+						if(token.equals(queryToken)) {
+							seekListLine = line;
+							break;
+						}
 					}
-					else {
-						result = processLine(line, queryToken);
-					}
-					if (result != null){
-						return result;
+				}
+			}
+		}
+		else{
+			try (Scanner seekListScanner = new Scanner(new FileInputStream(this.seekListFile), "UTF-8")) {
+				while(seekListScanner.hasNextLine()) {
+					String line = seekListScanner.nextLine();
+					if(!line.isEmpty()){
+						String token = line.substring(0, line.indexOf(SeekListWriter.SEPARATOR));
+						if(token.equals(queryToken)) {
+							seekListLine = line;
+							break;
+						}
 					}
 				}
 			}
 		}
 		
-		return new ArrayList<String>();
+		//TODO: find index path form seek list
+		
+		if(seekListLine == null) {
+			return new ArrayList<String>();
+		}
+		
+		if(this.compressed){
+			return processCompressedLine(seekListLine, queryToken);
+		}
+		else {
+			return processLine(seekListLine, queryToken);
+		}		
 	}
 	
 	// Gets start and end offset for the part of the index file, which could contain the token using the seek list. 

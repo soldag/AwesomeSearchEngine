@@ -34,11 +34,13 @@ public class AwesomeSearchEngine extends SearchEngine {
 	// Constants for index file names
 	private static final String INDEX_FILE_NAME = "index";
 	private static final String SEEK_LIST_FILE_NAME = "seek_list";
+	private static final String SECONDARY_SEEK_LIST_Name = "secondary_seek_list";
 	private static final String DOCUMENT_MAP_FILE_NAME = "document_map";
 	
 	// Contain the paths to the index files
 	private File indexFile;
 	private File seekListFile;
+	private File secondarySeekListFile;
 	private File documentIndexFile;
 
 	// Contain instances of necessary services
@@ -60,12 +62,13 @@ public class AwesomeSearchEngine extends SearchEngine {
     	Path indexDirectory = Paths.get(teamDirectory);
     	this.indexFile = indexDirectory.resolve(INDEX_FILE_NAME).toFile();
     	this.seekListFile = indexDirectory.resolve(SEEK_LIST_FILE_NAME).toFile();
+    	this.secondarySeekListFile = indexDirectory.resolve(SECONDARY_SEEK_LIST_Name).toFile();
     	this.documentIndexFile = indexDirectory.resolve(DOCUMENT_MAP_FILE_NAME).toFile();
     	
     	// Instantiate necessary services
         this.textProcessor = new AwesomeTextProcessor();
-        this.indexer = new AwesomeIndexer(this.textProcessor, indexDirectory, this.indexFile, this.seekListFile, this.documentIndexFile, compressed);
-        this.queryProcessor = new AwesomeQueryProcessor(this.textProcessor, this.indexFile, this.seekListFile, this.documentIndexFile, compressed);
+        this.indexer = new AwesomeIndexer(this.textProcessor, indexDirectory, this.indexFile, this.seekListFile, this.secondarySeekListFile, this.documentIndexFile, compressed);
+        this.queryProcessor = new AwesomeQueryProcessor(this.textProcessor, this.indexFile, this.seekListFile, this.secondarySeekListFile, this.documentIndexFile, compressed);
         
         // Load stop words for text processing
         try {
