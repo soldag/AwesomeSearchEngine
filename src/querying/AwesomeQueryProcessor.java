@@ -156,18 +156,17 @@ public class AwesomeQueryProcessor {
 			}
 		}
 		
-		//TODO: find index path form seek list
-		
-		if(seekListLine == null) {
-			return new ArrayList<String>();
+		long offset = Long.parseLong(seekListLine.substring(seekListLine.indexOf(SeekListWriter.SEPARATOR) + 1));
+		try(RandomAccessFile indexReader = new RandomAccessFile(this.indexFile, "r")) {
+			indexReader.seek(offset);
+			String line = indexReader.readLine();
+			if(this.compressed){
+				return processCompressedLine(line, queryToken);
+			}
+			else {
+				return processLine(line, queryToken);
+			}	
 		}
-		
-		if(this.compressed){
-			return processCompressedLine(seekListLine, queryToken);
-		}
-		else {
-			return processLine(seekListLine, queryToken);
-		}		
 	}
 	
 	// Gets start and end offset for the part of the index file, which could contain the token using the seek list. 
@@ -252,7 +251,8 @@ public class AwesomeQueryProcessor {
 			// Return titles for the corresponding document IDs
 			return this.getDocumentTitles(documentIds);
 		}
-		return null;
+		
+		return new ArrayList<String>();
 	}
 	
 	private ArrayList<String> processCompressedLine(String line, String queryToken) throws FileNotFoundException, XMLStreamException{
@@ -279,6 +279,7 @@ public class AwesomeQueryProcessor {
 			// Return titles for the corresponding document IDs
 			return this.getDocumentTitles(documentIds.toArray(new Integer[documentIds.size()]));			 
 		}
-		return null;
+		
+		return new ArrayList<String>();
 	}
 }

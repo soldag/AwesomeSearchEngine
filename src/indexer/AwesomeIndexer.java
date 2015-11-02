@@ -70,8 +70,9 @@ public class AwesomeIndexer {
 	
 	// Parses a document and indexes the abstract.
 	public void indexDocument(String documentPath) throws XMLStreamException, IOException {
-		// Clear existing, temporary indexes and create temporary index directory
-		this.clearTemporaryIndexes();
+		// Clear existing indexes and create temporary index directory
+		this.clearTemporaryIndexes();		
+		this.deleteIndexFiles();
 		this.tempIndexDirectory.toFile().mkdirs();
 		
 		// Parse and index document
@@ -251,8 +252,26 @@ public class AwesomeIndexer {
 	// Clear temporary files.
 	public void clearTemporaryIndexes() throws IOException {
 		for(File indexFile: this.temporaryIndexFiles) {
-			indexFile.delete();
+			if(indexFile.exists()) {
+				indexFile.delete();
+			}
+		}
+		if(this.tempIndexDirectory.toFile().exists()) {
+			this.tempIndexDirectory.toFile().delete();
 		}
 		this.temporaryIndexFiles.clear();
+	}
+	
+	public void deleteIndexFiles() {
+		if(this.indexFile.exists()) {
+			this.indexFile.delete();
+		}
+		if(this.seekListFile.exists()) {
+			this.seekListFile.delete();
+		}if(this.secondarySeekListFile.exists()) {
+			this.secondarySeekListFile.delete();
+		}if(this.documentMapFile.exists()) {
+			this.documentMapFile.delete();
+		}
 	}
 }
