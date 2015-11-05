@@ -50,14 +50,14 @@ public class AwesomeTextProcessor {
 			TokenStream tokenStream = new PorterStemFilter(analyzer.tokenStream(null, reader));
 		) {
 	    	CharTermAttribute termAttribute = tokenStream.addAttribute(CharTermAttribute.class);
-	    	OffsetAttribute offsetAttribute = tokenStream.getAttribute(OffsetAttribute.class);
 	    	tokenStream.reset();
 	    	
 	    	// Create a list of tokens and their offsets
+	    	int offset = 0;
 	        while(tokenStream.incrementToken()) {
 	        	String token = termAttribute.toString();
-	        	int offset = offsetAttribute.startOffset();
 	        	result.add(new Pair<String, Integer>(token, offset));
+	        	offset++;
 	        }
     	}
         

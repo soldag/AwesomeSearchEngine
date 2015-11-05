@@ -8,11 +8,14 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.xml.stream.XMLStreamException;
 
@@ -109,16 +112,197 @@ public class AwesomeQueryProcessor {
 	
 	// Performs a single word query.
 	public ArrayList<String> search(String query) throws IOException, XMLStreamException {
-		// Tokenize(including stemming and stop-word-removal) query
-		String[] queryTokens = this.textProcessor.getTokens(query).stream().map(x -> x.getValue0()).toArray(String[]::new);
-		String queryToken = queryTokens[0]; // For now only the first word	
-		String seekListLine = null;
-		
-		if(this.compressed){
-			Pair<Long, Long> indexOffsets = this.getIndexOffsets(queryToken);
-			Long startOffset = indexOffsets.getValue0();
-			Long endOffset = indexOffsets.getValue1();
+		// Identify boolean operators
+		String operator = null;
+		int operatorPosition = query.indexOf("AND");
+		if(operatorPosition > 0) {
+			operator = "AND";
+		}
+		if(operatorPosition < 0) {
+			operatorPosition = query.indexOf("OR");
+			operator = "OR";
+		}
+		if(operatorPosition < 0) {
+			operatorPosition = query.indexOf("NOT");
+			operator = "NOT";
+		}
+		if(operatorPosition >= 0) {
+			String query1 = query.substring(0, operatorPosition - 1);
+			String query2 = query.substring(operatorPosition + operator.length() + 1);
 			
+			ArrayList<String> result1 = this.runSingleQuery(query1);
+			ArrayList<String> result2 = this.runSingleQuery(query2);
+			
+
+			if(operator == "NOT") {
+				ArrayList<String> tempList = new ArrayList<String>();
+				for(String result: result1) {
+					if(!result2.contains(result)) {
+						tempList.add(result);
+					}
+				}
+				return tempList;
+			}
+			
+			if(result1.size() > result2.size()) {
+				ArrayList<String> tempList = result1;
+				result1 = result2;
+				result2 = tempList;
+			}
+			if(operator == "OR") {
+				for(String result: result1) {
+					if(!result2.contains(result)) {
+						result2.add(result);
+					}
+				}
+				return result2;
+			}
+			if(operator == "AND") {
+				ArrayList<String> tempList = new ArrayList<String>();
+				for(String result: result1) {
+					if(result2.contains(result)) {
+						tempList.add(result);
+					}
+				}
+				return tempList;
+			}
+		}
+		else {
+			return this.runSingleQuery(query);
+		}
+		
+		return null;
+	}
+	
+	private ArrayList<String> runSingleQuery(String query) throws IOException, XMLStreamException {		
+		// Tokenize(including stemming and stop-word-removal) query
+		HashMap<Integer, List<Integer>> lastResult = new HashMap<Integer, List<Integer>>();
+		String[] queryTokens = query.split(" ");
+		for(String queryToken: queryTokens) {
+			boolean prefixSearch =  queryToken.endsWith("*");
+			HashMap<Integer, List<Integer>> currentResult;
+			if(!prefixSearch) {
+				Pair<String, Integer> stemmedTokens = this.textProcessor.getTokens(queryToken).get(0);
+				queryToken = stemmedTokens.getValue0();
+				currentResult = this.searchIndexWithoutPrefix(queryToken);
+			}
+			else {
+				queryToken = queryToken.substring(0, queryToken.length() - 1);
+				currentResult = this.searchIndexWithPrefix(queryToken);
+			}
+			
+			if(lastResult.isEmpty()) {
+				lastResult = currentResult;
+			}
+			else {
+				HashMap<Integer, List<Integer>> tempResult = new HashMap<Integer, List<Integer>>();
+				for(Map.Entry<Integer, List<Integer>> entry: lastResult.entrySet()) {
+					int documentId = entry.getKey();
+					if(currentResult.keySet().contains(documentId)) {
+						for(int offset1: entry.getValue()) {
+							for(int offset2: currentResult.get(documentId)) {
+								if(offset2 == offset1 + 1) {
+									if(tempResult.containsKey(documentId)) {
+										tempResult.get(documentId).add(offset2);
+									}
+									else {
+										List<Integer> offsets = new ArrayList<Integer>();
+										offsets.add(offset2);
+										tempResult.put(documentId, offsets);
+									}
+								}
+							}
+						}
+					}
+				}
+				lastResult = tempResult;
+			}
+		}
+		
+		return this.getDocumentTitles(lastResult.keySet());
+	}
+	
+	private HashMap<Integer, List<Integer>> searchIndexWithPrefix(String prefix) throws FileNotFoundException, IOException, XMLStreamException {
+		Pair<Long, Long> indexOffsets = this.getIndexOffsets(prefix);
+		Long startOffset = indexOffsets.getValue0();
+		Long endOffset = indexOffsets.getValue1();
+		
+		List<String> seekListLines = new ArrayList<String>();
+		if(this.compressed){			
+			if(indexOffsets != null) {
+				try (RandomAccessFile indexFileReader = new RandomAccessFile(this.seekListFile, "r")) {
+					// Correct end offset, if necessary ('null' means, read file to end)
+					if(endOffset == null) {
+						endOffset = indexFileReader.length();
+					}
+					
+					// Move file pointer to start offset
+					indexFileReader.seek(startOffset);
+					
+					// Read line by line, until end offset is reached
+					while(indexFileReader.getFilePointer() < endOffset) {
+						String line = indexFileReader.readLine();
+						String token = line.substring(0, line.indexOf(SeekListWriter.SEPARATOR));
+						if(token.startsWith(prefix)) {
+							seekListLines.add(line);
+						}
+					}
+				}
+			}
+		}
+		else{
+			try (Scanner seekListScanner = new Scanner(new FileInputStream(this.seekListFile), "UTF-8")) {
+				while(seekListScanner.hasNextLine()) {
+					String line = seekListScanner.nextLine();
+					if(!line.isEmpty()){
+						String token = line.substring(0, line.indexOf(SeekListWriter.SEPARATOR));
+						if(token.startsWith(prefix)) {
+							seekListLines.add(line);
+						}
+					}
+				}
+			}
+		}
+
+		HashMap<Integer, List<Integer>> documents = new HashMap<Integer, List<Integer>>();
+		for(String seekListLine: seekListLines) {
+			long offset = Long.parseLong(seekListLine.substring(seekListLine.indexOf(SeekListWriter.SEPARATOR) + 1));
+			try(RandomAccessFile indexReader = new RandomAccessFile(this.indexFile, "r")) {
+				indexReader.seek(offset);
+				String line = indexReader.readLine();
+				if(this.compressed) {
+					for(Map.Entry<Integer, List<Integer>> entry: this.processCompressedLine(line, prefix, true).entrySet()) {
+						if(documents.containsKey(entry.getKey())) {
+							documents.get(entry.getKey()).addAll(entry.getValue());
+						}
+						else {
+							documents.put(entry.getKey(), entry.getValue());
+						}
+					}
+				}
+				else {
+					for(Map.Entry<Integer, List<Integer>> entry: this.processLine(line, prefix, true).entrySet()) {
+						if(documents.containsKey(entry.getKey())) {
+							documents.get(entry.getKey()).addAll(entry.getValue());
+						}
+						else {
+							documents.put(entry.getKey(), entry.getValue());
+						}
+					}
+				}
+			}
+		}
+		
+		return documents;
+	}
+	
+	private HashMap<Integer, List<Integer>> searchIndexWithoutPrefix(String queryToken) throws FileNotFoundException, IOException, XMLStreamException {
+		Pair<Long, Long> indexOffsets = this.getIndexOffsets(queryToken);
+		Long startOffset = indexOffsets.getValue0();
+		Long endOffset = indexOffsets.getValue1();
+		
+		String seekListLine = null;
+		if(this.compressed){			
 			if(indexOffsets != null) {
 				try (RandomAccessFile indexFileReader = new RandomAccessFile(this.seekListFile, "r")) {
 					// Correct end offset, if necessary ('null' means, read file to end)
@@ -155,18 +339,22 @@ public class AwesomeQueryProcessor {
 				}
 			}
 		}
-		
-		long offset = Long.parseLong(seekListLine.substring(seekListLine.indexOf(SeekListWriter.SEPARATOR) + 1));
-		try(RandomAccessFile indexReader = new RandomAccessFile(this.indexFile, "r")) {
-			indexReader.seek(offset);
-			String line = indexReader.readLine();
-			if(this.compressed){
-				return processCompressedLine(line, queryToken);
+
+		if(seekListLine != null) {
+			long offset = Long.parseLong(seekListLine.substring(seekListLine.indexOf(SeekListWriter.SEPARATOR) + 1));
+			try(RandomAccessFile indexReader = new RandomAccessFile(this.indexFile, "r")) {
+				indexReader.seek(offset);
+				String line = indexReader.readLine();
+				if(this.compressed) {
+					return this.processCompressedLine(line, queryToken, true);
+				}
+				else {
+					return this.processLine(line, queryToken, true);
+				}
 			}
-			else {
-				return processLine(line, queryToken);
-			}	
 		}
+		
+		return new HashMap<Integer, List<Integer>>();
 	}
 	
 	// Gets start and end offset for the part of the index file, which could contain the token using the seek list. 
@@ -201,7 +389,7 @@ public class AwesomeQueryProcessor {
 	}
 	
 	// Extracts the titles of documents identified by its IDs.
-	private ArrayList<String> getDocumentTitles(Integer[] documentIds) throws FileNotFoundException, XMLStreamException {		
+	private ArrayList<String> getDocumentTitles(Set<Integer> documentIds) throws FileNotFoundException, XMLStreamException {		
 		// Construct a inverted document map for the documents searched-for, which maps each document file to a list of document IDs contained in it.
 		HashMap<String, List<Integer>> invertedDocumentMap = new HashMap<String, List<Integer>>();
 		for(Integer documentId: documentIds) {
@@ -232,54 +420,71 @@ public class AwesomeQueryProcessor {
 		return titles;
 	}
 	
-	private ArrayList<String> processLine(String line, String queryToken) throws FileNotFoundException, XMLStreamException{
+	private HashMap<Integer, List<Integer>> processLine(String line, String queryToken, boolean prefixSearch) throws FileNotFoundException, XMLStreamException{
 		
 		// Extract token from complete entry
 		int index = line.indexOf(IndexWriter.TOKEN_POSTINGS_SEPARATOR);
 		String token = line.substring(0, index);
 		
 		// If read token matches query token, get and return list of titles for the corresponding document IDs
-		if(token.equals(queryToken)) {
+		if((!prefixSearch && token.equals(queryToken)) || (prefixSearch && token.startsWith(queryToken))) {
 			// Extract distinct document IDs from serialized posting lists
 			String serializedPostingList = line.substring(index + 1);
 			String[] serializedPostings = serializedPostingList.split(IndexWriter.POSTINGS_SEPARATOR);
-			Integer[] documentIds = Arrays.stream(serializedPostings)
-									.map(x -> Integer.parseInt(x.substring(1, x.indexOf(IndexWriter.POSTING_ENTRIES_SEPARATOR))))
-									.distinct()
-									.toArray(Integer[]::new);
+			HashMap<Integer, List<Integer>> documents = new HashMap<Integer, List<Integer>>();
+			for(String serializedPosting: serializedPostings) {
+				int separatorIndex = serializedPosting.indexOf(IndexWriter.POSTING_ENTRIES_SEPARATOR);
+				int documentId = Integer.parseInt(serializedPosting.substring(1, separatorIndex));
+				int offset = Integer.parseInt(serializedPosting.substring(separatorIndex + 1, serializedPosting.length() - 1));
+				if(documents.containsKey(documentId)) {
+					documents.get(documentId).add(offset);
+				}
+				else {
+					List<Integer> offsets = new ArrayList<Integer>();
+					offsets.add(offset);
+					documents.put(documentId, offsets);
+				}
+			}
 			
-			// Return titles for the corresponding document IDs
-			return this.getDocumentTitles(documentIds);
+			return documents;
 		}
 		
-		return new ArrayList<String>();
+		return new HashMap<Integer, List<Integer>>();
 	}
 	
-	private ArrayList<String> processCompressedLine(String line, String queryToken) throws FileNotFoundException, XMLStreamException{
+	private HashMap<Integer, List<Integer>> processCompressedLine(String line, String queryToken, boolean prefixSearch) throws FileNotFoundException, XMLStreamException{
 		
 		// Extract token from complete entry
 		int index = line.indexOf(IndexWriter.TOKEN_POSTINGS_SEPARATOR);
 		String token = line.substring(0, index);
 		
 		// If read token matches query token, get and return list of titles for the corresponding document IDs
-		if(token.equals(queryToken)) {
+		if((!prefixSearch && token.equals(queryToken)) || (prefixSearch && token.startsWith(queryToken))) {
 			// Extract distinct document IDs from serialized posting lists
 			String serializedPostingList = line.substring(index + 1);
 			String[] serializedPostings = serializedPostingList.split(IndexWriter.POSTINGS_SEPARATOR);
 			int lastDocId = 0;
-			ArrayList<Integer> documentIds = new ArrayList<Integer>();
-			
+			HashMap<Integer, List<Integer>> documents = new HashMap<Integer, List<Integer>>();
 			for(int i = 0; i < serializedPostings.length; i++){
-				Integer documentId = Integer.parseInt(serializedPostings[i].substring(1, serializedPostings[i].indexOf(",["))) + lastDocId;
+				int separatorPos = serializedPostings[i].indexOf(",[");
+				Integer documentId = Integer.parseInt(serializedPostings[i].substring(1, separatorPos)) + lastDocId;
 				lastDocId = documentId;
+
+				String[] serializedOffsets = serializedPostings[i].substring(separatorPos + 2, serializedPostings[i].length() - 2).split(IndexWriter.POSTING_ENTRIES_SEPARATOR);
+				List<Integer> offsets = new ArrayList<Integer>();
+				int lastOffset = 0;
+				for(String serializedOffset: serializedOffsets) {
+					int offset = Integer.parseInt(serializedOffset) + lastOffset;
+					lastOffset = offset;
+					offsets.add(offset);
+				}
 				
-				documentIds.add(documentId);
+				documents.put(documentId, offsets);
 			}
 			
-			// Return titles for the corresponding document IDs
-			return this.getDocumentTitles(documentIds.toArray(new Integer[documentIds.size()]));			 
+			return documents;		 
 		}
 		
-		return new ArrayList<String>();
+		return new HashMap<Integer, List<Integer>>();
 	}
 }
