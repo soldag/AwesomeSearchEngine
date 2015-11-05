@@ -182,8 +182,11 @@ public class AwesomeQueryProcessor {
 			boolean prefixSearch =  queryToken.endsWith("*");
 			HashMap<Integer, List<Integer>> currentResult;
 			if(!prefixSearch) {
-				Pair<String, Integer> stemmedTokens = this.textProcessor.getTokens(queryToken).get(0);
-				queryToken = stemmedTokens.getValue0();
+				List<Pair<String, Integer>> stemmedTokens = this.textProcessor.getTokens(queryToken);
+				if(stemmedTokens.size() == 0) {
+					continue;
+				}
+				queryToken = stemmedTokens.get(0).getValue0();
 				currentResult = this.searchIndexWithoutPrefix(queryToken);
 			}
 			else {
