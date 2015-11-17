@@ -1,4 +1,4 @@
-package parsers;
+package parsing;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -13,13 +13,17 @@ import javax.xml.stream.events.Characters;
 import javax.xml.stream.events.StartElement;
 import javax.xml.stream.events.XMLEvent;
 
-public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
+import SearchEngine.PatentAbstractDocument;
+
+public class PatentDocumentParser implements Iterator<PatentAbstractDocument>, Iterable<PatentAbstractDocument>, AutoCloseable {
 	
 	/**
-	 * XPaths constants for XML elements containing the document ID and abstract of a patent.
+	 * XPaths constants for XML elements containing the document ID, title and abstract of a patent.
 	 */
-	protected static final String PATENT_PATH = "my-root/us-patent-grant";
-	protected static final String DOCUMENT_ID_PATH = PATENT_PATH + "/us-bibliographic-data-grant/publication-reference/document-id/doc-number";
+	private static final String PATENT_PATH = "my-root/us-patent-grant";
+	private static final String DOCUMENT_ID_PATH = PATENT_PATH + "/us-bibliographic-data-grant/publication-reference/document-id/doc-number";
+	private static final String TITLE_PATH = PATENT_PATH + "/us-bibliographic-data-grant/invention-title";
+	private static final String ABSTRACT_PATH = PATENT_PATH + "/abstract";
 	
 	/**
 	 * Contains the underlying XML parser.
@@ -36,71 +40,59 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 	 */
 	private String currentPath = "";
 	
-	/**
-	 * Contains the id of the currently processing patent.
-	 */
-	private Integer currentDocumentId = null;
-	
 	
 	/**
 	 * Creates a new instance.
 	 * @param inputStream
 	 * @throws XMLStreamException
 	 */
-	public PatentParser(InputStream inputStream) throws XMLStreamException {
+	public PatentDocumentParser(InputStream inputStream) throws XMLStreamException {
 		XMLInputFactory xmlFactory = XMLInputFactory.newInstance();
 		this.xmlParser = xmlFactory.createXMLEventReader(inputStream);
 		this.skipToNextPatent();
 	}
+	
 	
 	/**
 	 * Creates a new instance.
 	 * @param reader
 	 * @throws XMLStreamException
 	 */
-	public PatentParser(Reader reader) throws XMLStreamException {
+	public PatentDocumentParser(Reader reader) throws XMLStreamException {
 		XMLInputFactory xmlFactory = XMLInputFactory.newInstance();
 		this.xmlParser = xmlFactory.createXMLEventReader(reader);
 		this.skipToNextPatent();	
 	}
 	
-	
-	/**
-	 * Gets the path of the currently processed XML element of the source file.
-	 * @return String
-	 */
-	protected String getCurrentPath() {
-		return this.currentPath;
-	}
-	
-	/**
-	 * Gets the id of the currently processing patent. 
-	 * @return Integer
-	 */
-	protected Integer getCurrentDocumentId() {
-		return this.currentDocumentId;
-	}
-	
 
-	/**
-	 * Returns true if the iteration has more elements.
-	 */
+	@Override
 	public boolean hasNext() {
 		return this.hasNext;
 	}
 
-	/**
-	 * Returns the next element in the iteration.
-	 */
-	public T next() {
-		T result = null;
+	@Override
+	public PatentAbstractDocument next() {
+		int documentId = -1;
+		String title = null;
+		StringBuilder abstractBuilder = new StringBuilder();
 		try {
 			while (this.xmlParser.hasNext())
 			{
 				XMLEvent event = this.nextXmlEvent();
-				
-				result = this.processEvent(event);
-				if(result != null) {
+				if(event.getEventType() == XMLStreamConstants.CHARACTERS) {
+					Characters characters = event.asCharacters();
+					if(this.currentPath.equals(DOCUMENT_ID_PATH)) {
+						documentId = Integer.parseInt(characters.toString());
+					}
+					else if(this.currentPath.equals(TITLE_PATH)) {
+						title = characters.toString();
+					}
+					else if(this.currentPath.startsWith(ABSTRACT_PATH)) {
+						abstractBuilder.append(characters.toString());
+					}
+				}
+				else if(event.getEventType() == XMLStreamConstants.END_ELEMENT && this.currentPath.equals(ABSTRACT_PATH)) {
+					// All necessary information have been read.
 					break;
 				}
 			}
@@ -114,15 +106,8 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 			this.hasNext = false;
 		}
 		
-		return result;
+		return new PatentAbstractDocument(documentId, title, abstractBuilder.toString());
 	}
-	
-	/**
-	 * Processes each XML event. Has to be implemented by inherited class.
-	 * @param event
-	 * @return Element of type T, if wanted information are extracted from document yet and can be returned. Null, if next event has to be processed.
-	 */
-	protected abstract T processEvent(XMLEvent event);
 	
 	/**
 	 * Skips position of the XML parser to the start of the next patent element and updates hasNext-field.
@@ -135,7 +120,6 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 			XMLEvent event = this.nextXmlEvent();
 			
 			if(this.currentPath.equals(PATENT_PATH) && event.getEventType() == XMLStreamConstants.START_ELEMENT) {
-				this.currentDocumentId = null;
 				return this.hasNext = true;
 			}
 		}
@@ -148,10 +132,9 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 	 * @returns XMLEvent
 	 * @throws XMLStreamException
 	 */
-	protected XMLEvent nextXmlEvent() throws XMLStreamException {
+	private XMLEvent nextXmlEvent() throws XMLStreamException {
 		XMLEvent event = this.xmlParser.nextEvent();
 		this.updatePath(event);
-		this.updateDocumentId(event);
 		
 		return event;
 	}
@@ -183,16 +166,10 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 	    	}
 		}
 	}
-	
-	
-	/**
-	 * Updates document ID. Has to be called for each XML event.
-	 */
-	private void updateDocumentId(XMLEvent event) {
-		if(event.getEventType() == XMLStreamConstants.CHARACTERS && this.currentPath.equals(DOCUMENT_ID_PATH)) {
-			Characters characters = event.asCharacters();
-			this.currentDocumentId = Integer.parseInt(characters.toString());
-		}
+
+	@Override
+	public Iterator<PatentAbstractDocument> iterator() {
+		return this;
 	}
 	
 	
@@ -201,18 +178,9 @@ public abstract class PatentParser<T> implements Iterator<T>, Iterable<T> {
 	 */
 	public void close() {
 		this.currentPath = null;
-		this.currentDocumentId = null;
 		
 		try {
 			this.xmlParser.close();
 		} catch (XMLStreamException e) { }
-	}
-
-	@Override
-	/**
-	 * Returns an iterator over a set of elements of type T.
-	 */
-	public Iterator<T> iterator() {
-		return this;
 	}
 }

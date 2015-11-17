@@ -19,139 +19,191 @@ import java.io.File;
 import java.io.FileNotFoundException;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
-import javax.xml.stream.XMLStreamException;
 
-import indexer.AwesomeIndexer;
-import querying.AwesomeQueryProcessor;
-import textprocessing.AwesomeTextProcessor;
+import org.apache.commons.io.FilenameUtils;
 
-public class AwesomeSearchEngine extends SearchEngine { 
+import indexing.DocumentIndexer;
+import querying.QueryProcessor;
+import textprocessing.TextPreprocessor;
+
+public class AwesomeSearchEngine extends SearchEngine {
 	
-	// Constants for index file names
-	private static final String INDEX_FILE_NAME = "index";
-	private static final String SEEK_LIST_FILE_NAME = "seek_list";
-	private static final String SECONDARY_SEEK_LIST_Name = "secondary_seek_list";
-	private static final String DOCUMENT_MAP_FILE_NAME = "document_map";
-	
-	// Contain the paths to the index files
-	private File indexFile;
-	private File seekListFile;
-	private File secondarySeekListFile;
-	private File documentIndexFile;
+	/**
+	 * Contains the file extension for documents supported by this search engine. 
+	 */
+	private static final String DOCUMENT_FILE_EXTENSION = "xml";
 
-	// Contain instances of necessary services
-	private AwesomeTextProcessor textProcessor;
-	private AwesomeIndexer indexer;
-	private AwesomeQueryProcessor queryProcessor;
+	/**
+	 * Contain instances of necessary services.
+	 */
+	private TextPreprocessor textPreprocessor;
+	private DocumentIndexer documentIndexer;
+	private QueryProcessor queryProcessor;
 	
-	// Determines, whether web search was already initialized
-	// (necessary services are instantiated and initialized)
-	private Boolean isInitialized = false;
+	/**
+	 *  Contain the necessary index files.
+	 */
+	private final Path teamDirectoryPath = Paths.get(teamDirectory);
+	private final File indexFile = this.teamDirectoryPath.resolve("index.bin").toFile();
+	private final File indexSeekListFile = this.teamDirectoryPath.resolve("index_seek_list.bin").toFile();
+	private final File documentMapFile = this.teamDirectoryPath.resolve("document_map.bin").toFile();
+	private final File documentMapSeekListFile = this.teamDirectoryPath.resolve("document_map_seek_list.bin").toFile();
+	private final File stopWordsFile = this.teamDirectoryPath.resolve("stop_words.txt").toFile();
     
+	
+	/**
+	 * Creates a new AwesomeSearchEngine instance.
+	 */
     public AwesomeSearchEngine() { 
         // This should stay as is! Don't add anything here!
         super();
     }
     
-    public void initalize(boolean compressed) {
-    	// Setup paths
-    	Path indexDirectory = Paths.get(teamDirectory);
-    	this.indexFile = indexDirectory.resolve(INDEX_FILE_NAME).toFile();
-    	this.seekListFile = indexDirectory.resolve(SEEK_LIST_FILE_NAME).toFile();
-    	this.secondarySeekListFile = indexDirectory.resolve(SECONDARY_SEEK_LIST_Name).toFile();
-    	this.documentIndexFile = indexDirectory.resolve(DOCUMENT_MAP_FILE_NAME).toFile();
+    /**
+     * Returns the current text processor. 
+     * @return
+     */
+    private TextPreprocessor getTextPreprocessor() {
+    	if(this.textPreprocessor == null) {
+    		this.textPreprocessor = new TextPreprocessor();
+    		try {
+				this.textPreprocessor.loadStopWords(stopWordsFile);
+			} catch (IOException e) {
+	        	System.err.println("Stop words could not be loaded!");
+			}
+    	}
     	
-    	// Instantiate necessary services
-        this.textProcessor = new AwesomeTextProcessor();
-        this.indexer = new AwesomeIndexer(this.textProcessor, indexDirectory, this.indexFile, this.seekListFile, this.secondarySeekListFile, this.documentIndexFile, compressed);
-        this.queryProcessor = new AwesomeQueryProcessor(this.textProcessor, this.indexFile, this.seekListFile, this.secondarySeekListFile, this.documentIndexFile, compressed);
-        
-        // Load stop words for text processing
-        try {
-        	this.textProcessor.loadStopWords();
-        }
-        catch(IOException e) {
-        	System.err.println("Stop words could not be loaded!");
-        }
-        
-        this.isInitialized = true;
+    	return this.textPreprocessor;
+    }
+    
+    /**
+     * Returns the current document indexer.
+     * @param compress
+     * @return
+     */
+    private DocumentIndexer getDocumentIndexer(boolean compress) {
+    	if(this.documentIndexer == null) {
+    		this.documentIndexer = new DocumentIndexer(
+    						this.getTextPreprocessor(), 
+    						this.indexFile, 
+    						this.indexSeekListFile, 
+    						this.documentMapFile, 
+    						this.documentMapSeekListFile, 
+    						compress);
+    	}
+    	
+    	return this.documentIndexer;
+    }
+    
+    /**
+     * Returns the current query processor.
+     * @param compress
+     * @return
+     */
+    private QueryProcessor getQueryProcessor(boolean compress) {
+    	if(this.queryProcessor == null) {
+    		try {
+				this.queryProcessor = new QueryProcessor(
+					this.getTextPreprocessor(), 
+					this.documentMapFile, 
+					this.documentMapSeekListFile, 
+					this.indexFile, 
+					this.indexSeekListFile,
+					compress);
+			} catch (FileNotFoundException e) {
+				System.err.println(e.getMessage());
+				System.exit(1);
+			}
+    	}
+    	
+    	return this.queryProcessor;
     }
 
     @Override
     void index(String directory) {
-    	if(!this.isInitialized) {
-    		this.initalize(false);
-    	}
-    	
-    	try {
-			this.indexer.indexDocument(directory + "/ipg050104.xml");
-		} catch (IOException|XMLStreamException e) {
-			e.printStackTrace();
-		}
+    	this.index(directory, false);
     }
 
     @Override
     boolean loadIndex(String directory) {
-    	if(!this.isInitialized) {
-    		this.initalize(false);
-    	}
-    	
-    	try {
-			queryProcessor.loadIndex();
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-			return false;
-		}
-        
-        return true;
+    	return this.loadIndex(false);
     }
     
     @Override
     void compressIndex(String directory) {
-    	if(!this.isInitialized) {
-    		this.initalize(true);
-    	}
-    	
-    	try {
-			this.indexer.indexDocument(directory + "/ipg050104.xml");
-		} catch (IOException|XMLStreamException e) {
-			e.printStackTrace();
-		}
+    	this.index(directory, true);
     }
 
     @Override
     boolean loadCompressedIndex(String directory) {
-    	if(!this.isInitialized) {
-    		this.initalize(true);
+    	return this.loadIndex(true);
+    }
+    
+    @Override
+    ArrayList<String> search(String query, int topK, int prf) {
+    	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
+	    	try {
+	    		List<PatentDocument> documents = this.queryProcessor.search(query, topK);
+				return new ArrayList<String>(documents.stream().map(x -> x.toString()).collect(Collectors.toList()));
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+    	}
+    	else {
+			System.err.println("Index has to be loaded first. ");
+		}
+    	
+		return new ArrayList<String>();
+    }
+    
+    /**
+     * Indexes all documents of a given directory. Argument compress determines, whether the index should be compressed.
+     * @param directory
+     * @param compress
+     */
+    private void index(String directory, boolean compress) {
+    	// Check, if given path exists and is a directory
+    	Path documentDirectory = Paths.get(directory);
+    	if(!documentDirectory.toFile().isDirectory()) {
+			System.err.println("Specified document directory is not a directory!");
+			System.exit(1);
     	}
     	
     	try {
-			queryProcessor.loadIndex();
-		} catch (FileNotFoundException e) {
+        	// Get xml files inside given directory
+    		String[] documentFiles = Files.walk(documentDirectory)
+    				.map(x -> x.toString())
+    				.filter(x -> FilenameUtils.isExtension(x, DOCUMENT_FILE_EXTENSION))
+    				.toArray(String[]::new);
+    		
+    		// Build index
+			this.getDocumentIndexer(compress).indexDocuments(documentFiles);
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+    }
+    
+    /**
+     * Loads the index from disk to memory.
+     * @param compress
+     * @return
+     */
+    private boolean loadIndex(boolean compress) {
+    	try {
+			this.getQueryProcessor(compress).load();
+		} catch (IOException e) {
 			e.printStackTrace();
 			return false;
 		}
         
         return true;
-    }
-    
-    @Override
-    ArrayList<String> search(String query, int topK, int prf) {
-    	if(!this.isInitialized) {
-    		System.out.println("Index has to be loaded first.");
-    		return null;
-    	}
-    	
-    	try {
-			return this.queryProcessor.search(query);
-		} catch (IOException|XMLStreamException e) {
-			e.printStackTrace();
-		}
-        
-        return null;
     }
 }
