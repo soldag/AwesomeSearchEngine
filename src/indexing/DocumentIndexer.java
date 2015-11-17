@@ -81,16 +81,16 @@ public class DocumentIndexer {
 	
 	/**
 	 * Indexes the given XML documents. Old index files are overwritten.
-	 * @param documentsPath
+	 * @param documentPaths
 	 * @throws IOException
 	 */
-	public void indexDocuments(String[] documentsPath) throws IOException {
+	public void indexDocuments(String[] documentPaths) throws IOException {
 		// Delete existing indexes
 		this.deleteIndexFiles();
 
 		// Parse and index documents
 		try(DocumentMapConstructor documentMapConstructor = new DocumentMapConstructor(this.documentMapFile, new DocumentMapSeekList())) {
-			for(String documentPath: documentsPath) {
+			for(String documentPath: documentPaths) {
 				try {
 					this.indexSingleDocument(documentPath, documentMapConstructor);
 				} catch (XMLStreamException e) {
