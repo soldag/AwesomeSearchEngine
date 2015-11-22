@@ -118,13 +118,16 @@ public class QueryProcessor {
 	 * @return List of patent documents
 	 * @throws IOException
 	 */
-	public List<PatentDocument> search(String query, int topK) throws IOException {
+	public List<PatentDocument> search(String query, int topK, int prf) throws IOException {
 		String mode = "";
 		List<String> tokens = this.textPreprocessor.tokenize(query, true);
 		String booleanOperator = this.getBooleanOperator(tokens);
 		if(booleanOperator != null) {
 			tokens.remove(booleanOperator);
 			mode = booleanOperator.toUpperCase();
+		}
+		else if(query.startsWith("\'") && query.endsWith("\'")) {
+			mode = "PHRASE";
 		}
 		
 		tokens = this.textPreprocessor.removeStopWords(tokens);
@@ -139,8 +142,11 @@ public class QueryProcessor {
 			case "NOT":
 				return this.searchNot(tokens);
 				
-			default:
+			case "PHRASE":
 				return this.searchPhrase(tokens, topK);
+				
+			default:
+				return this.searchDefault(tokens, topK, prf);
 		}
 	}
 	
@@ -213,10 +219,24 @@ public class QueryProcessor {
 	private List<PatentDocument> searchPhrase(List<String> tokens, int topK) throws IOException {
 		List<Posting> postings = null;
 		Map<String, Integer> collectionFrequencies = new HashMap<String, Integer>();
+		Map<String, Map<Integer, Integer>> documentFrequencies = new HashMap<String, Map<Integer, Integer>>();
 		for(int i = 0; i < tokens.size(); i++) {
 			String token = tokens.get(i);
 
 			List<Posting> resultPostings = this.searchToken(token);
+			for(Posting posting: resultPostings) {
+				int documentID = posting.getDocumentId();
+				int positionsCount = posting.getPositions().length;
+				if(!documentFrequencies.containsKey(token)) {
+					documentFrequencies.put(token, new HashMap<Integer, Integer>());
+				}
+				if(documentFrequencies.get(token).containsKey(documentID)) {
+					documentFrequencies.get(token).put(documentID, documentFrequencies.get(token).get(documentID) + positionsCount);
+				}
+				else {
+					documentFrequencies.get(token).put(documentID, positionsCount);
+				}
+			}
 			collectionFrequencies.put(token, resultPostings.stream().mapToInt(x -> x.getPositions().length).sum());
 			
 			if(postings == null) {
@@ -230,7 +250,64 @@ public class QueryProcessor {
 		}
 		
 		// Weight documents
-		List<PatentDocument> result = this.weightResult(postings, tokens, collectionFrequencies, topK);
+		List<Integer> documentIDs = postings.stream().map(x -> x.getDocumentId()).collect(Collectors.toList());
+		List<PatentDocument> result = this.weightResult(documentIDs, documentFrequencies, collectionFrequencies, topK);
+		
+		return result;
+	}
+	
+	/**
+	 * TODO: add comment
+	 * @param tokens
+	 * @param topK
+	 * @param prf
+	 * @return
+	 * @throws IOException 
+	 */
+	private List<PatentDocument> searchDefault(List<String> tokens, int topK, int prf) throws IOException {
+		List<PatentDocument> result = this.simpleSearch(tokens, topK);
+		
+		if(prf > 0) {
+			List<String> additionalTerms = result.stream()
+											.limit(prf)
+											.flatMap(x -> x.getMostFrequentTerms().stream())
+											.collect(Collectors.toList());
+			tokens.addAll(additionalTerms);
+			tokens = tokens.stream().distinct().collect(Collectors.toList());
+			result = this.simpleSearch(tokens, topK);
+		}
+		
+		return result;
+	}
+	
+	private List<PatentDocument> simpleSearch(List<String> tokens, int topK) throws IOException {
+		List<Integer> documentIDs = new ArrayList<Integer>();
+		Map<String, Integer> collectionFrequencies = new HashMap<String, Integer>();
+		Map<String, Map<Integer, Integer>> documentFrequencies = new HashMap<String, Map<Integer, Integer>>();
+		for(int i = 0; i < tokens.size(); i++) {
+			String token = tokens.get(i);
+
+			List<Posting> resultPostings = this.searchToken(token);
+			for(Posting posting: resultPostings) {
+				int documentID = posting.getDocumentId();
+				int positionsCount = posting.getPositions().length;
+				if(!documentFrequencies.containsKey(token)) {
+					documentFrequencies.put(token, new HashMap<Integer, Integer>());
+				}
+				if(documentFrequencies.get(token).containsKey(documentID)) {
+					documentFrequencies.get(token).put(documentID, documentFrequencies.get(token).get(documentID) + positionsCount);
+				}
+				else {
+					documentFrequencies.get(token).put(documentID, positionsCount);
+				}
+			}
+			collectionFrequencies.put(token, resultPostings.stream().mapToInt(x -> x.getPositions().length).sum());
+			documentIDs.addAll(resultPostings.stream().map(x -> x.getDocumentId()).collect(Collectors.toList()));
+		}
+		documentIDs = documentIDs.stream().distinct().collect(Collectors.toList());
+		
+		// Weight documents
+		List<PatentDocument> result = this.weightResult(documentIDs, documentFrequencies, collectionFrequencies, topK);
 		
 		return result;
 	}
@@ -260,14 +337,14 @@ public class QueryProcessor {
 	 * @return List of ranked patent documents limited to topK.
 	 * @throws IOException
 	 */
-	private List<PatentDocument> weightResult(List<Posting> postings, List<String> tokens, Map<String, Integer> collectionFrequencies, int topK) throws IOException {
+	private List<PatentDocument> weightResult(List<Integer> documentIDs, Map<String, Map<Integer, Integer>> documentFrequencies, Map<String, Integer> collectionFrequencies, int topK) throws IOException {
 		HashMap<PatentDocument, Double> weightedDocuments = new HashMap<PatentDocument, Double>();
-		for(Posting posting: postings) {
-			PatentDocument document = this.getDocument(posting.getDocumentId());
+		for(Integer documentID: documentIDs) {
+			PatentDocument document = this.getDocument(documentID);
 			if(document != null) {
-				double weight = Math.log(tokens.stream()
+				double weight = Math.log(documentFrequencies.keySet().stream()
 										.mapToDouble(x -> this.queryLikelihood(
-																posting.getPositions().length, 
+																documentFrequencies.get(x).containsKey(documentID) ? documentFrequencies.get(x).get(documentID) : 0, 
 																document.getTokensCount(), 
 																collectionFrequencies.get(x), 
 																this.indexReader.getTotalTokenCount()))
@@ -278,7 +355,7 @@ public class QueryProcessor {
 		
 		// Sort result by weight descending and limit results by topK
 		return weightedDocuments.entrySet().stream()
-				.sorted(Collections.reverseOrder(new MapValueComparator()))
+				.sorted(Collections.reverseOrder(new MapValueComparator<PatentDocument, Double>()))
 				.limit(topK)
 				.map(x -> x.getKey())
 				.collect(Collectors.toList());

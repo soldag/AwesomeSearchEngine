@@ -1,13 +1,17 @@
 package indexing;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import javax.xml.stream.XMLStreamException;
 
 import SearchEngine.PatentAbstractDocument;
 import SearchEngine.Posting;
 import parsing.PatentDocumentParser;
+import querying.MapValueComparator;
 import textprocessing.TextPreprocessor;
 
 import java.io.File;
@@ -28,6 +32,11 @@ public class DocumentIndexer {
 	 */
 	private static final String TEMP_INDEX_PREFIX = "awse_index_%d";
 
+	/**
+	 * TODO: add comment
+	 */
+	private static final int MOST_FREQUENT_TERMS_NUMBER = 5;
+	
 	/**
 	 * Contains text preprocessor instance.
 	 */
@@ -56,6 +65,10 @@ public class DocumentIndexer {
 	 */
 	private List<File> temporaryIndexFiles = new ArrayList<File>();
 	
+	/**
+	 * TODO: add comment
+	 */
+	private TreeMap<String, Integer> tokensPerDocument = new TreeMap<String, Integer>();
 	
 	/**
 	 * Creates a new DocumentIndexer instance.
@@ -134,9 +147,19 @@ public class DocumentIndexer {
 					this.addToken(document, tokens.get(i), i);
 				}
 				
+				// Count the most frequent terms per document
+				List<String> mostFrequentTerms = tokensPerDocument.entrySet().stream()
+						.sorted(Collections.reverseOrder(new MapValueComparator<String, Integer>()))
+						.limit(MOST_FREQUENT_TERMS_NUMBER)
+						.map(x -> x.getKey())
+						.collect(Collectors.toList());
+				
 				// Add to document map
 	    		document.setTokensCount(tokens.size());
+	    		document.setMostFrequentTerms(mostFrequentTerms);
 				documentMapConstructor.add(document);
+				
+				tokensPerDocument.clear();
 			}
 		}
 	}
@@ -165,6 +188,13 @@ public class DocumentIndexer {
 			System.gc();
 			System.runFinalization();
 		}
+		
+		if(tokensPerDocument.containsKey(token)){
+			tokensPerDocument.put(token, tokensPerDocument.get(token) + 1);
+		}
+		else {
+			tokensPerDocument.put(token, 1);
+		}		
 	}	
 	
 	/**

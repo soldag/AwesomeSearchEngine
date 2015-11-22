@@ -150,7 +150,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     ArrayList<String> search(String query, int topK, int prf) {
     	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
 	    	try {
-	    		List<PatentDocument> documents = this.queryProcessor.search(query, topK);
+	    		List<PatentDocument> documents = this.queryProcessor.search(query, topK, prf);
 				return new ArrayList<String>(documents.stream().map(x -> x.toString()).collect(Collectors.toList()));
 			} catch (IOException e) {
 				e.printStackTrace();

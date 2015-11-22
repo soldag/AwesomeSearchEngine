@@ -2,6 +2,10 @@ package SearchEngine;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.commons.lang3.ArrayUtils;
 
 public class PatentDocument {
 	
@@ -25,6 +29,10 @@ public class PatentDocument {
 	 */
 	private final String title;
 	
+	/**
+	 * TODO: add comment
+	 */
+	private List<String> mostFrequentTerms;
 	
 	/**
 	 * Creates a new PatentDocument instance.
@@ -76,6 +84,20 @@ public class PatentDocument {
 	}
 	
 	/**
+	 * TODO: add comment
+	 */
+	public List<String> getMostFrequentTerms() {
+		return this.mostFrequentTerms;
+	}
+	
+	/**
+	 * TODO: add comment
+	 */
+	public void setMostFrequentTerms(List<String> mostFrequentTerms) {
+		this.mostFrequentTerms = mostFrequentTerms;
+	}
+	
+	/**
 	 * Creates a new PatentDocument instance by deserializing given byte array representing the whole document.
 	 * @param patentDocumentBytes
 	 * @return PatentDocument
@@ -111,7 +133,20 @@ public class PatentDocument {
 		buffer.get(titleBytes);
 		String title = new String(titleBytes, ENCODING);
 		
-		return new PatentDocument(id, tokensCount, title);
+		// Read most frequent terms
+		int mostFrequentTermsCount = buffer.getInt();
+		List<String> mostFrequentTerms = new ArrayList<String>();
+		for(int i = 0; i < mostFrequentTermsCount; i++){
+			int termLength = buffer.getInt();
+			byte[] termBytes = new byte[termLength];
+			buffer.get(termBytes);
+			String term = new String(termBytes, ENCODING);
+			mostFrequentTerms.add(term);
+		}
+		PatentDocument document = new PatentDocument(id, tokensCount, title);
+		document.setMostFrequentTerms(mostFrequentTerms);
+		
+		return document;
 	}
 	
 	/**
@@ -120,9 +155,15 @@ public class PatentDocument {
 	 * @throws UnsupportedEncodingException
 	 */
 	public byte[] toBytes() throws UnsupportedEncodingException {
+		List<Byte[]> termsBytes = new ArrayList<Byte[]>();
+		for(String term: mostFrequentTerms) {
+			termsBytes.add(ArrayUtils.toObject(term.getBytes(ENCODING)));
+		}
+		
 		// Calculate capacity of buffer
 		byte[] titleBytes = this.getTitle().getBytes(ENCODING);
-		int propertiesLength = 2 * Integer.BYTES + titleBytes.length; // Tokens count + title length + title bytes
+		int mostFrequentTermLength = termsBytes.stream().mapToInt(x -> x.length).sum() + termsBytes.size()*Integer.BYTES + Integer.BYTES;
+		int propertiesLength = 2 * Integer.BYTES + titleBytes.length + mostFrequentTermLength; // Tokens count + title length + title bytes + most frequent term entries
 		int capacity = 2 * Integer.BYTES + propertiesLength; // Document id + properties length (skip pointer) + properties bytes
 		ByteBuffer buffer = ByteBuffer.allocate(capacity);
 		
@@ -138,6 +179,13 @@ public class PatentDocument {
 		// Write title
 		buffer.putInt(titleBytes.length);
 		buffer.put(titleBytes);
+		
+		// Write mostFrequentTerms
+		buffer.putInt(mostFrequentTerms.size());
+		for(Byte[] term: termsBytes) {
+			buffer.putInt(term.length);
+			buffer.put(ArrayUtils.toPrimitive(term));
+		}
 		
 		return buffer.array();
 	}

@@ -33,8 +33,8 @@ public class SearchEngineTest {
         System.out.println("Loading Index Time: " + time + "ms");
         
         start = System.currentTimeMillis();
-        String query = "selection";
-        ArrayList<String> results = engine.search(query, 0, 0);
+        String query = "Mobile device";
+        ArrayList<String> results = engine.search(query, 10, 2);
         time = System.currentTimeMillis() - start;
         System.out.println("Search Time: " + time + "ms");
         
