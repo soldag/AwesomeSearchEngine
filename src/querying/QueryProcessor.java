@@ -32,6 +32,11 @@ public class QueryProcessor {
 	 */
 	private static final double QL_LAMBDA = 0.2;
 
+	/**
+	 * TODO: add comment
+	 */
+	private static final int ACCEPTED_LENGTH_DIFFERENCE = 2;
+	private static final int MAX_DISTANCE = 3;
 	
 	/**
 	 * Contains a text preprocessor instance.
@@ -62,6 +67,11 @@ public class QueryProcessor {
 	private boolean isReady = false;
 	
 	/**
+	 * TODO: add comment
+	 */
+	private DamerauLevenshteinAlgorithm damerauLevenshtein = null;
+	
+	/**
 	 * Creates a new QueryProcessor instance.
 	 * @param textProcessor
 	 * @param documentMapFile
@@ -82,6 +92,8 @@ public class QueryProcessor {
 		this.indexSeekListFile = indexSeekListFile;
 		this.indexSeekList = new InvertedIndexSeekList();		
 		this.compressed = compressed;
+		
+		this.damerauLevenshtein = new DamerauLevenshteinAlgorithm(1, 1, 1, 1);
 	}
 
 	
@@ -389,13 +401,64 @@ public class QueryProcessor {
 			}
 			
 			int startOffset = this.indexSeekList.getIndexOffset(token);
-			return this.indexReader.getPostings(token, startOffset, prefixSearch);
+			List<Posting> result = this.indexReader.getPostings(token, startOffset, prefixSearch);
+			
+			// spelling correction
+			if(result.isEmpty()) {
+				String correctedToken = correctToken(token); 
+				if(correctedToken != null) {
+					result = searchToken(correctedToken);
+					System.out.println("We changed your search word due to an error from " + token + " to " + correctedToken + "!");
+				}
+			}
+			return result;
 		}
 		catch(IOException e) {
 			return new ArrayList<Posting>();
 		}
 	}
 	
+	/**
+	 * TODO: add comment
+	 * @param token
+	 * @return
+	 * @throws IOException 
+	 */
+	private String correctToken(String misspelledToken) throws IOException {
+		String startCharacter = misspelledToken.substring(0,1);
+		int misspelledTokenLength = misspelledToken.length();
+		int minimumDistance = Integer.MAX_VALUE;
+		String minimumDistanceToken = null;
+		
+		int startOffset = this.indexSeekList.getIndexOffset(startCharacter);
+		Map<String, List<Posting>> tokens = this.indexReader.getTokens(startCharacter, startOffset);
+			
+		for(String token: tokens.keySet()){
+			if (Math.abs(token.length() - misspelledTokenLength) <= ACCEPTED_LENGTH_DIFFERENCE) {
+				int distance = this.damerauLevenshtein.execute(misspelledToken, token);
+				if(distance > MAX_DISTANCE) {
+					continue;
+				}
+				if(distance < minimumDistance) {
+					minimumDistance = distance;
+					minimumDistanceToken = token;
+				}
+				else if(distance == minimumDistance) {
+					int minimumTokenCount = tokens.get(minimumDistanceToken).stream().mapToInt(x -> x.getPositions().length).sum();
+					int tokenCount = tokens.get(token).stream().mapToInt(x -> x.getPositions().length).sum();
+					
+					if(tokenCount > minimumTokenCount) {
+						minimumDistance = distance;
+						minimumDistanceToken = token;
+					}
+				}
+			}
+		}
+		
+		return minimumDistanceToken;
+	}
+
+
 	/**
 	 * Extracts distinct document ids from a list of postings
 	 * @param postings

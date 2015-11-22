@@ -5,7 +5,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import SearchEngine.Posting;
 
@@ -88,6 +90,36 @@ public class InvertedIndexReader implements AutoCloseable {
 		
 		return postings;
 	}
+	
+	/**
+	 * TODO: add comment
+	 * @throws IOException 
+	 */
+	public Map<String, List<Posting>> getTokens(String startCharacter, int startOffset) throws IOException {
+		Map<String, List<Posting>> tokens = new HashMap<String, List<Posting>>();
+		this.indexFile.seek(startOffset);
+		while(true) {
+			try {
+				String readToken = Token.read(this.indexFile);
+				int postingsLength = this.indexFile.readInt();
+			
+				if(readToken.startsWith(startCharacter)) {
+					tokens.put(readToken, this.readPostings(postingsLength));
+					continue;
+				}
+				else if(readToken.length() > 0 && readToken.substring(0, 1).compareTo(startCharacter) > 0){
+					break;
+				}
+				
+				this.indexFile.seek(this.indexFile.getFilePointer() + postingsLength);
+			}
+			catch(EOFException e) {
+				break;
+			}
+		}
+		
+		return tokens;
+	}
 
 	/**
 	 * Reads a posting from the current index file.
@@ -107,5 +139,5 @@ public class InvertedIndexReader implements AutoCloseable {
 	 */
 	public void close() throws IOException {
 		this.indexFile.close();
-	}
+	}	
 }
