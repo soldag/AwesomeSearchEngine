@@ -1,4 +1,4 @@
-package querying;
+package utilities;
 
 import java.util.Comparator;
 import java.util.Map;
@@ -10,5 +10,4 @@ public class MapValueComparator<T1, T2 extends Comparable<T2>> implements Compar
 	public int compare(Entry<T1, T2> entry1, Entry<T1, T2> entry2) {
 		return entry1.getValue().compareTo(entry2.getValue());
 	}
-
 }

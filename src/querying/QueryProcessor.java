@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,20 +27,12 @@ public class QueryProcessor {
 	private static final List<String> BOOLEAN_OPERATORS = Arrays.asList("AND", "OR", "NOT");
 	
 	/**
-	 * Contains the lambda factor for jelinek-mercer smoothing.
-	 */
-	private static final double QL_LAMBDA = 0.2;
-
-	/**
-	 * TODO: add comment
-	 */
-	private static final int ACCEPTED_LENGTH_DIFFERENCE = 2;
-	private static final int MAX_DISTANCE = 3;
-	
-	/**
-	 * Contains a text preprocessor instance.
+	 * Contains necessary services.
 	 */
 	private TextPreprocessor textPreprocessor;
+	private DocumentRanker documentRanker;
+	private DamerauLevenshteinCalculator damerauLevenshtein;
+	private SpellingCorrector spellingCorrector;
 	
 	/**
 	 * Contain necessary index files and reader services.
@@ -67,13 +58,10 @@ public class QueryProcessor {
 	private boolean isReady = false;
 	
 	/**
-	 * TODO: add comment
-	 */
-	private DamerauLevenshteinAlgorithm damerauLevenshtein = null;
-	
-	/**
 	 * Creates a new QueryProcessor instance.
 	 * @param textProcessor
+	 * @param damerauLevenshtein
+	 * @param documentRanker
 	 * @param documentMapFile
 	 * @param documentMapSeekListFile
 	 * @param indexFile
@@ -81,8 +69,12 @@ public class QueryProcessor {
 	 * @param compressed
 	 * @throws FileNotFoundException
 	 */
-	public QueryProcessor(TextPreprocessor textProcessor, File documentMapFile, File documentMapSeekListFile, File indexFile, File indexSeekListFile, boolean compressed) throws FileNotFoundException {
+	public QueryProcessor(TextPreprocessor textProcessor, DamerauLevenshteinCalculator damerauLevenshtein, DocumentRanker documentRanker, 
+			File documentMapFile, File documentMapSeekListFile, File indexFile, File indexSeekListFile, 
+			boolean compressed) throws FileNotFoundException {
 		this.textPreprocessor = textProcessor;
+		this.damerauLevenshtein = damerauLevenshtein;
+		this.documentRanker = documentRanker;
 		
 		this.documentMapFile = documentMapFile;
 		this.documentMapSeekListFile = documentMapSeekListFile;
@@ -92,8 +84,6 @@ public class QueryProcessor {
 		this.indexSeekListFile = indexSeekListFile;
 		this.indexSeekList = new InvertedIndexSeekList();		
 		this.compressed = compressed;
-		
-		this.damerauLevenshtein = new DamerauLevenshteinAlgorithm(1, 1, 1, 1);
 	}
 
 	
@@ -119,6 +109,8 @@ public class QueryProcessor {
 		try(RandomAccessFile seekListReader = new RandomAccessFile(this.indexSeekListFile, "r")) {
 			this.indexSeekList.load(seekListReader);
 		}
+
+		this.spellingCorrector = new SpellingCorrector(this.damerauLevenshtein, this.indexReader, this.indexSeekList);
 		
 		this.isReady = true;
 	}
@@ -138,7 +130,7 @@ public class QueryProcessor {
 			tokens.remove(booleanOperator);
 			mode = booleanOperator.toUpperCase();
 		}
-		else if(query.startsWith("\'") && query.endsWith("\'")) {
+		else if(query.startsWith("'") && query.endsWith("'")) {
 			mode = "PHRASE";
 		}
 		
@@ -235,54 +227,56 @@ public class QueryProcessor {
 		for(int i = 0; i < tokens.size(); i++) {
 			String token = tokens.get(i);
 
-			List<Posting> resultPostings = this.searchToken(token);
-			for(Posting posting: resultPostings) {
-				int documentID = posting.getDocumentId();
+			List<Posting> newPostings = this.searchToken(token);
+			for(Posting posting: newPostings) {
+				int documentId = posting.getDocumentId();
 				int positionsCount = posting.getPositions().length;
 				if(!documentFrequencies.containsKey(token)) {
 					documentFrequencies.put(token, new HashMap<Integer, Integer>());
 				}
-				if(documentFrequencies.get(token).containsKey(documentID)) {
-					documentFrequencies.get(token).put(documentID, documentFrequencies.get(token).get(documentID) + positionsCount);
+				if(documentFrequencies.get(token).containsKey(documentId)) {
+					documentFrequencies.get(token).put(documentId, documentFrequencies.get(token).get(documentId) + positionsCount);
 				}
 				else {
-					documentFrequencies.get(token).put(documentID, positionsCount);
+					documentFrequencies.get(token).put(documentId, positionsCount);
 				}
 			}
-			collectionFrequencies.put(token, resultPostings.stream().mapToInt(x -> x.getPositions().length).sum());
+			collectionFrequencies.put(token, newPostings.stream().mapToInt(x -> x.getPositions().length).sum());
 			
 			if(postings == null) {
-				postings = resultPostings;
+				postings = newPostings;
 			}
 			else {
-				postings = postings.stream()
-						.filter(posting1 -> resultPostings.stream().anyMatch(posting2 -> this.areSuccessive(posting1, posting2)))
-						.collect(Collectors.toList());
+				List<Posting> oldPostings = postings;
+				postings = newPostings.stream()
+							.filter(newPosting -> oldPostings.stream().anyMatch(oldPosting -> this.areSuccessive(oldPosting, newPosting)))
+							.collect(Collectors.toList());
 			}
 		}
 		
 		// Weight documents
-		List<Integer> documentIDs = postings.stream().map(x -> x.getDocumentId()).collect(Collectors.toList());
-		List<PatentDocument> result = this.weightResult(documentIDs, documentFrequencies, collectionFrequencies, topK);
+		List<PatentDocument> result = this.getDocuments(postings.stream().map(x -> x.getDocumentId()).collect(Collectors.toList()));
+		result = this.documentRanker.weightResult(result, documentFrequencies, collectionFrequencies, this.indexReader.getTotalTokenCount(), topK);
 		
 		return result;
 	}
 	
 	/**
-	 * TODO: add comment
+	 * Searched "normally" for a given query. Results of query tokens are combined(disjunction) and weighted.
 	 * @param tokens
 	 * @param topK
 	 * @param prf
-	 * @return
+	 * @return List of patent documents.
 	 * @throws IOException 
 	 */
 	private List<PatentDocument> searchDefault(List<String> tokens, int topK, int prf) throws IOException {
 		List<PatentDocument> result = this.simpleSearch(tokens, topK);
 		
+		// Extend query by most frequent tokens of top documents (pseudo relevance)
 		if(prf > 0) {
 			List<String> additionalTerms = result.stream()
 											.limit(prf)
-											.flatMap(x -> x.getMostFrequentTerms().stream())
+											.flatMap(x -> x.getMostFrequentTokens().stream())
 											.collect(Collectors.toList());
 			tokens.addAll(additionalTerms);
 			tokens = tokens.stream().distinct().collect(Collectors.toList());
@@ -292,8 +286,15 @@ public class QueryProcessor {
 		return result;
 	}
 	
+	/**
+	 * Runs a simple search for a list of query tokens and weights the result.
+	 * @param tokens
+	 * @param topK
+	 * @return List of patent documents.
+	 * @throws IOException
+	 */
 	private List<PatentDocument> simpleSearch(List<String> tokens, int topK) throws IOException {
-		List<Integer> documentIDs = new ArrayList<Integer>();
+		List<Integer> documentIds = new ArrayList<Integer>();
 		Map<String, Integer> collectionFrequencies = new HashMap<String, Integer>();
 		Map<String, Map<Integer, Integer>> documentFrequencies = new HashMap<String, Map<Integer, Integer>>();
 		for(int i = 0; i < tokens.size(); i++) {
@@ -301,25 +302,28 @@ public class QueryProcessor {
 
 			List<Posting> resultPostings = this.searchToken(token);
 			for(Posting posting: resultPostings) {
-				int documentID = posting.getDocumentId();
+				int documentId = posting.getDocumentId();
 				int positionsCount = posting.getPositions().length;
 				if(!documentFrequencies.containsKey(token)) {
 					documentFrequencies.put(token, new HashMap<Integer, Integer>());
 				}
-				if(documentFrequencies.get(token).containsKey(documentID)) {
-					documentFrequencies.get(token).put(documentID, documentFrequencies.get(token).get(documentID) + positionsCount);
+				if(documentFrequencies.get(token).containsKey(documentId)) {
+					documentFrequencies.get(token).put(documentId, documentFrequencies.get(token).get(documentId) + positionsCount);
 				}
 				else {
-					documentFrequencies.get(token).put(documentID, positionsCount);
+					documentFrequencies.get(token).put(documentId, positionsCount);
 				}
 			}
 			collectionFrequencies.put(token, resultPostings.stream().mapToInt(x -> x.getPositions().length).sum());
-			documentIDs.addAll(resultPostings.stream().map(x -> x.getDocumentId()).collect(Collectors.toList()));
+			documentIds.addAll(resultPostings.stream().map(x -> x.getDocumentId()).collect(Collectors.toList()));
 		}
-		documentIDs = documentIDs.stream().distinct().collect(Collectors.toList());
+		
+		// Remove duplicates
+		documentIds = documentIds.stream().distinct().collect(Collectors.toList());
 		
 		// Weight documents
-		List<PatentDocument> result = this.weightResult(documentIDs, documentFrequencies, collectionFrequencies, topK);
+		List<PatentDocument> result = this.getDocuments(documentIds);
+		result = this.documentRanker.weightResult(result, documentFrequencies, collectionFrequencies, this.indexReader.getTotalTokenCount(), topK);
 		
 		return result;
 	}
@@ -341,51 +345,6 @@ public class QueryProcessor {
 	}
 	
 	/**
-	 * Weights a list of patent document for a given query using query-likelihood-model. Resulting list is limited to topK entries.
-	 * @param postings
-	 * @param tokens
-	 * @param collectionFrequencies
-	 * @param topK
-	 * @return List of ranked patent documents limited to topK.
-	 * @throws IOException
-	 */
-	private List<PatentDocument> weightResult(List<Integer> documentIDs, Map<String, Map<Integer, Integer>> documentFrequencies, Map<String, Integer> collectionFrequencies, int topK) throws IOException {
-		HashMap<PatentDocument, Double> weightedDocuments = new HashMap<PatentDocument, Double>();
-		for(Integer documentID: documentIDs) {
-			PatentDocument document = this.getDocument(documentID);
-			if(document != null) {
-				double weight = Math.log(documentFrequencies.keySet().stream()
-										.mapToDouble(x -> this.queryLikelihood(
-																documentFrequencies.get(x).containsKey(documentID) ? documentFrequencies.get(x).get(documentID) : 0, 
-																document.getTokensCount(), 
-																collectionFrequencies.get(x), 
-																this.indexReader.getTotalTokenCount()))
-										.reduce(1, (x,y) -> x*y));
-				weightedDocuments.put(document, weight);
-			}
-		}
-		
-		// Sort result by weight descending and limit results by topK
-		return weightedDocuments.entrySet().stream()
-				.sorted(Collections.reverseOrder(new MapValueComparator<PatentDocument, Double>()))
-				.limit(topK)
-				.map(x -> x.getKey())
-				.collect(Collectors.toList());
-	}
-	
-	/**
-	 * Calculates the query-likelihood-ranking for a specific token.
-	 * @param tokenDocumentFrequency
-	 * @param documentsLength
-	 * @param tokenCollectionFrequency
-	 * @param collectionLength
-	 * @return
-	 */
-	private double queryLikelihood(int tokenDocumentFrequency, int documentsLength, int tokenCollectionFrequency, int collectionLength) {
-		return (1 - QL_LAMBDA) * ((double)tokenDocumentFrequency / (double)documentsLength) + QL_LAMBDA * ((double)tokenCollectionFrequency / (double)collectionLength);
-	}
-	
-	/**
 	 * Gets all postings of a given token from index.
 	 * @param token
 	 * @return List of postings.
@@ -401,14 +360,14 @@ public class QueryProcessor {
 			}
 			
 			int startOffset = this.indexSeekList.getIndexOffset(token);
-			List<Posting> result = this.indexReader.getPostings(token, startOffset, prefixSearch);
+			List<Posting> result = this.indexReader.getPostingsList(token, startOffset, prefixSearch);
 			
-			// spelling correction
+			// Spelling correction
 			if(result.isEmpty()) {
-				String correctedToken = correctToken(token); 
+				String correctedToken = this.spellingCorrector.correctToken(token); 
 				if(correctedToken != null) {
 					result = searchToken(correctedToken);
-					System.out.println("We changed your search word due to an error from " + token + " to " + correctedToken + "!");
+					System.out.println("We changed your query term due to a (possibly) spelling error from " + token + " to " + correctedToken + "!");
 				}
 			}
 			return result;
@@ -416,46 +375,6 @@ public class QueryProcessor {
 		catch(IOException e) {
 			return new ArrayList<Posting>();
 		}
-	}
-	
-	/**
-	 * TODO: add comment
-	 * @param token
-	 * @return
-	 * @throws IOException 
-	 */
-	private String correctToken(String misspelledToken) throws IOException {
-		String startCharacter = misspelledToken.substring(0,1);
-		int misspelledTokenLength = misspelledToken.length();
-		int minimumDistance = Integer.MAX_VALUE;
-		String minimumDistanceToken = null;
-		
-		int startOffset = this.indexSeekList.getIndexOffset(startCharacter);
-		Map<String, List<Posting>> tokens = this.indexReader.getTokens(startCharacter, startOffset);
-			
-		for(String token: tokens.keySet()){
-			if (Math.abs(token.length() - misspelledTokenLength) <= ACCEPTED_LENGTH_DIFFERENCE) {
-				int distance = this.damerauLevenshtein.execute(misspelledToken, token);
-				if(distance > MAX_DISTANCE) {
-					continue;
-				}
-				if(distance < minimumDistance) {
-					minimumDistance = distance;
-					minimumDistanceToken = token;
-				}
-				else if(distance == minimumDistance) {
-					int minimumTokenCount = tokens.get(minimumDistanceToken).stream().mapToInt(x -> x.getPositions().length).sum();
-					int tokenCount = tokens.get(token).stream().mapToInt(x -> x.getPositions().length).sum();
-					
-					if(tokenCount > minimumTokenCount) {
-						minimumDistance = distance;
-						minimumDistanceToken = token;
-					}
-				}
-			}
-		}
-		
-		return minimumDistanceToken;
 	}
 
 

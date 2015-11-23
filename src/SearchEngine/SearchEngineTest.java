@@ -18,7 +18,7 @@ public class SearchEngineTest {
     
     public static void main(String args[]) throws Exception {
     	long start,time;
-    	String dataDirectory = "/Users/Henni/Documents/Studium/7. Semester/Information Retrieval & Web Search/Data";
+    	String dataDirectory = "/Users/soldag/Copy/Studium/Master/1. Semester/Information Retrieval & Web Search/Excercises/Data";
         SearchEngine engine = new AwesomeSearchEngine();
         
         start = System.currentTimeMillis();
@@ -34,7 +34,7 @@ public class SearchEngineTest {
         
         start = System.currentTimeMillis();
         String query = "commom";
-        ArrayList<String> results = engine.search(query, 10, 0);
+        ArrayList<String> results = engine.search(query, 10, 2);
         time = System.currentTimeMillis() - start;
         System.out.println("Search Time: " + time + "ms");
         

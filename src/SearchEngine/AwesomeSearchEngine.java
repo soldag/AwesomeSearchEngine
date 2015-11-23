@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.FilenameUtils;
 
 import indexing.DocumentIndexer;
+import querying.DamerauLevenshteinCalculator;
+import querying.DocumentRanker;
 import querying.QueryProcessor;
 import textprocessing.TextPreprocessor;
 
@@ -112,6 +114,8 @@ public class AwesomeSearchEngine extends SearchEngine {
     		try {
 				this.queryProcessor = new QueryProcessor(
 					this.getTextPreprocessor(), 
+					new DamerauLevenshteinCalculator(1, 1, 1, 1),
+					new DocumentRanker(),
 					this.documentMapFile, 
 					this.documentMapSeekListFile, 
 					this.indexFile, 

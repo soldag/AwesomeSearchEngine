@@ -58,7 +58,7 @@ import java.util.Map;
  * 
  * Source: https://github.com/KevinStern/software-and-algorithms/blob/master/src/main/java/blogspot/software_and_algorithms/stern_library/string/DamerauLevenshteinAlgorithm.java
  */
-public class DamerauLevenshteinAlgorithm {
+public class DamerauLevenshteinCalculator {
   private final int deleteCost, insertCost, replaceCost, swapCost;
 
   /**
@@ -73,7 +73,7 @@ public class DamerauLevenshteinAlgorithm {
    * @param swapCost
    *          the cost of swapping two adjacent characters.
    */
-  public DamerauLevenshteinAlgorithm(int deleteCost, int insertCost,
+  public DamerauLevenshteinCalculator(int deleteCost, int insertCost,
                                      int replaceCost, int swapCost) {
     /*
      * Required to facilitate the premise to the algorithm that two swaps of the

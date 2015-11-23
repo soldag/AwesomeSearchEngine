@@ -15,7 +15,7 @@ public class PatentAbstractDocument extends PatentDocument {
 	 * @param abstractText
 	 */
 	public PatentAbstractDocument(int documentId, String title, String abstractText) {
-		super(documentId, -1, title);
+		super(documentId, -1, null, title);
 		
 		this.abstractText = abstractText;
 	}

@@ -2,8 +2,9 @@ package indexing;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.TreeMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.xml.stream.XMLStreamException;
@@ -11,8 +12,8 @@ import javax.xml.stream.XMLStreamException;
 import SearchEngine.PatentAbstractDocument;
 import SearchEngine.Posting;
 import parsing.PatentDocumentParser;
-import querying.MapValueComparator;
 import textprocessing.TextPreprocessor;
+import utilities.MapValueComparator;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -33,9 +34,9 @@ public class DocumentIndexer {
 	private static final String TEMP_INDEX_PREFIX = "awse_index_%d";
 
 	/**
-	 * TODO: add comment
+	 * Contains the number of the top most frequent tokens that should be stored in the document map.
 	 */
-	private static final int MOST_FREQUENT_TERMS_NUMBER = 5;
+	private static final int MOST_FREQUENT_TOKENS_LIMIT = 5;
 	
 	/**
 	 * Contains text preprocessor instance.
@@ -66,9 +67,9 @@ public class DocumentIndexer {
 	private List<File> temporaryIndexFiles = new ArrayList<File>();
 	
 	/**
-	 * TODO: add comment
+	 * Contains the number of occurrences per token of a single document.
 	 */
-	private TreeMap<String, Integer> tokensPerDocument = new TreeMap<String, Integer>();
+	private Map<String, Integer> tokenOccurrencesCount = new HashMap<String, Integer>();
 	
 	/**
 	 * Creates a new DocumentIndexer instance.
@@ -147,19 +148,18 @@ public class DocumentIndexer {
 					this.addToken(document, tokens.get(i), i);
 				}
 				
-				// Count the most frequent terms per document
-				List<String> mostFrequentTerms = tokensPerDocument.entrySet().stream()
-						.sorted(Collections.reverseOrder(new MapValueComparator<String, Integer>()))
-						.limit(MOST_FREQUENT_TERMS_NUMBER)
-						.map(x -> x.getKey())
-						.collect(Collectors.toList());
+				// Count the most frequent terms
+				List<String> mostFrequentTokens = tokenOccurrencesCount.entrySet().stream()
+													.sorted(Collections.reverseOrder(new MapValueComparator<String, Integer>()))
+													.limit(MOST_FREQUENT_TOKENS_LIMIT)
+													.map(x -> x.getKey())
+													.collect(Collectors.toList());
+				tokenOccurrencesCount.clear();
 				
 				// Add to document map
 	    		document.setTokensCount(tokens.size());
-	    		document.setMostFrequentTerms(mostFrequentTerms);
+	    		document.setMostFrequentTokens(mostFrequentTokens);
 				documentMapConstructor.add(document);
-				
-				tokensPerDocument.clear();
 			}
 		}
 	}
@@ -189,11 +189,12 @@ public class DocumentIndexer {
 			System.runFinalization();
 		}
 		
-		if(tokensPerDocument.containsKey(token)){
-			tokensPerDocument.put(token, tokensPerDocument.get(token) + 1);
+		// Increase number of occurrences in current document
+		if(tokenOccurrencesCount.containsKey(token)){
+			tokenOccurrencesCount.put(token, tokenOccurrencesCount.get(token) + 1);
 		}
 		else {
-			tokensPerDocument.put(token, 1);
+			tokenOccurrencesCount.put(token, 1);
 		}		
 	}	
 	

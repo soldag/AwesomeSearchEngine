@@ -22,7 +22,12 @@ public class PatentDocument {
 	/**
 	 * Contains the number of tokens in this document.
 	 */
-	private int tokensCount;
+	private int tokensCount = -1;
+	
+	/**
+	 * Contains the list of the most frequent words in the document.
+	 */
+	private List<String> mostFrequentTokens = null;
 	
 	/**
 	 * Contains the title of the document.
@@ -30,19 +35,16 @@ public class PatentDocument {
 	private final String title;
 	
 	/**
-	 * TODO: add comment
-	 */
-	private List<String> mostFrequentTerms;
-	
-	/**
 	 * Creates a new PatentDocument instance.
 	 * @param id
 	 * @param tokensCount
+	 * @param mostFrequentTokens
 	 * @param title
 	 */
-	public PatentDocument(int id, int tokensCount, String title) {
+	public PatentDocument(int id, int tokensCount, List<String> mostFrequentTokens, String title) {
 		this.id = id;
 		this.tokensCount = tokensCount;
+		this.mostFrequentTokens = mostFrequentTokens;
 		this.title = title;
 	}
 	
@@ -84,17 +86,21 @@ public class PatentDocument {
 	}
 	
 	/**
-	 * TODO: add comment
+	 * Gets the list of the most frequent words in the document.
 	 */
-	public List<String> getMostFrequentTerms() {
-		return this.mostFrequentTerms;
+	public List<String> getMostFrequentTokens() {
+		if(this.mostFrequentTokens == null) {
+			throw new IllegalStateException("Document was not tokenized, yet.");
+		}
+		return this.mostFrequentTokens;
 	}
 	
 	/**
-	 * TODO: add comment
+	 * Sets the list of the most frequent words in the document.
+	 * @param mostFrequentTokens
 	 */
-	public void setMostFrequentTerms(List<String> mostFrequentTerms) {
-		this.mostFrequentTerms = mostFrequentTerms;
+	public void setMostFrequentTokens(List<String> mostFrequentTokens) {
+		this.mostFrequentTokens = mostFrequentTokens;
 	}
 	
 	/**
@@ -134,19 +140,18 @@ public class PatentDocument {
 		String title = new String(titleBytes, ENCODING);
 		
 		// Read most frequent terms
-		int mostFrequentTermsCount = buffer.getInt();
-		List<String> mostFrequentTerms = new ArrayList<String>();
-		for(int i = 0; i < mostFrequentTermsCount; i++){
-			int termLength = buffer.getInt();
-			byte[] termBytes = new byte[termLength];
-			buffer.get(termBytes);
-			String term = new String(termBytes, ENCODING);
-			mostFrequentTerms.add(term);
+		int mostFrequentTokensCount = buffer.getInt();
+		List<String> mostFrequentTokens = new ArrayList<String>();
+		for(int i = 0; i < mostFrequentTokensCount; i++){
+			int tokenLength = buffer.getInt();
+			byte[] tokenBytes = new byte[tokenLength];
+			buffer.get(tokenBytes);
+			String token = new String(tokenBytes, ENCODING);
+			
+			mostFrequentTokens.add(token);
 		}
-		PatentDocument document = new PatentDocument(id, tokensCount, title);
-		document.setMostFrequentTerms(mostFrequentTerms);
 		
-		return document;
+		return new PatentDocument(id, tokensCount, mostFrequentTokens, title);
 	}
 	
 	/**
@@ -156,13 +161,13 @@ public class PatentDocument {
 	 */
 	public byte[] toBytes() throws UnsupportedEncodingException {
 		List<Byte[]> termsBytes = new ArrayList<Byte[]>();
-		for(String term: mostFrequentTerms) {
+		for(String term: mostFrequentTokens) {
 			termsBytes.add(ArrayUtils.toObject(term.getBytes(ENCODING)));
 		}
 		
 		// Calculate capacity of buffer
 		byte[] titleBytes = this.getTitle().getBytes(ENCODING);
-		int mostFrequentTermLength = termsBytes.stream().mapToInt(x -> x.length).sum() + termsBytes.size()*Integer.BYTES + Integer.BYTES;
+		int mostFrequentTermLength = termsBytes.stream().mapToInt(x -> x.length).sum() + termsBytes.size() * Integer.BYTES + Integer.BYTES; // Encoded most frequent tokens + number of total tokens + length of each token 
 		int propertiesLength = 2 * Integer.BYTES + titleBytes.length + mostFrequentTermLength; // Tokens count + title length + title bytes + most frequent term entries
 		int capacity = 2 * Integer.BYTES + propertiesLength; // Document id + properties length (skip pointer) + properties bytes
 		ByteBuffer buffer = ByteBuffer.allocate(capacity);
@@ -180,8 +185,8 @@ public class PatentDocument {
 		buffer.putInt(titleBytes.length);
 		buffer.put(titleBytes);
 		
-		// Write mostFrequentTerms
-		buffer.putInt(mostFrequentTerms.size());
+		// Write most frequent tokens
+		buffer.putInt(mostFrequentTokens.size());
 		for(Byte[] term: termsBytes) {
 			buffer.putInt(term.length);
 			buffer.put(ArrayUtils.toPrimitive(term));

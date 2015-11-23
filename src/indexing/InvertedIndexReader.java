@@ -4,10 +4,10 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import SearchEngine.Posting;
 
@@ -51,7 +51,7 @@ public class InvertedIndexReader implements AutoCloseable {
 	}
 
 	/**
-	 * Gets a list of postings from inverted index by specifying its id and a start offset in the map file. 
+	 * Gets a combined list of postings of the given token from inverted index by specifying a start offset in the index file. 
 	 * Additionally, prefix search can be enabled. In this case, postings of all tokens, that start with the given token, are returned.
 	 * @param token
 	 * @param startOffset
@@ -59,8 +59,24 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @return List of postings
 	 * @throws IOException
 	 */
-	public List<Posting> getPostings(String token, int startOffset, boolean prefixSearch) throws IOException {
-		List<Posting> postings = new ArrayList<Posting>();
+	public List<Posting> getPostingsList(String token, int startOffset, boolean prefixSearch) throws IOException {
+		return this.getPostingsMap(token, startOffset, prefixSearch).entrySet().stream()
+				.flatMap(x -> x.getValue().stream())
+				.collect(Collectors.toList());
+	}
+
+
+	/**
+	 * Gets a map of postings per token from inverted index by specifying a start offset in the index file. 
+	 * Additionally, prefix search can be enabled. In this case, all tokens, that start with the given token, are also taken into account.
+	 * @param token
+	 * @param startOffset
+	 * @param prefixSearch
+	 * @return List of postings
+	 * @throws IOException
+	 */
+	public Map<String, List<Posting>> getPostingsMap(String token, int startOffset, boolean prefixSearch) throws IOException {
+		Map<String, List<Posting>> postings = new HashMap<String, List<Posting>>();
 		this.indexFile.seek(startOffset);
 		while(true) {
 			try {
@@ -69,7 +85,13 @@ public class InvertedIndexReader implements AutoCloseable {
 				
 				if(prefixSearch) {
 					if(readToken.startsWith(token)) {
-						postings.addAll(this.readPostings(postingsLength));
+						List<Posting> readPostings = this.readPostings(postingsLength);
+						if(!postings.containsKey(readToken)) {
+							postings.put(readToken, readPostings);
+						}
+						else {
+							postings.get(readToken).addAll(readPostings);
+						}
 						continue;
 					}
 					else if(readToken.compareTo(token) > 0){
@@ -77,7 +99,7 @@ public class InvertedIndexReader implements AutoCloseable {
 					}
 				}			
 				else if(readToken.equals(token)) {
-					postings = this.readPostings(postingsLength);
+					postings.put(readToken, this.readPostings(postingsLength));
 					break;
 				}
 				
@@ -89,36 +111,6 @@ public class InvertedIndexReader implements AutoCloseable {
 		}
 		
 		return postings;
-	}
-	
-	/**
-	 * TODO: add comment
-	 * @throws IOException 
-	 */
-	public Map<String, List<Posting>> getTokens(String startCharacter, int startOffset) throws IOException {
-		Map<String, List<Posting>> tokens = new HashMap<String, List<Posting>>();
-		this.indexFile.seek(startOffset);
-		while(true) {
-			try {
-				String readToken = Token.read(this.indexFile);
-				int postingsLength = this.indexFile.readInt();
-			
-				if(readToken.startsWith(startCharacter)) {
-					tokens.put(readToken, this.readPostings(postingsLength));
-					continue;
-				}
-				else if(readToken.length() > 0 && readToken.substring(0, 1).compareTo(startCharacter) > 0){
-					break;
-				}
-				
-				this.indexFile.seek(this.indexFile.getFilePointer() + postingsLength);
-			}
-			catch(EOFException e) {
-				break;
-			}
-		}
-		
-		return tokens;
 	}
 
 	/**
