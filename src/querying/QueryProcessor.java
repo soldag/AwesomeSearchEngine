@@ -363,11 +363,11 @@ public class QueryProcessor {
 			List<Posting> result = this.indexReader.getPostingsList(token, startOffset, prefixSearch);
 			
 			// Spelling correction
-			if(result.isEmpty()) {
+			if(!prefixSearch && result.isEmpty()) {
 				String correctedToken = this.spellingCorrector.correctToken(token); 
 				if(correctedToken != null) {
 					result = searchToken(correctedToken);
-					System.out.println("We changed your query term due to a (possibly) spelling error from " + token + " to " + correctedToken + "!");
+					System.out.println("We changed your query term due to a (possible) spelling error from " + token + " to " + correctedToken + "!");
 				}
 			}
 			return result;
