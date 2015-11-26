@@ -1,4 +1,4 @@
-package indexing;
+package indexing.documentmap;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -9,9 +9,12 @@ import java.util.stream.Collectors;
 
 import javax.xml.stream.XMLStreamException;
 
-import SearchEngine.PatentContentDocument;
-import SearchEngine.Posting;
-import parsing.PatentDocumentParser;
+import indexing.Posting;
+import indexing.invertedindex.InvertedIndexConstructor;
+import indexing.invertedindex.InvertedIndexMerger;
+import indexing.invertedindex.InvertedIndexSeekList;
+import parsing.PatentContentDocument;
+import parsing.parsers.PatentDocumentParser;
 import textprocessing.TextPreprocessor;
 import utilities.MapValueComparator;
 

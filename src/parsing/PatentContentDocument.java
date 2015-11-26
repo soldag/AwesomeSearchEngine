@@ -1,4 +1,4 @@
-package SearchEngine;
+package parsing;
 
 public class PatentContentDocument extends PatentDocument {
 

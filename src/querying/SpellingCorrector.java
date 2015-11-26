@@ -4,9 +4,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import SearchEngine.Posting;
-import indexing.InvertedIndexReader;
-import indexing.InvertedIndexSeekList;
+import indexing.Posting;
+import indexing.invertedindex.InvertedIndexReader;
+import indexing.invertedindex.InvertedIndexSeekList;
 
 public class SpellingCorrector {
 

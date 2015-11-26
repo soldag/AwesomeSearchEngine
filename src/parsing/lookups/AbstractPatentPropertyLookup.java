@@ -1,4 +1,4 @@
-package parsing;
+package parsing.lookups;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 
-import SearchEngine.PatentDocument;
+import parsing.PatentDocument;
 
 public abstract class AbstractPatentPropertyLookup {
 	

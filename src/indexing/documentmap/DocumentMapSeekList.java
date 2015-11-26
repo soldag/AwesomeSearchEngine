@@ -1,4 +1,4 @@
-package indexing;
+package indexing.documentmap;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class InvertedIndexSeekList extends GenericSeekList<String> {
+import indexing.GenericSeekList;
+
+public class DocumentMapSeekList extends GenericSeekList<Integer> {
 	
 	/**
 	 * Determines, how many documents are skipped in between two seek list entries.
@@ -16,9 +18,9 @@ public class InvertedIndexSeekList extends GenericSeekList<String> {
 	
 	
 	/**
-	 * Creates a new IndexSeekList instance.
+	 * Creates a new DocumentMapSeekList instance.
 	 */
-	public InvertedIndexSeekList() {
+	public DocumentMapSeekList() {
 		super(SKIP_NUMBER);
 	}
 	
@@ -31,9 +33,10 @@ public class InvertedIndexSeekList extends GenericSeekList<String> {
 		
 		while(true) {
 			try {
-				String token = Token.read(input);
-				int offset = input.readInt();				
-				this.seekList.put(token, offset);
+				int documentId = input.readInt();
+				int offset = input.readInt();
+				
+				this.seekList.put(documentId, offset);
 			}
 			catch(EOFException e) {
 				break;
@@ -46,11 +49,11 @@ public class InvertedIndexSeekList extends GenericSeekList<String> {
 	 */
 	public void save(DataOutput output) throws IOException {
 		// Sort tokens alphabetically
-		List<String> tokens = this.seekList.keySet().stream().sorted().collect(Collectors.toList());
-		
-		for(String token: tokens) {
-			Token.write(token, output);
-			output.writeInt(this.seekList.get(token));
+		List<Integer> documentIds = this.seekList.keySet().stream().sorted().collect(Collectors.toList());
+				
+		for(int documentId: documentIds) {
+			output.writeInt(documentId);
+			output.writeInt(this.seekList.get(documentId));
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package indexing;
+package indexing.invertedindex;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -14,7 +14,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import SearchEngine.Posting;
+import indexing.Posting;
+import indexing.Token;
 
 public class InvertedIndexConstructor {
 

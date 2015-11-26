@@ -27,8 +27,9 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.io.FilenameUtils;
 
-import indexing.DocumentIndexer;
-import parsing.PatentTitleLookup;
+import indexing.documentmap.DocumentIndexer;
+import parsing.PatentDocument;
+import parsing.lookups.PatentTitleLookup;
 import querying.DamerauLevenshteinCalculator;
 import querying.DocumentRanker;
 import querying.QueryProcessor;

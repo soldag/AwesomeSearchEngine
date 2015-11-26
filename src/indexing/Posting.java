@@ -1,4 +1,5 @@
-package SearchEngine;
+package indexing;
+
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

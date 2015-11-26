@@ -1,11 +1,11 @@
-package indexing;
+package indexing.documentmap;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
-import SearchEngine.PatentDocument;
+import parsing.PatentDocument;
 
 public class DocumentMapConstructor implements AutoCloseable {
 

@@ -1,4 +1,4 @@
-package indexing;
+package indexing.invertedindex;
 
 import java.io.EOFException;
 import java.io.File;
@@ -9,7 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import SearchEngine.Posting;
+import indexing.Posting;
+import indexing.Token;
 
 public class InvertedIndexReader implements AutoCloseable {
 	

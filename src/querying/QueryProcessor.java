@@ -11,12 +11,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import SearchEngine.PatentDocument;
-import SearchEngine.Posting;
-import indexing.DocumentMapReader;
-import indexing.DocumentMapSeekList;
-import indexing.InvertedIndexReader;
-import indexing.InvertedIndexSeekList;
+import indexing.Posting;
+import indexing.documentmap.DocumentMapReader;
+import indexing.documentmap.DocumentMapSeekList;
+import indexing.invertedindex.InvertedIndexReader;
+import indexing.invertedindex.InvertedIndexSeekList;
+import parsing.PatentDocument;
 import textprocessing.TextPreprocessor;
 
 public class QueryProcessor {

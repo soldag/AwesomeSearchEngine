@@ -1,4 +1,4 @@
-package parsing;
+package parsing.parsers;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -12,7 +12,7 @@ import com.ximpleware.extended.VTDNavHuge;
 import com.ximpleware.extended.XPathEvalExceptionHuge;
 import com.ximpleware.extended.XPathParseExceptionHuge;
 
-import SearchEngine.PatentContentDocument;
+import parsing.PatentContentDocument;
 
 public class PatentDocumentParser implements Iterator<PatentContentDocument>, Iterable<PatentContentDocument> {
 	

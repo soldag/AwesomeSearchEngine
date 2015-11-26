@@ -1,4 +1,5 @@
-package SearchEngine;
+package parsing;
+
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
