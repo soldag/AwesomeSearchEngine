@@ -23,13 +23,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
-
 
 import org.apache.commons.io.FilenameUtils;
 
 import indexing.DocumentIndexer;
+import parsing.PatentTitleLookup;
 import querying.DamerauLevenshteinCalculator;
 import querying.DocumentRanker;
 import querying.QueryProcessor;
@@ -48,6 +47,12 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private TextPreprocessor textPreprocessor;
 	private DocumentIndexer documentIndexer;
 	private QueryProcessor queryProcessor;
+	private PatentTitleLookup titleLookup;
+    
+	/**
+	 * Contains the path of the directory containing the patent data.
+	 */
+	private Path documentDirectory;
 	
 	/**
 	 *  Contain the necessary index files.
@@ -58,7 +63,6 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private final File documentMapFile = this.teamDirectoryPath.resolve("document_map.bin").toFile();
 	private final File documentMapSeekListFile = this.teamDirectoryPath.resolve("document_map_seek_list.bin").toFile();
 	private final File stopWordsFile = this.teamDirectoryPath.resolve("stop_words.txt").toFile();
-    
 	
 	/**
 	 * Creates a new AwesomeSearchEngine instance.
@@ -129,6 +133,18 @@ public class AwesomeSearchEngine extends SearchEngine {
     	
     	return this.queryProcessor;
     }
+    
+    /**
+     * Returns the current title lookup.
+     * @return
+     */
+    private PatentTitleLookup getTitleLookup() {
+    	if(this.titleLookup == null) {
+    		this.titleLookup = new PatentTitleLookup(this.documentDirectory);
+    	}
+    	
+    	return this.titleLookup;
+    }
 
     @Override
     void index(String directory) {
@@ -154,8 +170,9 @@ public class AwesomeSearchEngine extends SearchEngine {
     ArrayList<String> search(String query, int topK, int prf) {
     	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
 	    	try {
-	    		List<PatentDocument> documents = this.queryProcessor.search(query, topK, prf);
-				return new ArrayList<String>(documents.stream().map(x -> x.toString()).collect(Collectors.toList()));
+	            return this.queryProcessor.search(query, topK, prf).stream()
+						.map(x -> String.format("%s %s", x.getId(), this.getTitle(x)))
+						.collect(Collectors.toCollection(ArrayList::new));
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -174,15 +191,15 @@ public class AwesomeSearchEngine extends SearchEngine {
      */
     private void index(String directory, boolean compress) {
     	// Check, if given path exists and is a directory
-    	Path documentDirectory = Paths.get(directory);
-    	if(!documentDirectory.toFile().isDirectory()) {
+    	this.documentDirectory = Paths.get(directory);
+    	if(!this.documentDirectory.toFile().isDirectory()) {
 			System.err.println("Specified document directory is not a directory!");
 			System.exit(1);
     	}
     	
     	try {
         	// Get xml files inside given directory
-    		String[] documentFiles = Files.walk(documentDirectory)
+    		String[] documentFiles = Files.walk(this.documentDirectory)
     				.map(x -> x.toString())
     				.filter(x -> FilenameUtils.isExtension(x, DOCUMENT_FILE_EXTENSION))
     				.toArray(String[]::new);
@@ -209,5 +226,18 @@ public class AwesomeSearchEngine extends SearchEngine {
 		}
         
         return true;
+    }
+    
+    /**
+     * Gets the title of a patent document from source file.
+     * @param document
+     * @return
+     */
+    private String getTitle(PatentDocument document) {
+    	try {
+			return this.getTitleLookup().get(document);
+		} catch (IOException e) {
+			return null;
+		}
     }
 }

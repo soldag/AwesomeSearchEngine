@@ -20,6 +20,31 @@ public class PatentDocument {
 	private final int id;
 	
 	/**
+	 * Contains the id of the file containing this document.
+	 */
+	private final int fileId;
+	
+	/**
+	 * Contains the file offset of the title tag.
+	 */
+	private final long titleOffset;
+	
+	/**
+	 * Contains the length of the title tag.
+	 */
+	private final int titleLength;
+	
+	/**
+	 * Contains the file offset of the abstract tag.
+	 */
+	private final long abstractOffset;
+	
+	/**
+	 * Contains the length of the abstract tag.
+	 */
+	private final int abstractLength;
+	
+	/**
 	 * Contains the number of tokens in this document.
 	 */
 	private int tokensCount = -1;
@@ -30,22 +55,25 @@ public class PatentDocument {
 	private List<String> mostFrequentTokens = null;
 	
 	/**
-	 * Contains the title of the document.
-	 */
-	private final String title;
-	
-	/**
 	 * Creates a new PatentDocument instance.
 	 * @param id
+	 * @param fileId
+	 * @param titleOffset
+	 * @param titleLength
+	 * @param abstractOffset
+	 * @param abstractLength
 	 * @param tokensCount
 	 * @param mostFrequentTokens
-	 * @param title
 	 */
-	public PatentDocument(int id, int tokensCount, List<String> mostFrequentTokens, String title) {
+	public PatentDocument(int id, int fileId, long titleOffset, int titleLength, long abstractOffset, int abstractLength, int tokensCount, List<String> mostFrequentTokens) {
 		this.id = id;
+		this.fileId = fileId;
+		this.titleOffset = titleOffset;
+		this.titleLength = titleLength;
+		this.abstractOffset = abstractOffset;
+		this.abstractLength = abstractLength;
 		this.tokensCount = tokensCount;
 		this.mostFrequentTokens = mostFrequentTokens;
-		this.title = title;
 	}
 	
 	
@@ -55,6 +83,46 @@ public class PatentDocument {
 	 */
 	public int getId() {
 		return this.id;
+	}
+	
+	/**
+	 * Gets the id of the source file containing this document.
+	 * @return
+	 */
+	public int getFileId() {
+		return this.fileId;
+	}
+	
+	/**
+	 * Gets the file offset of the title tag.
+	 * @return
+	 */
+	public long getTitleOffset() {
+		return this.titleOffset;
+	}
+	
+	/**
+	 * Gets the length of the title tag.
+	 * @return
+	 */
+	public int getTitleLength() {
+		return this.titleLength;
+	}
+	
+	/**
+	 * Gets the file offset of the abstract tag.
+	 * @return
+	 */
+	public long getAbstractOffset() {
+		return this.abstractOffset;
+	}
+	
+	/**
+	 * Gets the length of the abstract tag.
+	 * @return
+	 */
+	public int getAbstractLength() {
+		return this.abstractLength;
 	}
 
 	/**
@@ -75,14 +143,6 @@ public class PatentDocument {
 	 */
 	public void setTokensCount(int tokensCount) {
 		this.tokensCount = tokensCount;
-	}
-	
-	/**
-	 * Gets the title of the document.
-	 * @return
-	 */
-	public String getTitle() {
-		return this.title;
 	}
 	
 	/**
@@ -129,15 +189,18 @@ public class PatentDocument {
 	 */
 	public static PatentDocument fromPropertyBytes(int id, byte[] propertyBytes) throws UnsupportedEncodingException {
 		ByteBuffer buffer = ByteBuffer.wrap(propertyBytes);
+
+		// Read file id
+		int fileId = buffer.getInt();
+		
+		// Read offsets
+		long titleStartOffset = buffer.getLong();
+		int titleEndOffset = buffer.getInt();
+		long abstractStartOffset = buffer.getLong();
+		int abstractEndOffset = buffer.getInt();
 		
 		// Read tokens count
 		int tokensCount = buffer.getInt();
-		
-		// Read title
-		int titleLength = buffer.getInt();
-		byte[] titleBytes = new byte[titleLength];
-		buffer.get(titleBytes);
-		String title = new String(titleBytes, ENCODING);
 		
 		// Read most frequent terms
 		int mostFrequentTokensCount = buffer.getInt();
@@ -151,7 +214,7 @@ public class PatentDocument {
 			mostFrequentTokens.add(token);
 		}
 		
-		return new PatentDocument(id, tokensCount, mostFrequentTokens, title);
+		return new PatentDocument(id, fileId, titleStartOffset, titleEndOffset, abstractStartOffset, abstractEndOffset, tokensCount, mostFrequentTokens);
 	}
 	
 	/**
@@ -166,9 +229,8 @@ public class PatentDocument {
 		}
 		
 		// Calculate capacity of buffer
-		byte[] titleBytes = this.getTitle().getBytes(ENCODING);
 		int mostFrequentTermLength = termsBytes.stream().mapToInt(x -> x.length).sum() + termsBytes.size() * Integer.BYTES + Integer.BYTES; // Encoded most frequent tokens + number of total tokens + length of each token 
-		int propertiesLength = 2 * Integer.BYTES + titleBytes.length + mostFrequentTermLength; // Tokens count + title length + title bytes + most frequent term entries
+		int propertiesLength = 4 * Integer.BYTES + 2 * Long.BYTES + mostFrequentTermLength; // File id + Tokens count + offsets + most frequent term entries
 		int capacity = 2 * Integer.BYTES + propertiesLength; // Document id + properties length (skip pointer) + properties bytes
 		ByteBuffer buffer = ByteBuffer.allocate(capacity);
 		
@@ -178,12 +240,17 @@ public class PatentDocument {
 		// Write properties length
 		buffer.putInt(propertiesLength);
 		
+		// Write file id
+		buffer.putInt(this.getFileId());
+		
+		// Write offsets
+		buffer.putLong(this.getTitleOffset());
+		buffer.putInt(this.getTitleLength());
+		buffer.putLong(this.getAbstractOffset());
+		buffer.putInt(this.getAbstractLength());
+		
 		// Write tokens count
 		buffer.putInt(tokensCount);
-		
-		// Write title
-		buffer.putInt(titleBytes.length);
-		buffer.put(titleBytes);
 		
 		// Write most frequent tokens
 		buffer.putInt(mostFrequentTokens.size());
@@ -197,6 +264,6 @@ public class PatentDocument {
 	
 	@Override
 	public String toString() {
-		return String.valueOf(String.format("%s %s", this.getId(), this.getTitle()));
+		return Integer.toString(this.getId());
 	}
 }

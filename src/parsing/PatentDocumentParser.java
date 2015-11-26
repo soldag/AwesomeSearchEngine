@@ -1,186 +1,190 @@
 package parsing;
 
-import java.io.InputStream;
-import java.io.Reader;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-import javax.xml.stream.XMLEventReader;
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamConstants;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.events.Characters;
-import javax.xml.stream.events.StartElement;
-import javax.xml.stream.events.XMLEvent;
+import org.apache.commons.io.FilenameUtils;
+import com.ximpleware.extended.AutoPilotHuge;
+import com.ximpleware.extended.NavExceptionHuge;
+import com.ximpleware.extended.TextIter;
+import com.ximpleware.extended.VTDGenHuge;
+import com.ximpleware.extended.VTDNavHuge;
+import com.ximpleware.extended.XPathEvalExceptionHuge;
+import com.ximpleware.extended.XPathParseExceptionHuge;
 
-import SearchEngine.PatentAbstractDocument;
+import SearchEngine.PatentContentDocument;
 
-public class PatentDocumentParser implements Iterator<PatentAbstractDocument>, Iterable<PatentAbstractDocument>, AutoCloseable {
+public class PatentDocumentParser implements Iterator<PatentContentDocument>, Iterable<PatentContentDocument> {
 	
 	/**
 	 * XPaths constants for XML elements containing the document ID, title and abstract of a patent.
 	 */
-	private static final String PATENT_PATH = "my-root/us-patent-grant";
-	private static final String DOCUMENT_ID_PATH = PATENT_PATH + "/us-bibliographic-data-grant/publication-reference/document-id/doc-number";
-	private static final String TITLE_PATH = PATENT_PATH + "/us-bibliographic-data-grant/invention-title";
-	private static final String ABSTRACT_PATH = PATENT_PATH + "/abstract";
+	private static final String PATENT_PATH = "/my-root/us-patent-grant";
+	private static final String DOCUMENT_ID_PATH = "us-bibliographic-data-grant/publication-reference/document-id/doc-number";
+	private static final String TITLE_PATH = "us-bibliographic-data-grant/invention-title";
+	private static final String ABSTRACT_PATH = "abstract";
 	
 	/**
-	 * Contains the underlying XML parser.
+	 * Contains the path of the file that is currently parsed.
 	 */
-	private XMLEventReader xmlParser;
-
-	/**
-	 * Determines, whether there are more patents to parse.
-	 */
-	private boolean hasNext;
+	private String filePath;
 	
 	/**
-	 * Contains the node path of the current XML element.
+	 * Contains VTD-XML parser instances.
 	 */
-	private String currentPath = "";
-	
+	private VTDNavHuge navigation;
+	private AutoPilotHuge autoPilot;
 	
 	/**
-	 * Creates a new instance.
-	 * @param inputStream
-	 * @throws XMLStreamException
+	 * Contains the token that is currently processed.
 	 */
-	public PatentDocumentParser(InputStream inputStream) throws XMLStreamException {
-		XMLInputFactory xmlFactory = XMLInputFactory.newInstance();
-		this.xmlParser = xmlFactory.createXMLEventReader(inputStream);
-		this.skipToNextPatent();
-	}
+	private int currentToken = -1;
 	
 	
 	/**
-	 * Creates a new instance.
-	 * @param reader
-	 * @throws XMLStreamException
+	 * Creates a new PatentDocumentParser instance.
+	 * @param filePath
 	 */
-	public PatentDocumentParser(Reader reader) throws XMLStreamException {
-		XMLInputFactory xmlFactory = XMLInputFactory.newInstance();
-		this.xmlParser = xmlFactory.createXMLEventReader(reader);
-		this.skipToNextPatent();	
+	public PatentDocumentParser(String filePath) {
+		this.filePath = filePath;
+		
+		// Initialize VTD-XML
+		VTDGenHuge gen = new VTDGenHuge();
+		gen.parseFile(this.filePath, true, VTDGenHuge.MEM_MAPPED);
+		this.navigation = gen.getNav();
+		this.autoPilot = new AutoPilotHuge(this.navigation);
+		
+		// Start iteration over patent documents
+		try {
+			this.autoPilot.selectXPath(PATENT_PATH);
+			this.skipToNextPatent();
+		} catch (XPathParseExceptionHuge | NavExceptionHuge e) { }
 	}
 	
 
 	@Override
 	public boolean hasNext() {
-		return this.hasNext;
+		return this.currentToken != -1;
 	}
 
 	@Override
-	public PatentAbstractDocument next() {
+	public PatentContentDocument next() {
 		int documentId = -1;
+		String abstractText = null;
 		String title = null;
-		StringBuilder abstractBuilder = new StringBuilder();
+		int fileId = Integer.parseInt(FilenameUtils.getBaseName(this.filePath).substring(3));
+		long titleOffset = -1, abstractOffset = -1;
+		int titleLength = -1, abstractLength = -1;
+		
+		this.navigation.push();
+		
 		try {
-			while (this.xmlParser.hasNext())
-			{
-				XMLEvent event = this.nextXmlEvent();
-				if(event.getEventType() == XMLStreamConstants.CHARACTERS) {
-					Characters characters = event.asCharacters();
-					if(this.currentPath.equals(DOCUMENT_ID_PATH)) {
-						documentId = Integer.parseInt(characters.toString());
-					}
-					else if(this.currentPath.equals(TITLE_PATH)) {
-						title = characters.toString();
-					}
-					else if(this.currentPath.startsWith(ABSTRACT_PATH)) {
-						abstractBuilder.append(characters.toString());
-					}
-				}
-				else if(event.getEventType() == XMLStreamConstants.END_ELEMENT && this.currentPath.equals(ABSTRACT_PATH)) {
-					// All necessary information have been read.
-					break;
-				}
-			}
-		} catch (XMLStreamException e) {
-			throw new NoSuchElementException(e.getMessage());
+			// Extract document id
+			PatentDocumentProperty documentIdProperty = this.getProperty(DOCUMENT_ID_PATH);
+			documentId = Integer.parseInt(documentIdProperty.getValue());
+			
+			// Extract title
+			PatentDocumentProperty titleProperty = this.getProperty(TITLE_PATH);
+			title = titleProperty.getValue();
+			titleOffset = titleProperty.getOffset();
+			titleLength = titleProperty.getLength();			
+			
+			// Extract abstract
+			PatentDocumentProperty abstractProperty = this.getProperty(ABSTRACT_PATH);
+			abstractText = abstractProperty.getValue();
+			abstractOffset = abstractProperty.getOffset();
+			abstractLength = abstractProperty.getLength();
+		} catch (NavExceptionHuge | XPathParseExceptionHuge | XPathEvalExceptionHuge e) {
+			throw new NoSuchElementException();
 		}
-
+		
+		this.navigation.pop();
 		try {
 			this.skipToNextPatent();
-		} catch (XMLStreamException e) { 
-			this.hasNext = false;
+		} catch (NavExceptionHuge e) {
+			this.currentToken = -1;
 		}
 		
-		return new PatentAbstractDocument(documentId, title, abstractBuilder.toString());
+		return new PatentContentDocument(documentId, fileId, titleOffset, titleLength, abstractOffset, abstractLength, title, abstractText);
 	}
 	
 	/**
-	 * Skips position of the XML parser to the start of the next patent element and updates hasNext-field.
-	 * @return boolean
-	 * @throws XMLStreamException
+	 * Gets the value of a patent property of the current patent defined by a xpath to its elements.
+	 * @param xpath
+	 * @return
+	 * @throws XPathParseExceptionHuge
+	 * @throws NavExceptionHuge
+	 * @throws XPathEvalExceptionHuge
 	 */
-	public boolean skipToNextPatent() throws XMLStreamException {
-		while (this.xmlParser.hasNext())
-		{
-			XMLEvent event = this.nextXmlEvent();
+	private PatentDocumentProperty getProperty(String xpath) throws XPathParseExceptionHuge, NavExceptionHuge, XPathEvalExceptionHuge {
+		// Store navigation context
+		this.navigation.push();
+		
+		// Navigate to first token matching given xpath
+		AutoPilotHuge localAutoPilot = new AutoPilotHuge(this.navigation);
+		localAutoPilot.selectXPath(xpath);
+		int token = localAutoPilot.evalXPath();
+		if(token == -1) {
+			return null;
+		}
+		
+		// Get positional information
+		long offset = this.navigation.getTokenOffset(token) - 1;
+		
+		// Get value
+		String value = this.extractMixedText();
+		this.navigation.toElement(VTDNavHuge.NEXT_SIBLING);
+		int length = (int)(this.navigation.getTokenOffset(this.navigation.getCurrentIndex()) - offset - 1);
+		
+		// Restore initial navigation context
+		this.navigation.pop();
+		
+		return new PatentDocumentProperty(value, offset, length);
+	}
+	
+	/**
+	 * Reads text of the current token and its children. 
+	 * @return
+	 * @throws NavExceptionHuge
+	 */
+	private String extractMixedText() throws NavExceptionHuge {
+		// Store navigation context
+		this.navigation.push();
+		
+		// Create iterator for texts
+		this.navigation.toElement(VTDNavHuge.FIRST_CHILD);
+		TextIter iter = new TextIter();
+		iter.touch(navigation);
+		
+		// Concat text of following text and child nodes of the current element
+		int i;
+		StringBuilder textBuilder = new StringBuilder();
+		while ((i = iter.getNext()) != -1) {
+			textBuilder.append(this.navigation.toString(i));
 			
-			if(this.currentPath.equals(PATENT_PATH) && event.getEventType() == XMLStreamConstants.START_ELEMENT) {
-				return this.hasNext = true;
+			if(this.navigation.toElement(VTDNavHuge.FIRST_CHILD)) {
+				textBuilder.append(this.extractMixedText());
 			}
 		}
 		
-		return this.hasNext = false;
-	}
-	
-	/**
-	 * Gets next parsing event and updates node path accordingly
-	 * @returns XMLEvent
-	 * @throws XMLStreamException
-	 */
-	private XMLEvent nextXmlEvent() throws XMLStreamException {
-		XMLEvent event = this.xmlParser.nextEvent();
-		this.updatePath(event);
+		// Restore initial navigation context, if asked for
+		this.navigation.pop();
 		
-		return event;
+		return textBuilder.toString();
 	}
 	
 	/**
-	 * Updates node path to the current XML element. Has to be called for each XML event.
+	 * Skips to the next patent element.
+	 * @throws NavExceptionHuge
 	 */
-	private void updatePath(XMLEvent event) {
-		int eventType = event.getEventType();
-		if(eventType == XMLStreamConstants.START_ELEMENT) {
-			// Update current path
-			StartElement element = event.asStartElement();
-			if(this.currentPath != null && !currentPath.isEmpty()) 
-	    	{
-				this.currentPath += "/";
-	    	}
-			this.currentPath += element.getName();
-		}
-		else if(eventType == XMLStreamConstants.END_ELEMENT) {
-			// Update current path
-			int index = currentPath.lastIndexOf("/");
-	    	if(index == -1) 
-	    	{
-	    		this.currentPath = "";
-	    	}
-	    	else
-	    	{
-	    		this.currentPath = this.currentPath.substring(0, index);
-	    	}
-		}
+	private void skipToNextPatent() throws NavExceptionHuge {
+		try {
+			this.currentToken = this.autoPilot.evalXPath();
+		} catch (XPathEvalExceptionHuge e) { }
 	}
 
 	@Override
-	public Iterator<PatentAbstractDocument> iterator() {
+	public Iterator<PatentContentDocument> iterator() {
 		return this;
-	}
-	
-	
-	/**
-	 * Frees any resources associated with this Reader. This method does not close the underlying input source.
-	 */
-	public void close() {
-		this.currentPath = null;
-		
-		try {
-			this.xmlParser.close();
-		} catch (XMLStreamException e) { }
 	}
 }
