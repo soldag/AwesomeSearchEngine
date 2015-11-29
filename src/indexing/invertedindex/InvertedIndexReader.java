@@ -7,7 +7,6 @@ import java.io.RandomAccessFile;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import indexing.Posting;
 import indexing.Token;
@@ -51,21 +50,6 @@ public class InvertedIndexReader implements AutoCloseable {
 		return this.totalTokenCount;
 	}
 
-	/**
-	 * Gets a combined list of postings of the given token from inverted index by specifying a start offset in the index file. 
-	 * Additionally, prefix search can be enabled. In this case, postings of all tokens, that start with the given token, are returned.
-	 * @param token
-	 * @param startOffset
-	 * @param prefixSearch
-	 * @return List of postings
-	 * @throws IOException
-	 */
-	public List<Posting> getPostingsList(String token, int startOffset, boolean prefixSearch) throws IOException {
-		return this.getPostingsMap(token, startOffset, prefixSearch).entrySet().stream()
-				.flatMap(x -> x.getValue().stream())
-				.collect(Collectors.toList());
-	}
-
 
 	/**
 	 * Gets a map of postings per token from inverted index by specifying a start offset in the index file. 
@@ -76,7 +60,7 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @return List of postings
 	 * @throws IOException
 	 */
-	public Map<String, List<Posting>> getPostingsMap(String token, int startOffset, boolean prefixSearch) throws IOException {
+	public Map<String, List<Posting>> getPostings(String token, int startOffset, boolean prefixSearch) throws IOException {
 		Map<String, List<Posting>> postings = new HashMap<String, List<Posting>>();
 		this.indexFile.seek(startOffset);
 		while(true) {

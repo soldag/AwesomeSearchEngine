@@ -4,12 +4,13 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.HashBasedTable;
 
 import indexing.Posting;
 import indexing.documentmap.DocumentMapReader;
@@ -17,6 +18,8 @@ import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexReader;
 import indexing.invertedindex.InvertedIndexSeekList;
 import parsing.PatentDocument;
+import querying.results.IntermediateQueryResult;
+import querying.results.QueryResult;
 import textprocessing.TextPreprocessor;
 
 public class QueryProcessor {
@@ -119,10 +122,10 @@ public class QueryProcessor {
 	 * Search for a given query in the document collection.
 	 * @param query
 	 * @param topK
-	 * @return List of patent documents
+	 * @return
 	 * @throws IOException
 	 */
-	public List<PatentDocument> search(String query, int topK, int prf) throws IOException {
+	public QueryResult search(String query, int topK, int prf) throws IOException {
 		String mode = "";
 		List<String> tokens = this.textPreprocessor.tokenize(query, true);
 		String booleanOperator = this.getBooleanOperator(tokens);
@@ -173,108 +176,140 @@ public class QueryProcessor {
 	/**
 	 * Search for conjunction of given tokens in the document collection.
 	 * @param tokens
-	 * @return List of patent documents.
+	 * @return
 	 * @throws IOException
 	 */
-	private List<PatentDocument> searchAnd(List<String> tokens) throws IOException {
-		List<Integer> result1 = this.getDocumentIds(this.searchToken(tokens.get(0)));
-		List<Integer> result2 = this.getDocumentIds(this.searchToken(tokens.get(1)));
+	private QueryResult searchAnd(List<String> tokens) throws IOException {
+		// Search for single tokens separately
+		IntermediateQueryResult result1 = this.searchToken(tokens.get(0));
+		IntermediateQueryResult result2 = this.searchToken(tokens.get(1));
 		
-		return this.getDocuments(result1.stream()
-				.filter(x -> result2.contains(x))
-				.collect(Collectors.toList()));
+		// Calculate intersection of documents
+		Map<PatentDocument, Map<String, Integer[]>> rowMap = result1.getPostingsTable().rowMap().entrySet().stream()
+			.filter(row -> result2.getPostingsTable().rowMap().containsKey(row.getKey()))
+			.collect(Collectors.toMap(row -> this.getDocument(row.getKey()), row -> row.getValue()));
+		
+		// Merge spelling corrections
+		Map<String, String> spellingCorrections = result1.getSpellingCorrections();
+		spellingCorrections.putAll(result2.getSpellingCorrections());
+		
+		return new QueryResult(rowMap, spellingCorrections);
 	}
 	
 	/**
 	 * Search for disjunction of given tokens in the document collection.
 	 * @param tokens
-	 * @return List of patent documents.
+	 * @return
 	 * @throws IOException
 	 */
-	private List<PatentDocument> searchOr(List<String> tokens) throws IOException {
-		return this.getDocuments(this.getDocumentIds(tokens.stream()
-				.map(x -> this.searchToken(x))
-				.flatMap(x -> x.stream())
-				.collect(Collectors.toList())));
+	private QueryResult searchOr(List<String> tokens) throws IOException {		
+		return this.getResult(tokens.stream()
+								.map(x -> this.searchToken(x))
+								.reduce((x,y) -> IntermediateQueryResult.merge(x, y))
+								.get());
 	}
 	
 	/**
 	 * Search for negated conjunction of given tokens in the document collection.
 	 * @param tokens
-	 * @return List of patent documents.
+	 * @return
 	 * @throws IOException
 	 */
-	private List<PatentDocument> searchNot(List<String> tokens) throws IOException {
-		List<Integer> result1 = this.getDocumentIds(this.searchToken(tokens.get(0)));
-		List<Integer> result2 = this.getDocumentIds(this.searchToken(tokens.get(1)));
+	private QueryResult searchNot(List<String> tokens) throws IOException {
+		// Search for single tokens separately
+		IntermediateQueryResult result1 = this.searchToken(tokens.get(0));
+		IntermediateQueryResult result2 = this.searchToken(tokens.get(1));
+
+		// Calculate negated conjunction of documents
+		Map<PatentDocument, Map<String, Integer[]>> rowMap = result1.getPostingsTable().rowMap().entrySet().stream()
+			.filter(row -> !result2.getPostingsTable().rowMap().containsKey(row.getKey()))
+			.collect(Collectors.toMap(row -> this.getDocument(row.getKey()), row -> row.getValue()));
+
+		// Merge spelling corrections
+		Map<String, String> spellingCorrections = result1.getSpellingCorrections();
+		spellingCorrections.putAll(result2.getSpellingCorrections());
 		
-		return this.getDocuments(result1.stream()
-				.filter(x -> !result2.contains(x))
-				.collect(Collectors.toList()));
+		return new QueryResult(rowMap, spellingCorrections);
 	}
 	
 	/**
 	 * Searched for the phrase of given tokens in the document collection. Only document, containing tokens in the given order are returned.
 	 * @param tokens
 	 * @param topK
-	 * @return List of patent documents.
+	 * @return
 	 * @throws IOException
 	 */
-	private List<PatentDocument> searchPhrase(List<String> tokens, int topK) throws IOException {
-		List<Posting> postings = null;
-		Map<String, Integer> collectionFrequencies = new HashMap<String, Integer>();
-		Map<String, Map<Integer, Integer>> documentFrequencies = new HashMap<String, Map<Integer, Integer>>();
-		for(int i = 0; i < tokens.size(); i++) {
-			String token = tokens.get(i);
-
-			List<Posting> newPostings = this.searchToken(token);
-			for(Posting posting: newPostings) {
-				int documentId = posting.getDocumentId();
-				int positionsCount = posting.getPositions().length;
-				if(!documentFrequencies.containsKey(token)) {
-					documentFrequencies.put(token, new HashMap<Integer, Integer>());
-				}
-				if(documentFrequencies.get(token).containsKey(documentId)) {
-					documentFrequencies.get(token).put(documentId, documentFrequencies.get(token).get(documentId) + positionsCount);
-				}
-				else {
-					documentFrequencies.get(token).put(documentId, positionsCount);
-				}
-			}
-			collectionFrequencies.put(token, newPostings.stream().mapToInt(x -> x.getPositions().length).sum());
+	private QueryResult searchPhrase(List<String> tokens, int topK) throws IOException {
+		Map<Integer, Integer[]> lastPostings = new HashMap<Integer, Integer[]>();
+		HashBasedTable<Integer, String, Integer[]> postingTable = HashBasedTable.<Integer, String, Integer[]>create();
+		Map<String, String> spellingCorrections = new HashMap<String, String>();
+		
+		for(String token: tokens) {
+			// Search for token
+			IntermediateQueryResult result = this.searchToken(token);
 			
-			if(postings == null) {
-				postings = newPostings;
-			}
-			else {
-				List<Posting> oldPostings = postings;
-				postings = newPostings.stream()
-							.filter(newPosting -> oldPostings.stream().anyMatch(oldPosting -> this.areSuccessive(oldPosting, newPosting)))
-							.collect(Collectors.toList());
-			}
+			// Filter out those tokens, that are not part of the phrase and store valid postings in a new table
+			final Map<Integer, Integer[]> lastPostingsFinal = lastPostings;
+			HashBasedTable<Integer, String, Integer[]> newPostings = HashBasedTable.<Integer, String, Integer[]>create();
+			result.getPostingsTable().cellSet().stream()
+					.filter(cell -> lastPostingsFinal.isEmpty() || lastPostingsFinal.containsKey(cell.getRowKey()) && this.areSuccessive(lastPostingsFinal.get(cell.getRowKey()), cell.getValue()))
+					.forEach(cell -> newPostings.put(cell.getRowKey(), cell.getColumnKey(), cell.getValue()));
+			
+			// Remove invalid, existing entries from result
+			Map<Integer, Map<String, Integer[]>> rowMap = new HashMap<Integer, Map<String, Integer[]>>(postingTable.rowMap());
+			rowMap.entrySet().stream()
+					.filter(row -> !newPostings.rowKeySet().contains(row.getKey()))
+					.forEach(row -> row.getValue().keySet().stream()
+							.forEach(column -> postingTable.remove(row.getKey(), column)));
+			
+			// Insert new, valid postings to result
+			postingTable.putAll(newPostings);
+			
+			// Add spelling corrections
+			spellingCorrections.putAll(result.getSpellingCorrections());
+			
+			// Overwrite lastPostings with new ones for the next iteration
+			lastPostings = newPostings.columnMap().values().stream()
+					.flatMap(x -> x.entrySet().stream())
+					.collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
 		}
 		
+		// Create final intermediate result
+		IntermediateQueryResult intermediateResult = new IntermediateQueryResult(postingTable, spellingCorrections);
+		
 		// Weight documents
-		List<PatentDocument> result = this.getDocuments(postings.stream().map(x -> x.getDocumentId()).collect(Collectors.toList()));
-		result = this.documentRanker.weightResult(result, documentFrequencies, collectionFrequencies, this.indexReader.getTotalTokenCount(), topK);
+		QueryResult result = this.getResult(intermediateResult);
+		result = this.documentRanker.weightResult(result, this.indexReader.getTotalTokenCount(), topK);
 		
 		return result;
 	}
 	
 	/**
-	 * Searched "normally" for a given query. Results of query tokens are combined(disjunction) and weighted.
+	 * Determines, whether position1 contains at least one position that is precedessor of a posistion if positions2. 
+	 * @param posting1
+	 * @param posting2
+	 * @return boolean
+	 */
+	private boolean areSuccessive(Integer[] positions1, Integer[] positions2) {
+		return Arrays.stream(positions1)
+					.anyMatch(pos1 -> Arrays.stream(positions2)
+								.anyMatch(pos2 -> pos2.equals(pos1 + 1)));
+	}
+	
+	/**
+	 * Searches "normally" for a given query. Results of query tokens are combined(disjunction) and weighted.
 	 * @param tokens
 	 * @param topK
 	 * @param prf
-	 * @return List of patent documents.
+	 * @return
 	 * @throws IOException 
 	 */
-	private List<PatentDocument> searchDefault(List<String> tokens, int topK, int prf) throws IOException {
-		List<PatentDocument> result = this.simpleSearch(tokens, topK);
+	private QueryResult searchDefault(List<String> tokens, int topK, int prf) throws IOException {
+		QueryResult result = this.simpleSearch(tokens, topK);
 		
-		// Extend query by most frequent tokens of top documents (pseudo relevance)
+		// Extend query by most frequent tokens of top documents (pseudo relevance), if enabled
 		if(prf > 0) {
-			List<String> additionalTerms = result.stream()
+			List<String> additionalTerms = result.getPostingsTable().rowKeySet().stream()
 											.limit(prf)
 											.flatMap(x -> x.getMostFrequentTokens().stream())
 											.collect(Collectors.toList());
@@ -293,64 +328,38 @@ public class QueryProcessor {
 	 * @return List of patent documents.
 	 * @throws IOException
 	 */
-	private List<PatentDocument> simpleSearch(List<String> tokens, int topK) throws IOException {
-		List<Integer> documentIds = new ArrayList<Integer>();
-		Map<String, Integer> collectionFrequencies = new HashMap<String, Integer>();
-		Map<String, Map<Integer, Integer>> documentFrequencies = new HashMap<String, Map<Integer, Integer>>();
-		for(int i = 0; i < tokens.size(); i++) {
-			String token = tokens.get(i);
-
-			List<Posting> resultPostings = this.searchToken(token);
-			for(Posting posting: resultPostings) {
-				int documentId = posting.getDocumentId();
-				int positionsCount = posting.getPositions().length;
-				if(!documentFrequencies.containsKey(token)) {
-					documentFrequencies.put(token, new HashMap<Integer, Integer>());
-				}
-				if(documentFrequencies.get(token).containsKey(documentId)) {
-					documentFrequencies.get(token).put(documentId, documentFrequencies.get(token).get(documentId) + positionsCount);
-				}
-				else {
-					documentFrequencies.get(token).put(documentId, positionsCount);
-				}
-			}
-			collectionFrequencies.put(token, resultPostings.stream().mapToInt(x -> x.getPositions().length).sum());
-			documentIds.addAll(resultPostings.stream().map(x -> x.getDocumentId()).collect(Collectors.toList()));
-		}
-		
-		// Remove duplicates
-		documentIds = documentIds.stream().distinct().collect(Collectors.toList());
+	private QueryResult simpleSearch(List<String> tokens, int topK) throws IOException {
+		// Search for tokens
+		QueryResult result = this.getResult(tokens.stream()
+											.map(x -> this.searchToken(x))
+											.reduce((x,y) -> IntermediateQueryResult.merge(x, y))
+											.get());
 		
 		// Weight documents
-		List<PatentDocument> result = this.getDocuments(documentIds);
-		result = this.documentRanker.weightResult(result, documentFrequencies, collectionFrequencies, this.indexReader.getTotalTokenCount(), topK);
+		result = this.documentRanker.weightResult(result, this.indexReader.getTotalTokenCount(), topK);
 		
 		return result;
 	}
 	
 	/**
-	 * Determines, whether posting1 is successor of posting2 in the very same document.
-	 * @param posting1
-	 * @param posting2
-	 * @return boolean
+	 * Gets all postings of a given token from index.
+	 * @param token
+	 * @return 
 	 */
-	private boolean areSuccessive(Posting posting1, Posting posting2) {
-		if(posting1.getDocumentId() == posting2.getDocumentId()) {
-			return Arrays.stream(posting1.getPositions())
-						.anyMatch(x -> Arrays.stream(posting2.getPositions())
-											.anyMatch(y -> y == x + 1));
-		}
-		
-		return false;
+	private IntermediateQueryResult searchToken(String token) {
+		return this.searchToken(token, null);
 	}
 	
 	/**
-	 * Gets all postings of a given token from index.
+	 * Gets all postings of a given (corrected) token from index. 
+	 * The original misspelled token has to be passed as second argument.
 	 * @param token
-	 * @return List of postings.
+	 * @param misspelledToken
+	 * @return 
 	 */
-	private List<Posting> searchToken(String token) {
+	private IntermediateQueryResult searchToken(String token, String misspelledToken) {
 		try {
+			// Stem token or remove wildcard character (if prefix search)
 			boolean prefixSearch = token.endsWith("*");
 			if(prefixSearch) {
 				token = token.substring(0, token.length() - 1);
@@ -359,48 +368,68 @@ public class QueryProcessor {
 				token = this.textPreprocessor.stem(token);
 			}
 			
+			// Get postings
 			int startOffset = this.indexSeekList.getIndexOffset(token);
-			List<Posting> result = this.indexReader.getPostingsList(token, startOffset, prefixSearch);
+			Map<String, List<Posting>> postings = this.indexReader.getPostings(token, startOffset, prefixSearch);
 			
 			// Spelling correction
-			if(!prefixSearch && result.isEmpty()) {
+			if(!prefixSearch && postings.isEmpty()) {
 				String correctedToken = this.spellingCorrector.correctToken(token); 
 				if(correctedToken != null) {
-					result = searchToken(correctedToken);
-					System.out.println("We changed your query term due to a (possible) spelling error from " + token + " to " + correctedToken + "!");
+					return searchToken(correctedToken, token);
 				}
 			}
-			return result;
+			
+			return this.getResult(postings, misspelledToken);
 		}
 		catch(IOException e) {
-			return new ArrayList<Posting>();
+			return new IntermediateQueryResult();
 		}
 	}
 
-
 	/**
-	 * Extracts distinct document ids from a list of postings
+	 * Creates a new IntermediateQueryResult from a map of postings.
 	 * @param postings
-	 * @return List of document ids.
+	 * @return
 	 */
-	private List<Integer> getDocumentIds(List<Posting> postings) {
-		return postings.stream()
-				.mapToInt(x -> x.getDocumentId())
-				.distinct()
-				.boxed()
-				.collect(Collectors.toList());
+	private IntermediateQueryResult getResult(Map<String, List<Posting>> postings, String misspelledToken) {
+		// Construct postings table
+		HashBasedTable<Integer, String, Integer[]> postingsTable = HashBasedTable.<Integer, String, Integer[]>create();
+		postings.entrySet().stream()
+		.forEach(tokenPostings -> tokenPostings.getValue().stream()
+			.collect(Collectors.groupingBy(posting -> posting.getDocumentId()))
+			.entrySet().stream()
+			.forEach(documentPostings -> postingsTable.put(
+											documentPostings.getKey(), 
+											tokenPostings.getKey(), 
+											documentPostings.getValue().stream()
+												.flatMap(x -> Arrays.stream(x.getPositions()).boxed())
+												.toArray(Integer[]::new))));
+
+		
+		// Construct spelling correction map, if token was corrected
+		if(misspelledToken != null) {
+			Map<String, String> spellingCorrections = postings.keySet().stream()
+															.collect(Collectors.toMap(x -> x, x -> misspelledToken));
+			
+			return new IntermediateQueryResult(postingsTable, spellingCorrections);
+		}
+		
+		return new IntermediateQueryResult(postingsTable);
 	}
 	
 	/**
-	 * Gets the PatentDocument instance for each of the given document ids.
-	 * @param documentIds
-	 * @return List of PatentDocument instances.
-	 * @throws IOException
+	 * Converts a IntermediateQueryResult to a QueryResult instance.
+	 * @param intermediateResult
+	 * @return
 	 */
-	private List<PatentDocument> getDocuments(List<Integer> documentIds) throws IOException {
-		return documentIds.stream()
-				.map(this::getDocument)
-				.collect(Collectors.toList());
+	private QueryResult getResult(IntermediateQueryResult intermediateResult) {
+		// Replace document ids with corresponding PatentDocument instances.
+		Map<PatentDocument, Map<String, Integer[]>> rowMap = 
+				intermediateResult.getPostingsTable().rowMap().entrySet().stream()
+					.collect(Collectors.toMap(row -> this.getDocument(row.getKey()), row -> row.getValue()));
+		
+		return new QueryResult(rowMap, intermediateResult.getSpellingCorrections());
 	}
 	
 	/**

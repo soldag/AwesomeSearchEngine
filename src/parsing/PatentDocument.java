@@ -264,6 +264,16 @@ public class PatentDocument {
 	}
 	
 	@Override
+	public boolean equals(Object obj) {
+		if(obj instanceof PatentDocument) {
+			PatentDocument document = (PatentDocument)obj;
+			return this.getId() == document.getId();
+		}
+		
+		return false;
+	}
+	
+	@Override
 	public String toString() {
 		return Integer.toString(this.getId());
 	}

@@ -33,6 +33,7 @@ import parsing.lookups.PatentTitleLookup;
 import querying.DamerauLevenshteinCalculator;
 import querying.DocumentRanker;
 import querying.QueryProcessor;
+import querying.results.QueryResult;
 import textprocessing.TextPreprocessor;
 
 public class AwesomeSearchEngine extends SearchEngine {
@@ -171,7 +172,9 @@ public class AwesomeSearchEngine extends SearchEngine {
     ArrayList<String> search(String query, int topK, int prf) {
     	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
 	    	try {
-	            return this.queryProcessor.search(query, topK, prf).stream()
+	    		QueryResult result = this.queryProcessor.search(query, topK, prf);
+	            return result.getPostingsTable().rowKeySet().stream()
+	            		.distinct()
 						.map(x -> String.format("%s %s", x.getId(), this.getTitle(x)))
 						.collect(Collectors.toCollection(ArrayList::new));
 			} catch (IOException e) {

@@ -1,14 +1,11 @@
 package querying;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableTable;
 
 import parsing.PatentDocument;
-import utilities.MapValueComparator;
+import querying.results.QueryResult;
 
 public class DocumentRanker {
 	
@@ -16,35 +13,68 @@ public class DocumentRanker {
 	 * Contains the lambda factor for jelinek-mercer smoothing.
 	 */
 	private static final double QL_LAMBDA = 0.2;
-
+	
 	/**
-	 * Weights a list of documents for a given query using query-likelihood-model. Resulting list is limited to topK entries.
-	 * @param documents
-	 * @param documentFrequencies
-	 * @param collectionFrequencies
-	 * @param topK
-	 * @return Weighted list of documents
-	 * @throws IOException
+	 * Weights a query result using query-likelihood-model. Resulting query result is limited to 'limit' entries.
+	 * @param result
+	 * @param collectionTokenCount
+	 * @param limit
+	 * @return
 	 */
-	public List<PatentDocument> weightResult(List<PatentDocument> documents, Map<String, Map<Integer, Integer>> documentFrequencies, Map<String, Integer> collectionFrequencies, int totalTokenCount, int topK) throws IOException {
-		HashMap<PatentDocument, Double> weightedDocuments = new HashMap<PatentDocument, Double>();
-		for(PatentDocument document: documents) {
-			double weight = Math.log(documentFrequencies.keySet().stream()
-									.mapToDouble(token -> this.queryLikelihood(
-															this.getDocumentFrequency(token, document.getId(), documentFrequencies),
-															document.getTokensCount(), 
-															collectionFrequencies.get(token), 
-															totalTokenCount))
-									.reduce(1, (x,y) -> x*y));
-			weightedDocuments.put(document, weight);
-		}
+	public QueryResult weightResult(QueryResult result, int collectionTokenCount, int limit) {
+		ImmutableTable.Builder<PatentDocument, String, Integer[]> postingTableBuilder = new ImmutableTable.Builder<PatentDocument, String, Integer[]>();
+		result.getPostingsTable().rowMap().entrySet().stream()
+			.sorted((doc1, doc2) -> this.compareByWeight(doc1, doc2, result, collectionTokenCount))
+			.limit(limit)
+			.forEach(row -> row.getValue().entrySet()
+					.forEach(column -> postingTableBuilder.put(row.getKey(), column.getKey(), column.getValue())));
 		
-		// Sort result by weight descending and limit results by topK
-		return weightedDocuments.entrySet().stream()
-				.sorted(Collections.reverseOrder(new MapValueComparator<PatentDocument, Double>()))
-				.limit(topK)
-				.map(x -> x.getKey())
-				.collect(Collectors.toList());
+		return new QueryResult(postingTableBuilder.build(), result.getSpellingCorrections());
+	}
+	
+	/**
+	 * Compares two documents by query-likelihood-weight.
+	 * @param result
+	 * @param collectionTokenCount
+	 * @param doc1
+	 * @param doc2
+	 * @return
+	 */
+	private int compareByWeight(Map.Entry<PatentDocument, Map<String, Integer[]>> doc1, 
+								Map.Entry<PatentDocument, Map<String, Integer[]>> doc2,
+								QueryResult result, int collectionTokenCount) {
+		
+		return Double.compare(
+				this.weightDocument(doc1.getKey(), doc1.getValue(), result, collectionTokenCount), 
+				this.weightDocument(doc2.getKey(), doc1.getValue(), result, collectionTokenCount));
+	}
+	
+	/**
+	 * Calculates the query-likelihood-weight for a given document.
+	 * @param document
+	 * @param tokenPostings
+	 * @param result
+	 * @param collectionTokenCount
+	 * @return
+	 */
+	private double weightDocument(PatentDocument document, Map<String, Integer[]> tokenPostings, QueryResult result, int collectionTokenCount) {
+		return Math.log(tokenPostings.entrySet().stream()
+						.mapToDouble(column -> this.queryLikelihood(
+											column.getValue().length, 
+											document.getTokensCount(), 
+											this.getCollectionFrequency(column.getKey(), result), 
+											collectionTokenCount))
+						.reduce(1, (x,y) -> x*y));
+	}
+	
+	/**
+	 * Counts the numbers of occurrences of the given token in the collection.
+	 * @param token
+	 * @param result
+	 * @return
+	 */
+	private int getCollectionFrequency(String token, QueryResult result) {
+		return result.getPostingsTable().column(token).values().stream().mapToInt(x -> x.length).sum();
 	}
 	
 	/**
@@ -58,20 +88,5 @@ public class DocumentRanker {
 	private double queryLikelihood(int tokenDocumentFrequency, int documentsLength, int tokenCollectionFrequency, int collectionLength) {
 		return (1 - QL_LAMBDA) * ((double)tokenDocumentFrequency / (double)documentsLength)
 				+ QL_LAMBDA * ((double)tokenCollectionFrequency / (double)collectionLength);
-	}
-	
-	/**
-	 * Extracts the document frequency of a given token in a specific document from the documentFrequencies map.
-	 * @param token
-	 * @param documentId
-	 * @param documentFrequencies
-	 * @return Number of occurrences of the given token in the specific document.
-	 */
-	private int getDocumentFrequency(String token, int documentId, Map<String, Map<Integer, Integer>> documentFrequencies) {
-		if(documentFrequencies.containsKey(token) && documentFrequencies.get(token).containsKey(documentId)) {
-			return documentFrequencies.get(token).get(documentId);
-		}
-		
-		return 0;
 	}
 }
