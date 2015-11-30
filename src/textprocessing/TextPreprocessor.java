@@ -108,6 +108,15 @@ public class TextPreprocessor {
 	 * @return List of tokens without stop words.
 	 */
 	public List<String> removeStopWords(List<String> tokens) {
-		return tokens.stream().filter(x -> !this.stopWords.contains(x)).collect(Collectors.toList());
+		return tokens.stream().filter(x -> !this.isStopWord(x)).collect(Collectors.toList());
+	}
+	
+	/**
+	 * Determines, whether the given token is a stop word or not.
+	 * @param token
+	 * @return
+	 */
+	public boolean isStopWord(String token) {
+		return this.stopWords.contains(token);
 	}
 }

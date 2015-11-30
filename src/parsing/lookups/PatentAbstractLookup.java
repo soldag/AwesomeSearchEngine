@@ -6,7 +6,7 @@ import java.nio.file.Path;
 
 import parsing.PatentDocument;
 
-public class PatentAbstractLookup extends AbstractPatentPropertyLookup {
+public class PatentAbstractLookup extends PatentPropertyLookup {
 
 	/**
 	 * Creates a new PatentAbstractLookup instance.

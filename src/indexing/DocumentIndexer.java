@@ -1,22 +1,18 @@
-package indexing.documentmap;
+package indexing;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.xml.stream.XMLStreamException;
 
-import indexing.Posting;
+import indexing.documentmap.DocumentMapConstructor;
+import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexConstructor;
 import indexing.invertedindex.InvertedIndexMerger;
 import indexing.invertedindex.InvertedIndexSeekList;
 import parsing.PatentContentDocument;
 import parsing.parsers.PatentDocumentParser;
 import textprocessing.TextPreprocessor;
-import utilities.MapValueComparator;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -34,11 +30,6 @@ public class DocumentIndexer {
 	 * Contains the prefix for temporary index files.
 	 */
 	private static final String TEMP_INDEX_PREFIX = "awse_index_%d";
-
-	/**
-	 * Contains the number of the top most frequent tokens that should be stored in the document map.
-	 */
-	private static final int MOST_FREQUENT_TOKENS_LIMIT = 5;
 	
 	/**
 	 * Contains text preprocessor instance.
@@ -67,11 +58,6 @@ public class DocumentIndexer {
 	 * Contains all created temporary index files.
 	 */
 	private List<File> temporaryIndexFiles = new ArrayList<File>();
-	
-	/**
-	 * Contains the number of occurrences per token of a single document.
-	 */
-	private Map<String, Integer> tokenOccurrencesCount = new HashMap<String, Integer>();
 	
 	/**
 	 * Creates a new DocumentIndexer instance.
@@ -145,23 +131,16 @@ public class DocumentIndexer {
 		PatentDocumentParser patentParser = new PatentDocumentParser(documentPath);
 		for(PatentContentDocument document: patentParser) {					
 			// Tokenize, stem and remove stop-words from abstract, and add single tokens to index
-			List<String> tokens = this.textPreprocessor.removeStopWords(this.textPreprocessor.tokenize(document.getAbstractText()));
+			List<String> tokens = this.textPreprocessor.tokenize(document.getAbstractText());
 			for(int i = 0; i < tokens.size(); i++) {
 				String token = this.textPreprocessor.stem(tokens.get(i));
-				this.addToken(document, token, i);
+				if(!this.textPreprocessor.isStopWord(token)) {
+					this.addToken(document, token, i);
+				}
 			}
-			
-			// Count the most frequent terms
-			List<String> mostFrequentTokens = tokenOccurrencesCount.entrySet().stream()
-												.sorted(Collections.reverseOrder(new MapValueComparator<String, Integer>()))
-												.limit(MOST_FREQUENT_TOKENS_LIMIT)
-												.map(x -> x.getKey())
-												.collect(Collectors.toList());
-			tokenOccurrencesCount.clear();
 			
 			// Add to document map
     		document.setTokensCount(tokens.size());
-    		document.setMostFrequentTokens(mostFrequentTokens);
 			documentMapConstructor.add(document);
 		}
 	}
@@ -189,15 +168,7 @@ public class DocumentIndexer {
 			// Run garbage collector
 			System.gc();
 			System.runFinalization();
-		}
-		
-		// Increase number of occurrences in current document
-		if(tokenOccurrencesCount.containsKey(token)){
-			tokenOccurrencesCount.put(token, tokenOccurrencesCount.get(token) + 1);
-		}
-		else {
-			tokenOccurrencesCount.put(token, 1);
-		}		
+		}	
 	}	
 	
 	/**

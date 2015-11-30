@@ -23,18 +23,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.stream.Collectors;
 
 import org.apache.commons.io.FilenameUtils;
 
-import indexing.documentmap.DocumentIndexer;
-import parsing.PatentDocument;
+import indexing.DocumentIndexer;
+import parsing.lookups.PatentAbstractLookup;
 import parsing.lookups.PatentTitleLookup;
 import querying.DamerauLevenshteinCalculator;
 import querying.DocumentRanker;
 import querying.QueryProcessor;
 import querying.results.QueryResult;
 import textprocessing.TextPreprocessor;
+import visualization.ResultFormatter;
+import visualization.SnippetGenerator;
 
 public class AwesomeSearchEngine extends SearchEngine {
 	
@@ -50,6 +51,9 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private DocumentIndexer documentIndexer;
 	private QueryProcessor queryProcessor;
 	private PatentTitleLookup titleLookup;
+	private PatentAbstractLookup patentAbstractLookup;
+	private SnippetGenerator snippetGenerator;
+	private ResultFormatter resultFormatter;
     
 	/**
 	 * Contains the path of the directory containing the patent data.
@@ -122,6 +126,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 					this.getTextPreprocessor(), 
 					new DamerauLevenshteinCalculator(1, 1, 1, 1),
 					new DocumentRanker(),
+					this.getSnippetGenerator(),
 					this.documentMapFile, 
 					this.documentMapSeekListFile, 
 					this.indexFile, 
@@ -146,6 +151,46 @@ public class AwesomeSearchEngine extends SearchEngine {
     	}
     	
     	return this.titleLookup;
+    }
+    
+    /**
+     * Returns the current abstract lookup.
+     * @return
+     */
+    private PatentAbstractLookup getPatentAbstractLookup() {
+    	if(this.patentAbstractLookup == null) {
+    		this.patentAbstractLookup = new PatentAbstractLookup(this.documentDirectory);
+    	}
+    	
+    	return this.patentAbstractLookup;
+    }
+    
+    /**
+     * Returns the current snippet generator
+     * @return
+     */
+    private SnippetGenerator getSnippetGenerator() {
+    	if(this.snippetGenerator == null) {
+    		this.snippetGenerator = new SnippetGenerator(
+    				this.getTextPreprocessor(), 
+    				this.getPatentAbstractLookup());
+    	}
+    	
+    	return this.snippetGenerator;
+    }
+    
+    /**
+     * Returns the current result formatter.
+     * @return
+     */
+    private ResultFormatter getResultFormatter() {
+    	if(this.resultFormatter == null) {
+    		this.resultFormatter = new ResultFormatter(
+    				this.getTitleLookup(), 
+    				this.getSnippetGenerator());
+    	}
+    	
+    	return this.resultFormatter;
     }
 
     @Override
@@ -173,10 +218,8 @@ public class AwesomeSearchEngine extends SearchEngine {
     	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
 	    	try {
 	    		QueryResult result = this.queryProcessor.search(query, topK, prf);
-	            return result.getPostingsTable().rowKeySet().stream()
-	            		.distinct()
-						.map(x -> String.format("%s %s", x.getId(), this.getTitle(x)))
-						.collect(Collectors.toCollection(ArrayList::new));
+	    		
+	    		return this.getResultFormatter().format(result);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -230,18 +273,5 @@ public class AwesomeSearchEngine extends SearchEngine {
 		}
         
         return true;
-    }
-    
-    /**
-     * Gets the title of a patent document from source file.
-     * @param document
-     * @return
-     */
-    private String getTitle(PatentDocument document) {
-    	try {
-			return this.getTitleLookup().get(document);
-		} catch (IOException e) {
-			return null;
-		}
     }
 }

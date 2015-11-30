@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.HashBasedTable;
@@ -19,8 +20,11 @@ import indexing.invertedindex.InvertedIndexReader;
 import indexing.invertedindex.InvertedIndexSeekList;
 import parsing.PatentDocument;
 import querying.results.IntermediateQueryResult;
+import querying.results.PrfQueryResult;
 import querying.results.QueryResult;
 import textprocessing.TextPreprocessor;
+import utilities.MapValueComparator;
+import visualization.SnippetGenerator;
 
 public class QueryProcessor {
 	
@@ -30,12 +34,18 @@ public class QueryProcessor {
 	private static final List<String> BOOLEAN_OPERATORS = Arrays.asList("AND", "OR", "NOT");
 	
 	/**
+	 * Contains the number of most used tokens that are used for pseudo-relevance-feedback.
+	 */
+	private static final int PRF_K = 10;
+	
+	/**
 	 * Contains necessary services.
 	 */
 	private TextPreprocessor textPreprocessor;
 	private DocumentRanker documentRanker;
 	private DamerauLevenshteinCalculator damerauLevenshtein;
 	private SpellingCorrector spellingCorrector;
+	private SnippetGenerator snippetGenerator;
 	
 	/**
 	 * Contain necessary index files and reader services.
@@ -72,12 +82,13 @@ public class QueryProcessor {
 	 * @param compressed
 	 * @throws FileNotFoundException
 	 */
-	public QueryProcessor(TextPreprocessor textProcessor, DamerauLevenshteinCalculator damerauLevenshtein, DocumentRanker documentRanker, 
+	public QueryProcessor(TextPreprocessor textProcessor, DamerauLevenshteinCalculator damerauLevenshtein, DocumentRanker documentRanker, SnippetGenerator snippetGenerator,
 			File documentMapFile, File documentMapSeekListFile, File indexFile, File indexSeekListFile, 
 			boolean compressed) throws FileNotFoundException {
 		this.textPreprocessor = textProcessor;
 		this.damerauLevenshtein = damerauLevenshtein;
 		this.documentRanker = documentRanker;
+		this.snippetGenerator = snippetGenerator;
 		
 		this.documentMapFile = documentMapFile;
 		this.documentMapSeekListFile = documentMapSeekListFile;
@@ -153,7 +164,7 @@ public class QueryProcessor {
 				return this.searchPhrase(tokens, topK);
 				
 			default:
-				return this.searchDefault(tokens, topK, prf);
+				return this.searchKeywords(tokens, topK, prf);
 		}
 	}
 	
@@ -274,6 +285,13 @@ public class QueryProcessor {
 					.collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
 		}
 		
+		// Assure, that spelling corrections only include tokens that are part of the posting table
+		Set<String> postingsTokens = postingTable.columnKeySet();
+		Set<String> correctedTokens = spellingCorrections.keySet();
+		correctedTokens.stream()
+				.filter(x -> !postingsTokens.contains(x))
+				.forEach(x -> spellingCorrections.remove(x));
+		
 		// Create final intermediate result
 		IntermediateQueryResult intermediateResult = new IntermediateQueryResult(postingTable, spellingCorrections);
 		
@@ -285,7 +303,7 @@ public class QueryProcessor {
 	}
 	
 	/**
-	 * Determines, whether position1 contains at least one position that is precedessor of a posistion if positions2. 
+	 * Determines, whether position1 contains at least one position that is precedessor of a position if positions2. 
 	 * @param posting1
 	 * @param posting2
 	 * @return boolean
@@ -297,28 +315,54 @@ public class QueryProcessor {
 	}
 	
 	/**
-	 * Searches "normally" for a given query. Results of query tokens are combined(disjunction) and weighted.
+	 * Searches for a given keyword query. Results of query tokens are combined(disjunction) and weighted.
 	 * @param tokens
 	 * @param topK
 	 * @param prf
 	 * @return
 	 * @throws IOException 
 	 */
-	private QueryResult searchDefault(List<String> tokens, int topK, int prf) throws IOException {
+	private QueryResult searchKeywords(List<String> tokens, int topK, int prf) throws IOException {
 		QueryResult result = this.simpleSearch(tokens, topK);
 		
 		// Extend query by most frequent tokens of top documents (pseudo relevance), if enabled
 		if(prf > 0) {
 			List<String> additionalTerms = result.getPostingsTable().rowKeySet().stream()
 											.limit(prf)
-											.flatMap(x -> x.getMostFrequentTokens().stream())
+											.map(x -> this.snippetGenerator.generate(x, result))
+											.flatMap(x -> this.getMostFrequentTokens(
+															x.stream()
+																	.flatMap(y -> this.textPreprocessor.removeStopWords(y.getTokens()).stream())
+																	.collect(Collectors.toList()),
+															PRF_K).stream())
 											.collect(Collectors.toList());
 			tokens.addAll(additionalTerms);
 			tokens = tokens.stream().distinct().collect(Collectors.toList());
-			result = this.simpleSearch(tokens, topK);
+			return PrfQueryResult.fromResults(this.simpleSearch(tokens, topK), result);
 		}
 		
 		return result;
+	}
+	
+	/**
+	 * Returns the most frequent tokens from a list limited to 'limit'.
+	 * @param tokens
+	 * @param limit
+	 * @return
+	 */
+	private List<String> getMostFrequentTokens(List<String> tokens, int limit) {
+		Map<String, Integer> tokenCounts = new HashMap<String, Integer>();
+		for(String token: tokens) {
+			tokenCounts.putIfAbsent(token, 0);
+			tokenCounts.put(token, tokenCounts.get(token) + 1);
+		}
+		
+		return tokenCounts.entrySet().stream()
+				.sorted(new MapValueComparator<String, Integer>())
+				.map(x -> x.getKey())
+				.distinct()
+				.limit(limit)
+				.collect(Collectors.toList());
 	}
 	
 	/**

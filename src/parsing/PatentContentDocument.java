@@ -25,7 +25,7 @@ public class PatentContentDocument extends PatentDocument {
 	 * @param abstractText
 	 */
 	public PatentContentDocument(int documentId, int fileId, long titleOffset, int titleLength, long abstractOffset, int abstractLength, String title, String abstractText) {
-		super(documentId, fileId, titleOffset, titleLength, abstractOffset, abstractLength, -1, null);
+		super(documentId, fileId, titleOffset, titleLength, abstractOffset, abstractLength, -1);
 		
 		this.title = title;
 		this.abstractText = abstractText;

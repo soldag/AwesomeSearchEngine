@@ -8,7 +8,7 @@ import java.nio.file.Path;
 
 import parsing.PatentDocument;
 
-public abstract class AbstractPatentPropertyLookup {
+public abstract class PatentPropertyLookup {
 	
 	/**
 	 * Contains the path of the data directory, containing the document files.
@@ -20,7 +20,7 @@ public abstract class AbstractPatentPropertyLookup {
 	 * Creates a new AbstractPatentPropertyLookup instance.
 	 * @param documentDirectory
 	 */
-	public AbstractPatentPropertyLookup(Path documentDirectory) {
+	public PatentPropertyLookup(Path documentDirectory) {
 		this.documentDirectory = documentDirectory;
 	}
 	

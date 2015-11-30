@@ -24,10 +24,10 @@ public class DocumentRanker {
 	public QueryResult weightResult(QueryResult result, int collectionTokenCount, int limit) {
 		ImmutableTable.Builder<PatentDocument, String, Integer[]> postingTableBuilder = new ImmutableTable.Builder<PatentDocument, String, Integer[]>();
 		result.getPostingsTable().rowMap().entrySet().stream()
-			.sorted((doc1, doc2) -> this.compareByWeight(doc1, doc2, result, collectionTokenCount))
-			.limit(limit)
-			.forEach(row -> row.getValue().entrySet()
-					.forEach(column -> postingTableBuilder.put(row.getKey(), column.getKey(), column.getValue())));
+				.sorted((doc1, doc2) -> this.compareByWeight(doc1, doc2, result, collectionTokenCount))
+				.limit(limit)
+				.forEach(row -> row.getValue().entrySet()
+						.forEach(column -> postingTableBuilder.put(row.getKey(), column.getKey(), column.getValue())));
 		
 		return new QueryResult(postingTableBuilder.build(), result.getSpellingCorrections());
 	}

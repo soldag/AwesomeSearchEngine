@@ -3,17 +3,8 @@ package parsing;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.commons.lang3.ArrayUtils;
 
 public class PatentDocument {
-	
-	/**
-	 * Determines the encoding for writing text of the document to file.
-	 */
-	private static final String ENCODING = "UTF-8";
 
 	/**
 	 * Contains the id of the document.
@@ -51,11 +42,6 @@ public class PatentDocument {
 	private int tokensCount = -1;
 	
 	/**
-	 * Contains the list of the most frequent words in the document.
-	 */
-	private List<String> mostFrequentTokens = null;
-	
-	/**
 	 * Creates a new PatentDocument instance.
 	 * @param id
 	 * @param fileId
@@ -64,9 +50,8 @@ public class PatentDocument {
 	 * @param abstractOffset
 	 * @param abstractLength
 	 * @param tokensCount
-	 * @param mostFrequentTokens
 	 */
-	public PatentDocument(int id, int fileId, long titleOffset, int titleLength, long abstractOffset, int abstractLength, int tokensCount, List<String> mostFrequentTokens) {
+	public PatentDocument(int id, int fileId, long titleOffset, int titleLength, long abstractOffset, int abstractLength, int tokensCount) {
 		this.id = id;
 		this.fileId = fileId;
 		this.titleOffset = titleOffset;
@@ -74,7 +59,6 @@ public class PatentDocument {
 		this.abstractOffset = abstractOffset;
 		this.abstractLength = abstractLength;
 		this.tokensCount = tokensCount;
-		this.mostFrequentTokens = mostFrequentTokens;
 	}
 	
 	
@@ -147,24 +131,6 @@ public class PatentDocument {
 	}
 	
 	/**
-	 * Gets the list of the most frequent words in the document.
-	 */
-	public List<String> getMostFrequentTokens() {
-		if(this.mostFrequentTokens == null) {
-			throw new IllegalStateException("Document was not tokenized, yet.");
-		}
-		return this.mostFrequentTokens;
-	}
-	
-	/**
-	 * Sets the list of the most frequent words in the document.
-	 * @param mostFrequentTokens
-	 */
-	public void setMostFrequentTokens(List<String> mostFrequentTokens) {
-		this.mostFrequentTokens = mostFrequentTokens;
-	}
-	
-	/**
 	 * Creates a new PatentDocument instance by deserializing given byte array representing the whole document.
 	 * @param patentDocumentBytes
 	 * @return PatentDocument
@@ -203,19 +169,7 @@ public class PatentDocument {
 		// Read tokens count
 		int tokensCount = buffer.getInt();
 		
-		// Read most frequent terms
-		int mostFrequentTokensCount = buffer.getInt();
-		List<String> mostFrequentTokens = new ArrayList<String>();
-		for(int i = 0; i < mostFrequentTokensCount; i++){
-			int tokenLength = buffer.getInt();
-			byte[] tokenBytes = new byte[tokenLength];
-			buffer.get(tokenBytes);
-			String token = new String(tokenBytes, ENCODING);
-			
-			mostFrequentTokens.add(token);
-		}
-		
-		return new PatentDocument(id, fileId, titleStartOffset, titleEndOffset, abstractStartOffset, abstractEndOffset, tokensCount, mostFrequentTokens);
+		return new PatentDocument(id, fileId, titleStartOffset, titleEndOffset, abstractStartOffset, abstractEndOffset, tokensCount);
 	}
 	
 	/**
@@ -224,14 +178,8 @@ public class PatentDocument {
 	 * @throws UnsupportedEncodingException
 	 */
 	public byte[] toBytes() throws UnsupportedEncodingException {
-		List<Byte[]> termsBytes = new ArrayList<Byte[]>();
-		for(String term: mostFrequentTokens) {
-			termsBytes.add(ArrayUtils.toObject(term.getBytes(ENCODING)));
-		}
-		
 		// Calculate capacity of buffer
-		int mostFrequentTermLength = termsBytes.stream().mapToInt(x -> x.length).sum() + termsBytes.size() * Integer.BYTES + Integer.BYTES; // Encoded most frequent tokens + number of total tokens + length of each token 
-		int propertiesLength = 4 * Integer.BYTES + 2 * Long.BYTES + mostFrequentTermLength; // File id + Tokens count + offsets + most frequent term entries
+		int propertiesLength = 4 * Integer.BYTES + 2 * Long.BYTES; // File id + Tokens count + offsets
 		int capacity = 2 * Integer.BYTES + propertiesLength; // Document id + properties length (skip pointer) + properties bytes
 		ByteBuffer buffer = ByteBuffer.allocate(capacity);
 		
@@ -252,13 +200,6 @@ public class PatentDocument {
 		
 		// Write tokens count
 		buffer.putInt(tokensCount);
-		
-		// Write most frequent tokens
-		buffer.putInt(mostFrequentTokens.size());
-		for(Byte[] term: termsBytes) {
-			buffer.putInt(term.length);
-			buffer.put(ArrayUtils.toPrimitive(term));
-		}
 		
 		return buffer.array();
 	}
