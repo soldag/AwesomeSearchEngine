@@ -1,4 +1,4 @@
-package querying;
+package querying.spellingcorrection;
 
 import java.io.IOException;
 import java.util.List;

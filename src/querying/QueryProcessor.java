@@ -22,6 +22,8 @@ import parsing.PatentDocument;
 import querying.results.IntermediateQueryResult;
 import querying.results.PrfQueryResult;
 import querying.results.QueryResult;
+import querying.spellingcorrection.DamerauLevenshteinCalculator;
+import querying.spellingcorrection.SpellingCorrector;
 import textprocessing.TextPreprocessor;
 import utilities.MapValueComparator;
 import visualization.SnippetGenerator;
