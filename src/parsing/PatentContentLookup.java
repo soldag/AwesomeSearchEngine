@@ -1,4 +1,4 @@
-package parsing.lookups;
+package parsing;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -6,9 +6,12 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 
-import parsing.PatentDocument;
+import org.apache.commons.lang3.tuple.Pair;
 
-public abstract class PatentPropertyLookup {
+import documents.PatentDocument;
+import postings.ContentType;
+
+public class PatentContentLookup {
 	
 	/**
 	 * Contains the path of the data directory, containing the document files.
@@ -17,38 +20,43 @@ public abstract class PatentPropertyLookup {
 	
 	
 	/**
-	 * Creates a new AbstractPatentPropertyLookup instance.
+	 * Creates a new PatentContentLookup instance.
 	 * @param documentDirectory
 	 */
-	public PatentPropertyLookup(Path documentDirectory) {
+	public PatentContentLookup(Path documentDirectory) {
 		this.documentDirectory = documentDirectory;
 	}
 	
 	
 	/**
-	 * Gets a specific property from the given patent document.
+	 * Gets a specific content type from the given patent document.
 	 * @param document
 	 * @return
 	 * @throws FileNotFoundException
 	 * @throws IOException
 	 */
-	public abstract String get(PatentDocument document) throws FileNotFoundException, IOException;
+	public String get(PatentDocument document, ContentType contentType) throws FileNotFoundException, IOException {
+		if(document.hasContent(contentType)) {
+			return this.readFromFile(document.getFileId(), document.getContentOffset(contentType));
+		}
+		
+		return null;
+	}
 	
 	/**
-	 * Reads a text section of a document file (specified by its file id) determined by its byte offset and length. 
+	 * Reads a text section of a document file (specified by its file id) determined by its position (byte offset and length). 
 	 * XML tags are removed during extraction.
 	 * @param fileId
-	 * @param offset
-	 * @param length
+	 * @param position
 	 * @return
 	 * @throws FileNotFoundException
 	 * @throws IOException
 	 */
-	protected String readFromFile(int fileId, long offset, int length) throws FileNotFoundException, IOException {
+	protected String readFromFile(int fileId, Pair<Long, Integer> position) throws FileNotFoundException, IOException {
 		File sourceFile = documentDirectory.resolve(this.getFileName(fileId)).toFile();
 		try(RandomAccessFile file = new RandomAccessFile(sourceFile, "r")) {
-			file.seek(offset);
-			byte[] buffer = new byte[length];
+			file.seek(position.getLeft());
+			byte[] buffer = new byte[position.getRight()];
 			file.readFully(buffer);
 			String title = new String(buffer);
 			
@@ -62,7 +70,7 @@ public abstract class PatentPropertyLookup {
 	 * @return
 	 */
 	private String getFileName(int fileId) {
-		return String.format("ipg%s.xml", fileId);
+		return String.format("ipg%0" + PatentDocument.FILE_ID_LENGTH + "d.xml", fileId);
 	}
 	
 	/**

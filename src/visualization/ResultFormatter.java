@@ -4,8 +4,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-import parsing.PatentDocument;
-import parsing.lookups.PatentTitleLookup;
+import documents.PatentDocument;
+import parsing.PatentContentLookup;
+import postings.ContentType;
 import querying.results.QueryResult;
 
 public class ResultFormatter {
@@ -19,7 +20,7 @@ public class ResultFormatter {
 	/**
 	 * Contains necessary services.
 	 */
-	private PatentTitleLookup titleLookup;
+	private PatentContentLookup patentContentLookup;
 	private SnippetGenerator snippetGenerator;
 	
 	
@@ -28,8 +29,8 @@ public class ResultFormatter {
 	 * @param titleLookup
 	 * @param snippetGenerator
 	 */
-	public ResultFormatter(PatentTitleLookup titleLookup, SnippetGenerator snippetGenerator) {
-		this.titleLookup = titleLookup;
+	public ResultFormatter(PatentContentLookup patentContentLookup, SnippetGenerator snippetGenerator) {
+		this.patentContentLookup = patentContentLookup;
 		this.snippetGenerator = snippetGenerator;
 	}
 	
@@ -42,10 +43,10 @@ public class ResultFormatter {
 	 */
 	public ArrayList<String> format(QueryResult result) throws IOException {
 		ArrayList<String> formattedResults = new ArrayList<String>();
-		for(PatentDocument document: result.getPostingsTable().rowKeySet()) {
+		for(PatentDocument document: result.getPostings().documentSet()) {
 			// Get properties
 			int id = document.getId();
-			String title = this.titleLookup.get(document);
+			String title = this.patentContentLookup.get(document, ContentType.Title);
 			String snippet = this.snippetGenerator.generate(document, result).stream()
 								.map(x -> x.toFormattedString())
 								.collect(Collectors.joining("..."));

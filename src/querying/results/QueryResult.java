@@ -1,66 +1,126 @@
 package querying.results;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableTable;
+import postings.PostingTable;
 
-import parsing.PatentDocument;
-
-public class QueryResult extends GenericQueryResult<PatentDocument, ImmutableTable<PatentDocument, String, Integer[]>> {
+public class QueryResult {
 	
 	/**
-	 * Creates new new QueryResult instance.
+	 * Contains the found postings per token.
+	 */
+	protected final PostingTable tokenPostings;
+	
+	/**
+	 * Contains the map of spelling corrections. Key is the original token, value the corrected one.
+	 */
+	protected final Map<String, String> spellingCorrections;
+
+	
+	/**
+	 * Creates a new QueryResult instance.
 	 */
 	public QueryResult() {
-		this(ImmutableTable.<PatentDocument, String, Integer[]>of());
+		this(new PostingTable());
 	}
 	
 	/**
-	 * Creates new new QueryResult instance.
-	 * @param rowMap
+	 * Creates a new QueryResult instance.
+	 * @param tokenPostings
 	 */
-	public QueryResult(Map<PatentDocument, Map<String, Integer[]>> rowMap) {
-		this(QueryResult.rowMapToTable(rowMap));
+	public QueryResult(PostingTable tokenPostings) {
+		this(tokenPostings, new HashMap<String, String>());
 	}
 	
 	/**
-	 * Creates new new QueryResult instance.
-	 * @param postingsTable
-	 */
-	public QueryResult(ImmutableTable<PatentDocument, String, Integer[]> postingsTable) {
-		super(postingsTable);
-	}
-	
-	/**
-	 * Creates new new QueryResult instance.
-	 * @param rowMap
+	 * Creates a new QueryResult instance.
+	 * @param tokenPostings
 	 * @param spellingCorrections
 	 */
-	public QueryResult(Map<PatentDocument, Map<String, Integer[]>> rowMap, Map<String, String> spellingCorrections) {
-		this(QueryResult.rowMapToTable(rowMap), spellingCorrections);
-	}
-	
-	/**
-	 * Creates new new QueryResult instance.
-	 * @param postingsTable
-	 * @param spellingCorrections
-	 */
-	public QueryResult(ImmutableTable<PatentDocument, String, Integer[]> postingsTable, Map<String, String> spellingCorrections) {
-		super(postingsTable, spellingCorrections);
+	public QueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections) {
+		this.tokenPostings = tokenPostings;
+		
+		// Assure, that spelling corrections only include tokens that are part of the posting table
+		Set<String> existingTokens = this.tokenPostings.tokenSet();
+		this.spellingCorrections =  spellingCorrections.entrySet().stream()
+				.filter(x -> existingTokens.contains(x.getKey()))
+				.collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
 	}
 	
 	
 	/**
-	 * Constructs a posting table from a given row map.
-	 * @param rowMap
+	 * Gets the matching postings.
 	 * @return
 	 */
-	private static ImmutableTable<PatentDocument, String, Integer[]> rowMapToTable(Map<PatentDocument, Map<String, Integer[]>> rowMap) {
-		ImmutableTable.Builder<PatentDocument, String, Integer[]> builder = new ImmutableTable.Builder<PatentDocument, String, Integer[]>();
-		rowMap.entrySet().stream()
-			.forEach(row -> row.getValue().entrySet().stream()
-					.forEach(column -> builder.put(row.getKey(), column.getKey(), column.getValue())));
+	public PostingTable getPostings() {
+		return tokenPostings;
+	}
+
+	/**
+	 * Gets the map of spelling corrections. Key is the original token, value the corrected one.
+	 * @return
+	 */
+	public Map<String, String> getSpellingCorrections() {
+		return spellingCorrections;
+	}
+	
+
+	/**
+	 * Disjuncts multiple QueryResult instances.
+	 * @param results
+	 * @return
+	 */
+	public static QueryResult disjunct(QueryResult...results) {
+		// Disjunct postings
+		PostingTable[] tokenPostings = Arrays.stream(results)
+											.map(x -> x.getPostings())
+											.toArray(PostingTable[]::new);
+		PostingTable disjunctedTokenPostings = PostingTable.disjunct(tokenPostings);
 		
-		return builder.build();
+		// Disjunct spelling correction
+		Map<String, String> spellingCorrections = disjunctSpellingCorrections(results);
+		
+		return new QueryResult(disjunctedTokenPostings, spellingCorrections);
+	}
+	
+	/**
+	 * Conjuncts multiple QueryResult instances.
+	 * @param results
+	 * @return
+	 */
+	public static QueryResult conjunct(QueryResult...results) {
+		PostingTable[] tokenPostings = Arrays.stream(results)
+											.map(x -> x.getPostings())
+											.toArray(PostingTable[]::new);
+		PostingTable disjunctedTokenPostings = PostingTable.conjunct(tokenPostings);
+		
+		return new QueryResult(disjunctedTokenPostings, disjunctSpellingCorrections(results));
+	}
+	
+	/**
+	 * Conjuncts multiple QueryResult instances negatively (q_1 AND NOT (q_2 AND ... AND q_n)).
+	 * @param results
+	 * @return
+	 */
+	public static QueryResult conjunctNegated(QueryResult...results) {
+		PostingTable[] tokenPostings = Arrays.stream(results).map(x -> x.getPostings()).toArray(PostingTable[]::new);
+		PostingTable conjunctedTokenPostings = PostingTable.conjunctNegated(tokenPostings);
+		
+		return new QueryResult(conjunctedTokenPostings, disjunctSpellingCorrections(results));
+	}
+	
+	/**
+	 * Disjuncts the spelling corrections of multiple QueryResult instances.
+	 * @param results
+	 * @return
+	 */
+	private static Map<String, String> disjunctSpellingCorrections(QueryResult...results) {
+		return Arrays.stream(results)
+				.flatMap(result -> result.getSpellingCorrections().entrySet().stream())
+				.collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
 	}
 }

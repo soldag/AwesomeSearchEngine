@@ -1,17 +1,20 @@
 package indexing;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.xml.stream.XMLStreamException;
 
+import documents.PatentContentDocument;
 import indexing.documentmap.DocumentMapConstructor;
 import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexConstructor;
 import indexing.invertedindex.InvertedIndexMerger;
 import indexing.invertedindex.InvertedIndexSeekList;
-import parsing.PatentContentDocument;
-import parsing.parsers.PatentDocumentParser;
+import parsing.PatentDocumentParser;
+import postings.ContentType;
 import textprocessing.TextPreprocessor;
 
 import java.io.File;
@@ -86,7 +89,7 @@ public class DocumentIndexer {
 	 * @param documentPaths
 	 * @throws IOException
 	 */
-	public void indexDocuments(String[] documentPaths) throws IOException {
+	public void indexDocumentFiles(String[] documentPaths) throws IOException {
 		// Delete existing indexes
 		this.deleteIndexFiles();
 
@@ -94,7 +97,7 @@ public class DocumentIndexer {
 		try(DocumentMapConstructor documentMapConstructor = new DocumentMapConstructor(this.documentMapFile, new DocumentMapSeekList())) {
 			for(String documentPath: documentPaths) {
 				try {
-					this.indexSingleDocument(documentPath, documentMapConstructor);
+					this.indexSingleDocumentFile(documentPath, documentMapConstructor);
 				} catch (XMLStreamException e) {
 					String fileName = Paths.get(documentPath).getFileName().toString();
 					System.out.println(String.format("File '%s' could not be parsed and was skipped.", fileName));
@@ -122,53 +125,57 @@ public class DocumentIndexer {
 	
 	/**
 	 * Indexes a single document. 
-	 * @param documentPath
+	 * @param documentFilePath
 	 * @param indexConstructor
 	 * @throws XMLStreamException
 	 * @throws IOException
 	 */
-	private void indexSingleDocument(String documentPath, DocumentMapConstructor documentMapConstructor) throws XMLStreamException, IOException {
-		PatentDocumentParser patentParser = new PatentDocumentParser(documentPath);
-		for(PatentContentDocument document: patentParser) {					
-			// Tokenize, stem and remove stop-words from abstract, and add single tokens to index
-			List<String> tokens = this.textPreprocessor.tokenize(document.getAbstractText());
-			for(int i = 0; i < tokens.size(); i++) {
-				String token = this.textPreprocessor.stem(tokens.get(i));
-				if(!this.textPreprocessor.isStopWord(token)) {
-					this.addToken(document, token, i);
-				}
-			}
+	private void indexSingleDocumentFile(String documentFilePath, DocumentMapConstructor documentMapConstructor) throws XMLStreamException, IOException {
+		PatentDocumentParser patentParser = new PatentDocumentParser(documentFilePath);
+		for(PatentContentDocument document: patentParser) {
+			// Add all tokens from document to memory index
+			this.addTokens(document);
 			
-			// Add to document map
-    		document.setTokensCount(tokens.size());
+			// Add document to document map
 			documentMapConstructor.add(document);
+			
+			// If size of the memory index is too high, write memory index to new temporary file and clear memory
+			if(this.getFreeMemory() < FREE_MEMORY_LIMIT) {
+				this.writeToTempFile();
+				
+				// Run garbage collector
+				System.gc();
+				System.runFinalization();
+			}
 		}
 	}
 	
 	/**
-	 * Adds given token to memory index. 
+	 * Adds all tokens from document to memory index and return number of inserted tokens.
 	 * @param document
-	 * @param token
-	 * @param position
-	 * @throws FileNotFoundException
+	 * @return
 	 * @throws IOException
 	 */
-	private void addToken(PatentContentDocument document, String token, int position) throws FileNotFoundException, IOException {
-		// Stem token
-		token = this.textPreprocessor.stem(token);
-		
-		// Add posting to memory index
-		Posting posting = new Posting(document.getId(), position);
-		indexConstructor.add(token, posting);
-		
-		// If size of the memory index is too high, write memory index to new temporary file and clear memory
-		if(this.getFreeMemory() < FREE_MEMORY_LIMIT) {
-			this.writeToTempFile();
+	private void addTokens(PatentContentDocument document) throws IOException{
+		Map<ContentType, Integer> tokenCounts = new HashMap<ContentType, Integer>();
+		for(ContentType contentType: ContentType.values()) {
+			// Tokenize, stem and remove stop-words from content, and add single tokens to index
+			List<String> tokens = this.textPreprocessor.tokenize(document.getContent(contentType));
+			for(int position = 0; position < tokens.size(); position++) {
+				String token = this.textPreprocessor.stem(tokens.get(position));
+				if(!this.textPreprocessor.isStopWord(token)) {
+					// Stem token
+					token = this.textPreprocessor.stem(token);
+					
+					// Add posting to memory index
+					this.indexConstructor.add(document.getId(), token, contentType, position);
+				}
+			}
 			
-			// Run garbage collector
-			System.gc();
-			System.runFinalization();
-		}	
+			tokenCounts.put(contentType, tokens.size());
+		}
+		
+		document.setTokensCount(tokenCounts);
 	}	
 	
 	/**

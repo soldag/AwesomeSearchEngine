@@ -1,9 +1,13 @@
-package parsing.parsers;
+package parsing;
 
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.tuple.Pair;
+
 import com.ximpleware.extended.AutoPilotHuge;
 import com.ximpleware.extended.NavExceptionHuge;
 import com.ximpleware.extended.TextIter;
@@ -12,17 +16,16 @@ import com.ximpleware.extended.VTDNavHuge;
 import com.ximpleware.extended.XPathEvalExceptionHuge;
 import com.ximpleware.extended.XPathParseExceptionHuge;
 
-import parsing.PatentContentDocument;
+import documents.PatentContentDocument;
+import postings.ContentType;
 
 public class PatentDocumentParser implements Iterator<PatentContentDocument>, Iterable<PatentContentDocument> {
 	
 	/**
-	 * XPaths constants for XML elements containing the document ID, title and abstract of a patent.
+	 * XPaths constants for XML elements containing the whole patent and its document ID.
 	 */
 	private static final String PATENT_PATH = "/my-root/us-patent-grant";
 	private static final String DOCUMENT_ID_PATH = "us-bibliographic-data-grant/publication-reference/document-id/doc-number";
-	private static final String TITLE_PATH = "us-bibliographic-data-grant/invention-title";
-	private static final String ABSTRACT_PATH = "abstract";
 	
 	/**
 	 * Contains the path of the file that is currently parsed.
@@ -70,53 +73,58 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	@Override
 	public PatentContentDocument next() {
 		int documentId = -1;
-		String abstractText = null;
-		String title = null;
 		int fileId = Integer.parseInt(FilenameUtils.getBaseName(this.filePath).substring(3));
-		long titleOffset = -1, abstractOffset = -1;
-		int titleLength = -1, abstractLength = -1;
+		Map<ContentType, PatentDocumentContent> contents = new HashMap<ContentType, PatentDocumentContent>();
 		
 		this.navigation.push();
 		
 		try {
 			// Extract document id
-			PatentDocumentProperty documentIdProperty = this.getProperty(DOCUMENT_ID_PATH);
+			PatentDocumentContent documentIdProperty = this.getProperty(DOCUMENT_ID_PATH);
 			documentId = Integer.parseInt(documentIdProperty.getValue());
 			
-			// Extract title
-			PatentDocumentProperty titleProperty = this.getProperty(TITLE_PATH);
-			title = titleProperty.getValue();
-			titleOffset = titleProperty.getOffset();
-			titleLength = titleProperty.getLength();			
+			// Extract different contents
+			for(ContentType type: ContentType.values()) {
+				PatentDocumentContent content = this.getDocumentPart(type);
+				contents.put(type, content);
+			}
 			
-			// Extract abstract
-			PatentDocumentProperty abstractProperty = this.getProperty(ABSTRACT_PATH);
-			abstractText = abstractProperty.getValue();
-			abstractOffset = abstractProperty.getOffset();
-			abstractLength = abstractProperty.getLength();
 		} catch (NavExceptionHuge | XPathParseExceptionHuge | XPathEvalExceptionHuge e) {
 			throw new NoSuchElementException();
 		}
 		
 		this.navigation.pop();
+		
 		try {
 			this.skipToNextPatent();
 		} catch (NavExceptionHuge e) {
 			this.currentToken = -1;
 		}
 		
-		return new PatentContentDocument(documentId, fileId, titleOffset, titleLength, abstractOffset, abstractLength, title, abstractText);
+		return new PatentContentDocument(documentId, fileId, contents);
 	}
 	
 	/**
-	 * Gets the value of a patent property of the current patent defined by a xpath to its elements.
+	 * Gets a specific part of the current patent.
+	 * @param documentPart
+	 * @return
+	 * @throws XPathParseExceptionHuge
+	 * @throws NavExceptionHuge
+	 * @throws XPathEvalExceptionHuge
+	 */
+	private PatentDocumentContent getDocumentPart(ContentType documentPart) throws XPathParseExceptionHuge, NavExceptionHuge, XPathEvalExceptionHuge {
+		return this.getProperty(documentPart.getXPath());
+	}
+	
+	/**
+	 * Gets a specific part of the current patent defined by a xpath to its elements.
 	 * @param xpath
 	 * @return
 	 * @throws XPathParseExceptionHuge
 	 * @throws NavExceptionHuge
 	 * @throws XPathEvalExceptionHuge
 	 */
-	private PatentDocumentProperty getProperty(String xpath) throws XPathParseExceptionHuge, NavExceptionHuge, XPathEvalExceptionHuge {
+	private PatentDocumentContent getProperty(String xpath) throws XPathParseExceptionHuge, NavExceptionHuge, XPathEvalExceptionHuge {
 		// Store navigation context
 		this.navigation.push();
 		
@@ -139,7 +147,7 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 		// Restore initial navigation context
 		this.navigation.pop();
 		
-		return new PatentDocumentProperty(value, offset, length);
+		return new PatentDocumentContent(value, Pair.of(offset, length));
 	}
 	
 	/**

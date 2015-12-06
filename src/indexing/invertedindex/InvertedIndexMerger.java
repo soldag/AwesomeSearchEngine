@@ -4,16 +4,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
-import indexing.Posting;
 import indexing.Token;
+import postings.TokenPostings;
 
 public class InvertedIndexMerger {
 	
@@ -85,7 +82,7 @@ public class InvertedIndexMerger {
 			destinationFile.writeInt(totalTermsCount);
 			
 			String lastToken = "";
-			byte[] lastPostingsBytes = null;
+			TokenPostings lastPostings = null;
 			while(firstTokens.size() > 0) {
 				// Get first token (alphabetically) and corresponding postings
 				int nextTokenIndex = IntStream.range(0, firstTokens.size())	
@@ -96,22 +93,21 @@ public class InvertedIndexMerger {
 				
 				// Get token and postings
 				String token = firstTokens.get(nextTokenIndex);
-				byte[] postingsBytes = this.readPostingsBytes(currentFile);
+				TokenPostings postings = TokenPostings.readFrom(currentFile, this.isCompressed);
 				
-				if(lastToken.equals(token) && lastPostingsBytes != null) {
+				if(lastToken.equals(token) && lastPostings != null) {
 					// Token was already read from another file, so merge postings
-					byte[] mergedPostingsBytes = this.mergePostingLists(lastPostingsBytes, postingsBytes);
-					lastPostingsBytes = mergedPostingsBytes;
+					lastPostings.putAll(postings);
 				}
 				else {
 					// New token was read, to write saved token and corresponding postings to file
-					if(lastPostingsBytes != null) {
-						this.write(destinationFile, lastToken, lastPostingsBytes, createSeekList);
+					if(lastPostings != null) {
+						this.write(destinationFile, lastToken, lastPostings, createSeekList);
 					}
 
 					// Save current token and its postings for the case, that there are more postings for this token in other files
 					lastToken = token;
-					lastPostingsBytes = postingsBytes;
+					lastPostings = postings;
 				}				
 				
 				// Refresh tokens and source files list
@@ -125,7 +121,7 @@ public class InvertedIndexMerger {
 					
 					// If end of last file was reached, write remaining entry to file
 					if(sourceFiles.isEmpty()) {
-						this.write(destinationFile, lastToken, lastPostingsBytes, createSeekList);
+						this.write(destinationFile, lastToken, lastPostings, createSeekList);
 					}
 				}
 			}
@@ -140,48 +136,6 @@ public class InvertedIndexMerger {
 	}
 	
 	/**
-	 * Reads posting list from specified file.
-	 * @param indexFile
-	 * @return posting list as byte array
-	 * @throws IOException
-	 */
-	private byte[] readPostingsBytes(RandomAccessFile indexFile) throws IOException {
-		int postingsLength = indexFile.readInt();
-		byte[] postingsBytes = new byte[postingsLength];
-		indexFile.readFully(postingsBytes);
-		
-		return postingsBytes;
-	}
-	
-	/**
-	 * Merges two byte arrays containing posting lists.
-	 * @param postingsBytes1
-	 * @param postingsBytes2
-	 * @return merged posting list
-	 * @throws IOException
-	 */
-	private byte[] mergePostingLists(byte[] postingsBytes1, byte[] postingsBytes2) throws IOException {
-		// Parse, concatenate and sort postings
-		List<Posting> mergedPostings = Stream
-				.concat(
-					Posting.fromBytes(postingsBytes1, this.isCompressed).stream(), 
-					Posting.fromBytes(postingsBytes2, this.isCompressed).stream()
-				)
-				.sorted()
-				.collect(Collectors.toList());
-		
-		// Serialize postings back to bytes
-		ByteBuffer buffer =  ByteBuffer.allocate(postingsBytes1.length + postingsBytes2.length);
-		int lastDocumentId = 0;
-		for(Posting posting: mergedPostings) {
-			buffer.put(posting.toBytes(this.isCompressed, lastDocumentId));
-			lastDocumentId = posting.getDocumentId();
-		}
-		
-		return buffer.array();
-	}
-	
-	/**
 	 * Writes index entry to specified file.
 	 * @param file
 	 * @param token
@@ -190,7 +144,7 @@ public class InvertedIndexMerger {
 	 * @throws UnsupportedEncodingException
 	 * @throws IOException
 	 */
-	private void write(RandomAccessFile file, String token, byte[] postingBytes, boolean createSeekList) throws UnsupportedEncodingException, IOException {
+	private void write(RandomAccessFile file, String token, TokenPostings postings, boolean createSeekList) throws UnsupportedEncodingException, IOException {
 		// Add token to seek list
 		if(createSeekList) {
 			this.seekList.put(token, (int)file.getFilePointer());
@@ -198,7 +152,6 @@ public class InvertedIndexMerger {
 		
 		// Write to destination file
 		Token.write(token, file);
-		file.writeInt(postingBytes.length);
-		file.write(postingBytes);
+		postings.writeTo(file, this.isCompressed);
 	}
 }

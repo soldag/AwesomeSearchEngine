@@ -27,8 +27,7 @@ import java.util.ArrayList;
 import org.apache.commons.io.FilenameUtils;
 
 import indexing.DocumentIndexer;
-import parsing.lookups.PatentAbstractLookup;
-import parsing.lookups.PatentTitleLookup;
+import parsing.PatentContentLookup;
 import querying.DocumentRanker;
 import querying.QueryProcessor;
 import querying.results.QueryResult;
@@ -40,9 +39,9 @@ import visualization.SnippetGenerator;
 public class AwesomeSearchEngine extends SearchEngine {
 	
 	/**
-	 * Contains the file extension for documents supported by this search engine. 
+	 * Contains the file name pattern for documents supported by this search engine. 
 	 */
-	private static final String DOCUMENT_FILE_EXTENSION = "xml";
+	private static final String DOCUMENT_FILE_PATTERN = "ipg\\d+.xml";
 
 	/**
 	 * Contain instances of necessary services.
@@ -50,8 +49,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private TextPreprocessor textPreprocessor;
 	private DocumentIndexer documentIndexer;
 	private QueryProcessor queryProcessor;
-	private PatentTitleLookup titleLookup;
-	private PatentAbstractLookup patentAbstractLookup;
+	private PatentContentLookup patentContentLookup;
 	private SnippetGenerator snippetGenerator;
 	private ResultFormatter resultFormatter;
     
@@ -142,27 +140,15 @@ public class AwesomeSearchEngine extends SearchEngine {
     }
     
     /**
-     * Returns the current title lookup.
+     * Returns the current content lookup.
      * @return
      */
-    private PatentTitleLookup getTitleLookup() {
-    	if(this.titleLookup == null) {
-    		this.titleLookup = new PatentTitleLookup(this.documentDirectory);
+    private PatentContentLookup getPatentContentLookup() {
+    	if(this.patentContentLookup == null) {
+    		this.patentContentLookup = new PatentContentLookup(this.documentDirectory);
     	}
     	
-    	return this.titleLookup;
-    }
-    
-    /**
-     * Returns the current abstract lookup.
-     * @return
-     */
-    private PatentAbstractLookup getPatentAbstractLookup() {
-    	if(this.patentAbstractLookup == null) {
-    		this.patentAbstractLookup = new PatentAbstractLookup(this.documentDirectory);
-    	}
-    	
-    	return this.patentAbstractLookup;
+    	return this.patentContentLookup;
     }
     
     /**
@@ -173,7 +159,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     	if(this.snippetGenerator == null) {
     		this.snippetGenerator = new SnippetGenerator(
     				this.getTextPreprocessor(), 
-    				this.getPatentAbstractLookup());
+    				this.getPatentContentLookup());
     	}
     	
     	return this.snippetGenerator;
@@ -186,7 +172,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     private ResultFormatter getResultFormatter() {
     	if(this.resultFormatter == null) {
     		this.resultFormatter = new ResultFormatter(
-    				this.getTitleLookup(), 
+    				this.getPatentContentLookup(), 
     				this.getSnippetGenerator());
     	}
     	
@@ -247,12 +233,12 @@ public class AwesomeSearchEngine extends SearchEngine {
     	try {
         	// Get xml files inside given directory
     		String[] documentFiles = Files.walk(this.documentDirectory)
-    				.map(x -> x.toString())
-    				.filter(x -> FilenameUtils.isExtension(x, DOCUMENT_FILE_EXTENSION))
+    				.map(path -> path.toString())
+    				.filter(path -> FilenameUtils.getName(path).matches(DOCUMENT_FILE_PATTERN))
     				.toArray(String[]::new);
     		
     		// Build index
-			this.getDocumentIndexer(compress).indexDocuments(documentFiles);
+			this.getDocumentIndexer(compress).indexDocumentFiles(documentFiles);
 		} catch (IOException e) {
 			e.printStackTrace();
 			System.exit(1);

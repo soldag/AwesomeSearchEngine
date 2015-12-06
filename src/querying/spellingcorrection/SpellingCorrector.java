@@ -1,12 +1,10 @@
 package querying.spellingcorrection;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
-import indexing.Posting;
 import indexing.invertedindex.InvertedIndexReader;
 import indexing.invertedindex.InvertedIndexSeekList;
+import postings.PostingTable;
 
 public class SpellingCorrector {
 
@@ -55,12 +53,12 @@ public class SpellingCorrector {
 		// Get candidates for corrected tokens, that start with the same character as the misspelled one
 		String startCharacter = misspelledToken.substring(0,1);
 		int startOffset = this.indexSeekList.getIndexOffset(startCharacter);
-		Map<String, List<Posting>> tokens = this.indexReader.getPostings(startCharacter, startOffset, true);
+		PostingTable postings = this.indexReader.getPostings(startCharacter, startOffset, true);
 
 		// Get the candidate with the lowest edit distance
 		int minimumDistance = Integer.MAX_VALUE;
 		String minimumDistanceToken = null;
-		for(String token: tokens.keySet()){
+		for(String token: postings.tokenSet()){
 			if (Math.abs(token.length() - misspelledToken.length()) <= MAX_LENGTH_DIFFERENCE) {
 				int distance = this.damerauLevenshtein.execute(misspelledToken, token);
 				
@@ -74,8 +72,8 @@ public class SpellingCorrector {
 				}
 				else if(distance == minimumDistance) {
 					// Since the edit distances are the same, take number of occurrences in the whole collection into account.
-					int minimumTokenCount = this.getCollectionFrequency(minimumDistanceToken, tokens);
-					int tokenCount = this.getCollectionFrequency(token, tokens);			
+					int minimumTokenCount = this.getCollectionFrequency(minimumDistanceToken, postings);
+					int tokenCount = this.getCollectionFrequency(token, postings);			
 					if(tokenCount > minimumTokenCount) {
 						minimumDistance = distance;
 						minimumDistanceToken = token;
@@ -90,10 +88,10 @@ public class SpellingCorrector {
 	/**
 	 * Returns the number of occurrences in the whole collection for a given token.
 	 * @param token
-	 * @param tokens
+	 * @param postings
 	 * @return int
 	 */
-	private int getCollectionFrequency(String token, Map<String, List<Posting>> tokens) {
-		return tokens.get(token).stream().mapToInt(x -> x.getPositions().length).sum();
+	private int getCollectionFrequency(String token, PostingTable postings) {
+		return postings.ofToken(token).positions().size();
 	}
 }

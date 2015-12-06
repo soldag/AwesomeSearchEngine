@@ -5,7 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
-import parsing.PatentDocument;
+import documents.PatentDocument;
 
 public class DocumentMapConstructor implements AutoCloseable {
 

@@ -2,9 +2,7 @@ package querying.results;
 
 import java.util.Map;
 
-import com.google.common.collect.ImmutableTable;
-
-import parsing.PatentDocument;
+import postings.PostingTable;
 
 public class PrfQueryResult extends QueryResult {
 
@@ -16,12 +14,12 @@ public class PrfQueryResult extends QueryResult {
 	
 	/**
 	 * Creates a new PrfQueryResult instance.
-	 * @param postingsTable
+	 * @param tokenPostings
 	 * @param spellingCorrections
 	 * @param originalResult
 	 */
-	public PrfQueryResult(ImmutableTable<PatentDocument, String, Integer[]> postingsTable, Map<String, String> spellingCorrections, QueryResult originalResult) {
-		super(postingsTable, spellingCorrections);
+	public PrfQueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections, QueryResult originalResult) {
+		super(tokenPostings, spellingCorrections);
 		
 		this.originalQueryResult = originalResult;
 	}
@@ -33,7 +31,7 @@ public class PrfQueryResult extends QueryResult {
 	 * @return
 	 */
 	public static PrfQueryResult fromResults(QueryResult prfResult, QueryResult originalResult) {
-		return new PrfQueryResult(prfResult.getPostingsTable(), prfResult.getSpellingCorrections(), originalResult);
+		return new PrfQueryResult(prfResult.getPostings(), prfResult.getSpellingCorrections(), originalResult);
 	}
 	
 	

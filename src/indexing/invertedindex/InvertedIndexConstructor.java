@@ -1,21 +1,14 @@
 package indexing.invertedindex;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
-import indexing.Posting;
 import indexing.Token;
+import postings.ContentType;
+import postings.PostingTable;
+import postings.TokenPostings;
 
 public class InvertedIndexConstructor {
 
@@ -32,12 +25,7 @@ public class InvertedIndexConstructor {
 	/**
 	 * Contains the actual inverted index.
 	 */
-	private Map<String, List<Posting>> invertedIndex = new HashMap<String, List<Posting>>();
-	
-	/**
-	 * Contains the number of all tokens occurrences in the index.
-	 */
-	private int totalTokensCount = 0;
+	private PostingTable invertedIndex = new PostingTable();
 	
 	
 	/**
@@ -61,38 +49,13 @@ public class InvertedIndexConstructor {
 	
 	/**
 	 * Adds a new posting to index.
+	 * @param documentId
 	 * @param token
-	 * @param posting
+	 * @param contentType
+	 * @param position
 	 */
-	public void add(String token, Posting posting) {
-		if(!this.invertedIndex.containsKey(token)) {
-			// Index does not contain token, yet, so create a new posting list containing only the given posting and add it to the index.
-			List<Posting> postingList = new ArrayList<Posting>();
-			postingList.add(posting);
-			this.invertedIndex.put(token, postingList);
-		}
-		else {
-			// Index contains already postings for the token, so adjust corresponding posting list.
-			int documentId = posting.getDocumentId();
-			List<Posting> postingsList = this.invertedIndex.get(token);
-			Optional<Posting> existingPosting = postingsList.stream().filter(x -> x.getDocumentId() == documentId).findFirst();
-			if(existingPosting.isPresent()) {
-				// Index already contains the posting's document, so merge posting lists and overwrite old posting list with merged one.
-				int[] mergedPositions = IntStream
-						.concat(
-							Arrays.stream(existingPosting.get().getPositions()), 
-							Arrays.stream(posting.getPositions())
-						)
-						.toArray();
-				postingsList.set(postingsList.indexOf(existingPosting.get()), new Posting(posting.getDocumentId(), mergedPositions));
-			}
-			else {
-				// Index does not contain the posting's document, so just add posting to posting list.
-				this.invertedIndex.get(token).add(posting);
-			}
-		}
-		
-		this.totalTokensCount++;
+	public void add(int documentId, String token, ContentType contentType, int position) {
+		this.invertedIndex.put(token, documentId, contentType, position);
 	}
 	
 	/**
@@ -117,18 +80,15 @@ public class InvertedIndexConstructor {
 		boolean createSeekList = seekListFile != null && this.seekList != null;
 		
 		// Sort tokens
-		String[] sortedTokens = this.invertedIndex.keySet().stream().sorted().toArray(String[]::new);		
+		String[] sortedTokens = this.invertedIndex.tokenSet().stream().sorted().toArray(String[]::new);		
 		
 		// Open temporary file
 		try (RandomAccessFile indexWriter = new RandomAccessFile(indexFile, "rw")) {
 			// Write term counts
-			indexWriter.writeInt(this.totalTokensCount);
+			indexWriter.writeInt(this.invertedIndex.tokenSet().size());
 			
-			for(String token: sortedTokens) {
-				List<Posting> postings = this.invertedIndex.get(token).stream()
-											.sorted()
-											.collect(Collectors.toList());
-				
+			// Write postings for each token
+			for(String token: sortedTokens) {				
 				// Add seek list entry
 				if(createSeekList) {
 					this.seekList.put(token, (int)indexWriter.getFilePointer());
@@ -137,18 +97,9 @@ public class InvertedIndexConstructor {
 				// Write token
 				Token.write(token, indexWriter);
 				
-				// Encode postings
-				int lastDocumentId = 0;
-				ByteArrayOutputStream postingsStream = new ByteArrayOutputStream();
-				for(Posting posting: postings) {
-					postingsStream.write(posting.toBytes(this.compress, lastDocumentId));
-					lastDocumentId = posting.getDocumentId();
-				}
-				
-				// Write postings length and postings
-				byte[] postingsBytes = postingsStream.toByteArray();
-				indexWriter.writeInt(postingsBytes.length);
-				indexWriter.write(postingsBytes);
+				// Write postings
+				TokenPostings postings = this.invertedIndex.ofToken(token);
+				postings.writeTo(indexWriter, this.compress);
 			}
 		}
 		
@@ -172,7 +123,6 @@ public class InvertedIndexConstructor {
 	 * Deletes all entries of the inverted index.
 	 */
 	public void clear() {
-		this.totalTokensCount = 0;
 		this.invertedIndex.clear();
 		this.seekList.clear();
 	}

@@ -4,12 +4,11 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
-import indexing.Posting;
+
 import indexing.Token;
+import postings.PostingTable;
+import postings.TokenPostings;
 
 public class InvertedIndexReader implements AutoCloseable {
 	
@@ -60,8 +59,9 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @return List of postings
 	 * @throws IOException
 	 */
-	public Map<String, List<Posting>> getPostings(String token, int startOffset, boolean prefixSearch) throws IOException {
-		Map<String, List<Posting>> postings = new HashMap<String, List<Posting>>();
+	public PostingTable getPostings(String token, int startOffset, boolean prefixSearch) throws IOException {
+		PostingTable postings = new PostingTable();
+		
 		this.indexFile.seek(startOffset);
 		while(true) {
 			try {
@@ -70,13 +70,8 @@ public class InvertedIndexReader implements AutoCloseable {
 				
 				if(prefixSearch) {
 					if(readToken.startsWith(token)) {
-						List<Posting> readPostings = this.readPostings(postingsLength);
-						if(!postings.containsKey(readToken)) {
-							postings.put(readToken, readPostings);
-						}
-						else {
-							postings.get(readToken).addAll(readPostings);
-						}
+						TokenPostings readPostings = TokenPostings.readFrom(this.indexFile, postingsLength, this.isCompressed);
+						postings.putAll(readToken, readPostings);
 						continue;
 					}
 					else if(readToken.compareTo(token) > 0){
@@ -84,7 +79,8 @@ public class InvertedIndexReader implements AutoCloseable {
 					}
 				}			
 				else if(readToken.equals(token)) {
-					postings.put(readToken, this.readPostings(postingsLength));
+					TokenPostings readPostings = TokenPostings.readFrom(this.indexFile, postingsLength, this.isCompressed);
+					postings.putAll(readToken, readPostings);
 					break;
 				}
 				
@@ -96,19 +92,6 @@ public class InvertedIndexReader implements AutoCloseable {
 		}
 		
 		return postings;
-	}
-
-	/**
-	 * Reads a posting from the current index file.
-	 * @param length
-	 * @return List of postings
-	 * @throws IOException
-	 */
-	private List<Posting> readPostings(int length) throws IOException {
-		byte[] postingsBytes = new byte[length];
-		this.indexFile.readFully(postingsBytes);
-		
-		return Posting.fromBytes(postingsBytes, this.isCompressed);
 	}
 	
 	/**

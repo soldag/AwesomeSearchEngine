@@ -2,13 +2,12 @@ package visualization;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import parsing.PatentDocument;
-import parsing.lookups.PatentAbstractLookup;
+import documents.PatentDocument;
+import parsing.PatentContentLookup;
+import postings.ContentType;
+import postings.DocumentPostings;
 import querying.results.PrfQueryResult;
 import querying.results.QueryResult;
 import textprocessing.TextPreprocessor;
@@ -24,17 +23,17 @@ public class SnippetGenerator {
 	 * Contain necessary services.
 	 */
 	private final TextPreprocessor textPreprocessor;
-	private final PatentAbstractLookup abstractLookup;
+	private final PatentContentLookup patentContentLookup;
 	
 	
 	/**
 	 * Creates a new SnippetGenerator instance.
 	 * @param textPreprocessor
-	 * @param abstractLookup
+	 * @param patentContentLookup
 	 */
-	public SnippetGenerator(TextPreprocessor textPreprocessor, PatentAbstractLookup abstractLookup) {
+	public SnippetGenerator(TextPreprocessor textPreprocessor, PatentContentLookup patentContentLookup) {
 		this.textPreprocessor = textPreprocessor;
-		this.abstractLookup = abstractLookup;
+		this.patentContentLookup = patentContentLookup;
 	}
 	
 	
@@ -54,7 +53,7 @@ public class SnippetGenerator {
 		String abstractText;
 		List<String> tokenizedAbstract;
 		try {
-			abstractText = this.abstractLookup.get(document);
+			abstractText = this.patentContentLookup.get(document, ContentType.Abstract);
 			tokenizedAbstract = this.textPreprocessor.tokenize(abstractText);
 		} catch (IOException e) {
 			return new ArrayList<Snippet>();
@@ -62,15 +61,12 @@ public class SnippetGenerator {
 		
 		// Generate snippet for each query token
 		List<Snippet> snippets = new ArrayList<Snippet>();
-		Map<String, Integer[]> row = this.getDocumentRow(document, result);
-		for(String token: row.keySet()) {
-			Integer[] positions = row.get(token);
+		DocumentPostings tokenPositions = result.getPostings().ofDocument(document);
+		for(String token: tokenPositions.tokenSet()) {
+			int[] positions = tokenPositions.ofToken(token).ofContentType(ContentType.Abstract);
 			if(positions.length > 0) {
 				// Get first position of the token
-				int position = Arrays.stream(row.get(token))
-									.mapToInt(x -> x.intValue())
-									.findFirst()
-									.getAsInt();
+				int position = positions[0];
 				
 				// Create snippet
 				Snippet snippet = new Snippet();
@@ -84,19 +80,5 @@ public class SnippetGenerator {
 		}
 		
 		return snippets;
-	}
-	
-	/**
-	 * Extracts the row for the given document from result.
-	 * @param document
-	 * @param result
-	 * @return
-	 */
-	private Map<String, Integer[]> getDocumentRow(PatentDocument document, QueryResult result) {
-		return result.getPostingsTable().rowMap().entrySet().stream()
-				.filter(x -> x.getKey().equals(document))
-				.map(x -> x.getValue())
-				.findAny()
-				.orElse(new HashMap<String, Integer[]>());
 	}
 }
