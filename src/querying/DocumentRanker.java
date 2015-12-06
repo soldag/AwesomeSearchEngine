@@ -86,7 +86,7 @@ public class DocumentRanker {
 		DocumentPostings tokenPostings = result.getPostings().ofDocument(document);
 		if(tokenPostings.positions().stream().anyMatch(positionMap -> positionMap.containsContentType(contentType))) {
 			return result.getPostings().tokenSet().stream()
-							.filter(token -> tokenPostings.ofToken(token).containsContentType(contentType))
+							.filter(token -> tokenPostings.containsToken(token) && tokenPostings.ofToken(token).containsContentType(contentType))
 							.mapToDouble(token -> this.queryLikelihood(
 													tokenPostings.ofToken(token).ofContentType(contentType).length, 
 													document.getTokensCount(contentType), 

@@ -47,6 +47,16 @@ public class DocumentPostings {
 	
 	
 	/**
+	 * Determines, whether there are postings for the given token.
+	 * @param token
+	 * @return
+	 */
+	public boolean containsToken(String token) {
+		return this.postings.containsKey(token);
+	}
+	
+	
+	/**
 	 *  Gets the positions for a specific token.
 	 * @param token
 	 * @return
