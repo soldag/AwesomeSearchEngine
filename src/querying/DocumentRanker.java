@@ -4,6 +4,7 @@ package querying;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -14,6 +15,7 @@ import postings.ContentType;
 import postings.DocumentPostings;
 import postings.PositionMap;
 import postings.PostingTable;
+import querying.results.PrfQueryResult;
 import querying.results.QueryResult;
 import utilities.MapValueComparator;
 
@@ -23,6 +25,11 @@ public class DocumentRanker {
 	 * Contains the lambda factor for jelinek-mercer smoothing.
 	 */
 	private static final double QL_LAMBDA = 0.2;
+	
+	/**
+	 * Contains a factor for weights of tokens, that are not part of the original query (when using prf)
+	 */
+	private static final double NON_QUERY_TOKEN_FACTOR = 0.25;
 	
 	/**
 	 * Weights a query result using query-likelihood-model. Resulting query result is limited to 'limit' entries.
@@ -69,9 +76,9 @@ public class DocumentRanker {
 	 * @return
 	 */	
 	private double weightDocument(PatentDocument document, QueryResult result, int collectionTokenCount) {
-		return Math.log(Arrays.stream(ContentType.values())
+		return Arrays.stream(ContentType.values())
 				.mapToDouble(contentType -> contentType.getWeightingFactor() * this.weightDocument(document, contentType, result, collectionTokenCount))
-				.sum());
+				.sum();
 	}
 	
 	/**
@@ -87,7 +94,8 @@ public class DocumentRanker {
 		if(tokenPostings.positions().stream().anyMatch(positionMap -> positionMap.containsContentType(contentType))) {
 			return result.getPostings().tokenSet().stream()
 							.filter(token -> tokenPostings.containsToken(token) && tokenPostings.ofToken(token).containsContentType(contentType))
-							.mapToDouble(token -> this.queryLikelihood(
+							.mapToDouble(token -> this.getFactor(token, result) * 
+												  this.queryLikelihood(
 													tokenPostings.ofToken(token).ofContentType(contentType).length, 
 													document.getTokensCount(contentType), 
 													this.getCollectionFrequency(token, result), 
@@ -96,6 +104,24 @@ public class DocumentRanker {
 		}
 		
 		return 0;
+	}
+	
+	/**
+	 * Returns a factor for weighting of tokens.
+	 * @param token
+	 * @param result
+	 * @return
+	 */
+	private double getFactor(String token, QueryResult result) {
+		if(result instanceof PrfQueryResult) {
+			PrfQueryResult prfResult = (PrfQueryResult)result;
+			Set<String> originalQueryTokens = prfResult.getOriginalResult().getPostings().tokenSet();
+			if(!originalQueryTokens.contains(token)) {
+				return NON_QUERY_TOKEN_FACTOR;
+			}
+		}
+		
+		return 1;
 	}
 	
 	/**

@@ -328,11 +328,12 @@ public class QueryProcessor {
 	 * @throws IOException 
 	 */
 	private QueryResult searchKeywords(List<String> tokens, int topK, int prf) throws IOException {
+		// Search for tokens
 		QueryResult result = this.keywordSearch(tokens, topK);
 		
 		// If enabled, extend query using pseudo relevance feedback
 		if(prf > 0) {
-			return this.extendPrf(tokens, topK, prf, result);
+			result = this.extendPrf(tokens, topK, prf, result);
 		}
 		
 		return result;
@@ -347,7 +348,7 @@ public class QueryProcessor {
 	 * @return
 	 * @throws IOException
 	 */
-	private PrfQueryResult extendPrf(List<String> tokens, int topK, int prf, QueryResult originalResult) throws IOException {
+	private QueryResult extendPrf(List<String> tokens, int topK, int prf, QueryResult originalResult) throws IOException {
 		originalResult.getPostings().loadDocuments(this::getDocument);
 		List<String> additionalTerms = originalResult.getPostings().documentSet().stream()
 										.limit(prf)
@@ -360,7 +361,7 @@ public class QueryProcessor {
 										.collect(Collectors.toList());
 		tokens.addAll(additionalTerms);
 		tokens = tokens.stream().distinct().collect(Collectors.toList());
-		return PrfQueryResult.fromResults(this.keywordSearch(tokens, topK), originalResult);
+		return this.keywordSearch(tokens, topK, originalResult);
 	}
 	
 	/**
@@ -392,8 +393,22 @@ public class QueryProcessor {
 	 * @throws IOException
 	 */
 	private QueryResult keywordSearch(List<String> tokens, int topK) throws IOException {
+		return this.keywordSearch(tokens, topK, null);
+	}
+	
+	/**
+	 * Runs a keyword search for a list of extended query tokens and weights the result.
+	 * @param tokens
+	 * @param topK
+	 * @return List of patent documents.
+	 * @throws IOException
+	 */
+	private QueryResult keywordSearch(List<String> tokens, int topK, QueryResult originalResult) throws IOException {
 		// Search for tokens
 		QueryResult result = this.searchOr(tokens);
+		if(originalResult != null) {
+			result = PrfQueryResult.fromResults(result, originalResult);
+		}
 		
 		// Weight documents
 		result.getPostings().loadDocuments(this::getDocument);
