@@ -1,14 +1,12 @@
 package indexing.invertedindex;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import indexing.GenericSeekList;
-import indexing.Token;
+import io.FileReader;
+import io.FileWriter;
 
 public class InvertedIndexSeekList extends GenericSeekList<String> {
 	
@@ -27,33 +25,28 @@ public class InvertedIndexSeekList extends GenericSeekList<String> {
 	
 	
 	/**
-	 * Loads the seek list from a specified DataInput.
+	 * Loads the seek list from a specified FileReader.
 	 */
-	public void load(DataInput input) throws IOException {
+	public void load(FileReader reader) throws IOException {
 		this.seekList.clear();
 		
-		while(true) {
-			try {
-				String token = Token.read(input);
-				int offset = input.readInt();				
-				this.seekList.put(token, offset);
-			}
-			catch(EOFException e) {
-				break;
-			}
+		while(reader.getFilePointer() < reader.length()) {
+			String token = reader.readString();
+			int offset = reader.readInt();				
+			this.seekList.put(token, offset);
 		}
 	}
 	
 	/**
-	 * Saves the seek list to a specified DataOutput.
+	 * Saves the seek list to a specified FileWriter.
 	 */
-	public void save(DataOutput output) throws IOException {
+	public void save(FileWriter writer) throws IOException {
 		// Sort tokens alphabetically
 		List<String> tokens = this.seekList.keySet().stream().sorted().collect(Collectors.toList());
 		
 		for(String token: tokens) {
-			Token.write(token, output);
-			output.writeInt(this.seekList.get(token));
+			writer.writeString(token);
+			writer.writeInt(this.seekList.get(token));
 		}
 	}
 }

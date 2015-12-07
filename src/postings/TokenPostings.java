@@ -1,9 +1,6 @@
 package postings;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,6 +8,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import documents.PatentDocument;
+import io.FileReader;
+import io.FileWriter;
 
 public class TokenPostings {
 
@@ -147,86 +146,71 @@ public class TokenPostings {
 	public String toString() {
 		return this.postings.toString();
 	}
-	
+
 	
 	/**
-	 * Reads the postings of a specific token from a given file. 
-	 * The file descriptor has to be right behind the corresponding token.
-	 * @param input
-	 * @param isCompressed
+	 * Loads postings for a specific token from a given file reader. 
+	 * The file descriptor has to be right after the token.
+	 * @param reader
 	 * @return
 	 * @throws IOException
 	 */
-	public static TokenPostings readFrom(RandomAccessFile input, boolean isCompressed) throws IOException {
-		int length = input.readInt();
-		return readFrom(input, length, isCompressed);
+	public static TokenPostings load(FileReader reader) throws IOException {
+		int length = reader.readInt();
+		return TokenPostings.load(reader, length);
 	}
 	
 	/**
-	 * Reads the postings of a specific token from a given file.
-	 * The file descriptor has to be right behind the corresponding token and the length of the postings.
-	 * @param input
+	 * Loads postings for a specific token from a given file reader. 
+	 * The file descriptor has to be right afterthe length of the postings.
+	 * @param reader
 	 * @param length
-	 * @param isCompressed
 	 * @return
 	 * @throws IOException
 	 */
-	public static TokenPostings readFrom(RandomAccessFile input, int length, boolean isCompressed) throws IOException {
-		TokenPostings postingList = new TokenPostings();
+	public static TokenPostings load(FileReader reader, int length) throws IOException {
+		TokenPostings postings = new TokenPostings();
 		
 		int lastDocumentId = 0;
-		long endPosition = input.getFilePointer() + length;
-		while(input.getFilePointer() < endPosition) {
+		long endPosition = reader.getFilePointer() + length;
+		while(reader.getFilePointer() < endPosition) {
 			// Read document id
-			int documentId = input.readInt();
-			if(isCompressed) {
+			int documentId = reader.readInt();
+			if(reader.isCompressed()) {
 				documentId += lastDocumentId;
 				lastDocumentId = documentId;
 			}
 			
 			// Read positions grouped by content type
-			PositionMap positionMap = PositionMap.readFrom(input, isCompressed);
+			PositionMap positionMap = PositionMap.load(reader);
 			
-			postingList.put(documentId, positionMap);
+			postings.put(documentId, positionMap);
 		}
 		
-		return postingList;
+		return postings;
 	}
 	
 	/**
-	 * Writes the postings to a given file (including the length of the postings).
-	 * @param output
-	 * @param compress
+	 * Saves the postings using the given file writer.
+	 * @param writer
 	 * @throws IOException
 	 */
-	public void writeTo(RandomAccessFile output, boolean compress) throws IOException {
+	public void save(FileWriter writer) throws IOException {
 		int lastDocumentId = 0;
-		ByteArrayOutputStream postingsStream = new ByteArrayOutputStream();
 		int[] sortedDocumentIds = this.documentIdSet().stream().mapToInt(x -> x.intValue()).sorted().toArray();
 		for(int documentId: sortedDocumentIds) {
 			PositionMap positionMap = this.ofDocument(documentId);
-			byte[] positionMapBytes = positionMap.writeTo(compress);
-			
-			// Allocate byte buffer
-			int length = Integer.BYTES + positionMapBytes.length;
-			ByteBuffer buffer = ByteBuffer.allocate(length);
 			
 			// Write document id
-			if(compress) {
+			if(writer.isCompressed()) {
+				int originalDocumentId = documentId;
 				documentId -= lastDocumentId;
-				lastDocumentId = documentId;
+				lastDocumentId = originalDocumentId;
 			}
-			buffer.putInt(documentId);
+			writer.writeInt(documentId);
 			
-			// Write positions grouped by content type
-			buffer.put(positionMapBytes);
-			
-			postingsStream.write(buffer.array());
+			// Write positions
+			positionMap.save(writer);
 		}
-		
-		// Write postings length and postings
-		byte[] postingsBytes = postingsStream.toByteArray();
-		output.writeInt(postingsBytes.length);
-		output.write(postingsBytes);
 	}
 }

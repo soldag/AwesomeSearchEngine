@@ -3,7 +3,6 @@ package querying;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +16,8 @@ import indexing.documentmap.DocumentMapReader;
 import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexReader;
 import indexing.invertedindex.InvertedIndexSeekList;
+import io.FileFactory;
+import io.FileReader;
 import postings.ContentType;
 import postings.DocumentPostings;
 import postings.PositionMap;
@@ -66,7 +67,7 @@ public class QueryProcessor {
 	/**
 	 * Determines, whether the index is compressed, or not.
 	 */
-	private boolean compressed;
+	private boolean isCompressed;
 	
 	/**
 	 * Determines, whether the index has been loaded and the instance is ready for querying.
@@ -82,12 +83,11 @@ public class QueryProcessor {
 	 * @param documentMapSeekListFile
 	 * @param indexFile
 	 * @param indexSeekListFile
-	 * @param compressed
+	 * @param isCompressed
 	 * @throws FileNotFoundException
 	 */
 	public QueryProcessor(TextPreprocessor textProcessor, DamerauLevenshteinCalculator damerauLevenshtein, DocumentRanker documentRanker, SnippetGenerator snippetGenerator,
-			File documentMapFile, File documentMapSeekListFile, File indexFile, File indexSeekListFile, 
-			boolean compressed) throws FileNotFoundException {
+			File documentMapFile, File documentMapSeekListFile, File indexFile, File indexSeekListFile, boolean isCompressed) throws FileNotFoundException {
 		this.textPreprocessor = textProcessor;
 		this.damerauLevenshtein = damerauLevenshtein;
 		this.documentRanker = documentRanker;
@@ -100,7 +100,7 @@ public class QueryProcessor {
 		this.indexFile = indexFile;
 		this.indexSeekListFile = indexSeekListFile;
 		this.indexSeekList = new InvertedIndexSeekList();		
-		this.compressed = compressed;
+		this.isCompressed = isCompressed;
 	}
 
 	
@@ -117,13 +117,13 @@ public class QueryProcessor {
 	 * @throws IOException
 	 */
 	public void load() throws IOException {
-		this.documentMapReader = new DocumentMapReader(documentMapFile);
-		try(RandomAccessFile seekListReader = new RandomAccessFile(this.documentMapSeekListFile, "r")) {
+		this.documentMapReader = new DocumentMapReader(documentMapFile, this.isCompressed);
+		try(FileReader seekListReader = FileFactory.getInstance().getReader(this.documentMapSeekListFile, this.isCompressed)) {
 			this.documentMapSeekList.load(seekListReader);
 		}
 		
-		this.indexReader = new InvertedIndexReader(this.indexFile, this.compressed);
-		try(RandomAccessFile seekListReader = new RandomAccessFile(this.indexSeekListFile, "r")) {
+		this.indexReader = new InvertedIndexReader(this.indexFile, this.isCompressed);
+		try(FileReader seekListReader = FileFactory.getInstance().getReader(this.indexSeekListFile, this.isCompressed)) {
 			this.indexSeekList.load(seekListReader);
 		}
 
@@ -463,6 +463,9 @@ public class QueryProcessor {
 	 * @return
 	 */
 	private PatentDocument getDocument(int documentId) {
+		if(documentId == 6836939) {
+			System.out.println("");
+		}
 		int startOffset = this.documentMapSeekList.getIndexOffset(documentId);
 		try {
 			return this.documentMapReader.getDocument(documentId, startOffset);

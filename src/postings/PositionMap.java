@@ -1,13 +1,14 @@
 package postings;
 
-import java.io.DataInput;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Set;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import com.google.common.primitives.Ints;
+
+import io.FileReader;
+import io.FileWriter;
 
 public class PositionMap {
 
@@ -90,20 +91,19 @@ public class PositionMap {
 	
 	
 	/**
-	 * Reads position map from given file reader. 
-	 * @param input
-	 * @param compressed
+	 * Loads positions from given file reader. 
+	 * @param reader
 	 * @return
 	 * @throws IOException
 	 */
-	public static PositionMap readFrom(DataInput input, boolean compressed) throws IOException {
+	public static PositionMap load(FileReader reader) throws IOException {
 		PositionMap positionMap = new PositionMap();
 		for(ContentType contentType: ContentType.orderedValues()) {
 			int lastPosition = 0;
-			int positionsLength = input.readInt();
+			int positionsLength = reader.readInt();
 			for(int i = 0; i < positionsLength; i++) {
-				int position = input.readInt();
-				if(compressed) {
+				int position = reader.readInt();
+				if(reader.isCompressed()) {
 					position += lastPosition;
 					lastPosition = position;
 				}
@@ -116,35 +116,30 @@ public class PositionMap {
 	
 	/**
 	 * Writes current position map to given file writer.
-	 * @param compress
+	 * @param writer
 	 * @return
+	 * @throws IOException 
 	 */
-	public byte[] writeTo(boolean compress) {
-		// Allocate byte buffer
-		int length = (ContentType.values().length + this.size()) * Integer.BYTES;
-		ByteBuffer buffer = ByteBuffer.allocate(length);
-		
+	public void save(FileWriter writer) throws IOException {
 		for(ContentType contentType: ContentType.orderedValues()) {
 			if(!this.containsContentType(contentType)) {
 				// If document does not contain this type, set number of the corresponding positions to 0
-				buffer.putInt(0);
+				writer.writeInt(0);
 			}
 			else {
 				// Write number of corresponding positions
 				int[] positions = this.ofContentType(contentType);
-				buffer.putInt(positions.length);
+				writer.writeInt(positions.length);
 				
 				// Write single positions
 				for(int i = 0; i < positions.length; i++) {
 					int position = positions[i];
-					if(compress && i > 0) {
+					if(writer.isCompressed() && i > 0) {
 						position -= positions[i - 1];
 					}
-					buffer.putInt(position);
+					writer.writeInt(position);
 				}
 			}
 		}
-		
-		return buffer.array();
 	}
 }

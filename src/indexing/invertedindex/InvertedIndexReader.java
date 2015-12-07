@@ -3,24 +3,19 @@ package indexing.invertedindex;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
-
-import indexing.Token;
 import postings.PostingTable;
 import postings.TokenPostings;
+
+import io.FileFactory;
+import io.FileReader;
 
 public class InvertedIndexReader implements AutoCloseable {
 	
 	/**
 	 * Contains the file reader for the index file.
 	 */
-	private RandomAccessFile indexFile;
-	
-	/**
-	 * Determines, whether the index files, that should be merged, are compressed or not.
-	 */
-	private boolean isCompressed;
+	private FileReader indexFile;
 	
 	/**
 	 * Contains the number of all tokens occurrences in the index.
@@ -35,9 +30,8 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @throws IOException
 	 */
 	public InvertedIndexReader(File indexFile, boolean isCompressed) throws IOException {
-		this.indexFile = new RandomAccessFile(indexFile, "r");
+		this.indexFile = FileFactory.getInstance().getReader(indexFile, isCompressed);		
 		this.totalTokenCount = this.indexFile.readInt();
-		this.isCompressed = isCompressed;
 	}
 	
 	
@@ -65,12 +59,12 @@ public class InvertedIndexReader implements AutoCloseable {
 		this.indexFile.seek(startOffset);
 		while(true) {
 			try {
-				String readToken = Token.read(this.indexFile);
+				String readToken = this.indexFile.readString();
 				int postingsLength = this.indexFile.readInt();
 				
 				if(prefixSearch) {
 					if(readToken.startsWith(token)) {
-						TokenPostings readPostings = TokenPostings.readFrom(this.indexFile, postingsLength, this.isCompressed);
+						TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength);
 						postings.putAll(readToken, readPostings);
 						continue;
 					}
@@ -79,7 +73,7 @@ public class InvertedIndexReader implements AutoCloseable {
 					}
 				}			
 				else if(readToken.equals(token)) {
-					TokenPostings readPostings = TokenPostings.readFrom(this.indexFile, postingsLength, this.isCompressed);
+					TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength);
 					postings.putAll(readToken, readPostings);
 					break;
 				}

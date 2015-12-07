@@ -3,9 +3,10 @@ package indexing.documentmap;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
 import documents.PatentDocument;
+import io.FileFactory;
+import io.FileWriter;
 
 public class DocumentMapConstructor implements AutoCloseable {
 
@@ -17,12 +18,12 @@ public class DocumentMapConstructor implements AutoCloseable {
 	/**
 	 * Contains the file write for the document map.
 	 */
-	private RandomAccessFile documentMapWriter;	
-	
+	private FileWriter documentMapWriter;	
+
 	/**
-	 * Contains the number of documents contained in this map.
+	 * Determines, whether the document map should be compressed.
 	 */
-	private int documentsCount = 0;
+	private boolean compress;
 	
 	
 	/**
@@ -30,8 +31,8 @@ public class DocumentMapConstructor implements AutoCloseable {
 	 * @param documentMapFile
 	 * @throws IOException
 	 */
-	public DocumentMapConstructor(File documentMapFile) throws IOException {
-		this(documentMapFile, null);
+	public DocumentMapConstructor(File documentMapFile, boolean compress) throws IOException {
+		this(documentMapFile, null, compress);
 	}
 	
 	/**
@@ -40,12 +41,10 @@ public class DocumentMapConstructor implements AutoCloseable {
 	 * @param seekList
 	 * @throws IOException
 	 */
-	public DocumentMapConstructor(File documentMapFile, DocumentMapSeekList seekList) throws IOException {
+	public DocumentMapConstructor(File documentMapFile, DocumentMapSeekList seekList, boolean compress) throws IOException {
 		this.seekList = seekList;
-		this.documentMapWriter = new RandomAccessFile(documentMapFile, "rw");
-		
-		// Initialize documents count in index
-		this.documentMapWriter.writeInt(0);
+		this.compress = compress;
+		this.documentMapWriter = FileFactory.getInstance().getWriter(documentMapFile, this.compress);
 	}
 	
 	
@@ -54,16 +53,12 @@ public class DocumentMapConstructor implements AutoCloseable {
 	 * @param document
 	 * @throws IOException
 	 */
-	public void add(PatentDocument document) throws IOException {	
+	public void add(PatentDocument document) throws IOException {
 		// Add document to seek list
 		this.seekList.put(document.getId(), (int)this.documentMapWriter.getFilePointer());
 		
 		// Write to file
-		byte[] patentDocumentBytes = document.toBytes();
-		this.documentMapWriter.write(patentDocumentBytes);
-		
-		// Increase total number of documents
-		this.documentsCount++;		
+		document.save(documentMapWriter);
 	}
 	
 	/**
@@ -73,19 +68,15 @@ public class DocumentMapConstructor implements AutoCloseable {
 	 * @throws IOException
 	 */
 	public void writeSeekList(File seekListFile) throws FileNotFoundException, IOException {
-		try(RandomAccessFile seekListWriter = new RandomAccessFile(seekListFile, "rw")) {
-			this.seekList.save(seekListWriter);
-		}
+		FileWriter seekListWriter = FileFactory.getInstance().getWriter(seekListFile, this.compress);
+		this.seekList.save(seekListWriter);
+		seekListWriter.close();
 	}
 	
 	/**
-	 * Updates the total number of documents and closes this resource, relinquishing any underlying resources.
+	 * Closes this resource, relinquishing any underlying resources.
 	 */
-	public void close() throws IOException {
-		// Write number of documents
-		this.documentMapWriter.seek(0);
-		this.documentMapWriter.writeInt(this.documentsCount);
-		
+	public void close() throws IOException {		
 		this.documentMapWriter.close();
 	}
 }

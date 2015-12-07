@@ -1,9 +1,10 @@
 package indexing;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.util.LinkedHashMap;
+
+import io.FileReader;
+import io.FileWriter;
 
 public abstract class GenericSeekList<T extends Comparable<T>> {
 	
@@ -33,14 +34,14 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	
 	
 	/**
-	 * Loads the seek list from a specified DataInput.
+	 * Loads the seek list from a specified FileReader.
 	 */
-	public abstract void load(DataInput input) throws IOException;
+	public abstract void load(FileReader reader) throws IOException;
 	
 	/**
-	 * Saves the seek list to a specified DataOutput.
+	 * Saves the seek list to a specified FileWriter.
 	 */
-	public abstract void save(DataOutput input) throws IOException;
+	public abstract void save(FileWriter writer) throws IOException;
 	
 	/**
 	 * Gets the start offset of the corresponding index file for finding the specified key.

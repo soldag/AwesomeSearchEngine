@@ -2,15 +2,16 @@ package indexing.invertedindex;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import indexing.Token;
 import postings.TokenPostings;
+import io.FileFactory;
+import io.FileReader;
+import io.FileWriter;
 
 public class InvertedIndexMerger {
 	
@@ -66,16 +67,16 @@ public class InvertedIndexMerger {
 		boolean createSeekList = seekListFile != null && this.seekList != null;
 		
 		// Create destination index file
-		try (RandomAccessFile destinationFile = new RandomAccessFile(destinationIndexFile, "rw")) {
+		try (FileWriter destinationFile = FileFactory.getInstance().getWriter(destinationIndexFile, this.isCompressed)) {
 			// Open temporary index files
 			List<String> firstTokens = new ArrayList<String>(temporaryIndexFiles.size());
-			List<RandomAccessFile> sourceFiles = new ArrayList<RandomAccessFile>(temporaryIndexFiles.size());
+			List<FileReader> sourceFiles = new ArrayList<FileReader>(temporaryIndexFiles.size());
 			int totalTermsCount = 0;
 			for(File temporaryIndexFile: temporaryIndexFiles) {
-				RandomAccessFile tempFile = new RandomAccessFile(temporaryIndexFile, "r");
+				FileReader tempFile = FileFactory.getInstance().getReader(temporaryIndexFile, this.isCompressed);
 				sourceFiles.add(tempFile);
 				totalTermsCount += tempFile.readInt();
-				firstTokens.add(Token.read(tempFile));
+				firstTokens.add(tempFile.readString());
 			}
 			
 			// Write total terms count
@@ -89,11 +90,11 @@ public class InvertedIndexMerger {
 										.boxed()
 										.min(Comparator.comparing(x -> firstTokens.get(x)))
 										.get();
-				RandomAccessFile currentFile = sourceFiles.get(nextTokenIndex);
+				FileReader currentFile = sourceFiles.get(nextTokenIndex);
 				
 				// Get token and postings
 				String token = firstTokens.get(nextTokenIndex);
-				TokenPostings postings = TokenPostings.readFrom(currentFile, this.isCompressed);
+				TokenPostings postings = TokenPostings.load(currentFile);
 				
 				if(lastToken.equals(token) && lastPostings != null) {
 					// Token was already read from another file, so merge postings
@@ -112,7 +113,7 @@ public class InvertedIndexMerger {
 				
 				// Refresh tokens and source files list
 				if(currentFile.getFilePointer() < currentFile.length()) {
-					firstTokens.set(nextTokenIndex, Token.read(sourceFiles.get(nextTokenIndex)));
+					firstTokens.set(nextTokenIndex, sourceFiles.get(nextTokenIndex).readString());
 				}
 				else {
 					currentFile.close();
@@ -129,29 +130,20 @@ public class InvertedIndexMerger {
 		
 		// Write seek list to file
 		if(createSeekList) {
-			try(RandomAccessFile seekListWriter = new RandomAccessFile(seekListFile, "rw")) {
+			try(FileWriter seekListWriter = FileFactory.getInstance().getWriter(seekListFile, this.isCompressed)) {
 				this.seekList.save(seekListWriter);
 			}
 		}
 	}
 	
-	/**
-	 * Writes index entry to specified file.
-	 * @param file
-	 * @param token
-	 * @param postingBytes
-	 * @param createSeekList
-	 * @throws UnsupportedEncodingException
-	 * @throws IOException
-	 */
-	private void write(RandomAccessFile file, String token, TokenPostings postings, boolean createSeekList) throws UnsupportedEncodingException, IOException {
+	private void write(FileWriter writer, String token, TokenPostings postings, boolean createSeekList) throws UnsupportedEncodingException, IOException {
 		// Add token to seek list
 		if(createSeekList) {
-			this.seekList.put(token, (int)file.getFilePointer());
+			this.seekList.put(token, (int)writer.getFilePointer());
 		}
 		
 		// Write to destination file
-		Token.write(token, file);
-		postings.writeTo(file, this.isCompressed);
+		writer.writeString(token);
+		postings.save(writer);
 	}
 }

@@ -1,13 +1,12 @@
 package indexing.documentmap;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import indexing.GenericSeekList;
+import io.FileReader;
+import io.FileWriter;
 
 public class DocumentMapSeekList extends GenericSeekList<Integer> {
 	
@@ -26,34 +25,30 @@ public class DocumentMapSeekList extends GenericSeekList<Integer> {
 	
 	
 	/**
-	 * Loads the seek list from a specified DataInput.
+	 * Loads the seek list from a specified FileReader.
 	 */
-	public void load(DataInput input) throws IOException {
+	public void load(FileReader reader) throws IOException {
 		this.seekList.clear();
 		
-		while(true) {
-			try {
-				int documentId = input.readInt();
-				int offset = input.readInt();
-				
-				this.seekList.put(documentId, offset);
-			}
-			catch(EOFException e) {
-				break;
-			}
+		while(reader.getFilePointer() < reader.length()) {
+			int documentId = reader.readInt();
+			int offset = reader.readInt();
+			
+			this.seekList.put(documentId, offset);
 		}
+		System.out.println("");
 	}
 	
 	/**
-	 * Saves the seek list to a specified DataOutput.
+	 * Saves the seek list to a specified FileWriter.
 	 */
-	public void save(DataOutput output) throws IOException {
+	public void save(FileWriter writer) throws IOException {
 		// Sort tokens alphabetically
 		List<Integer> documentIds = this.seekList.keySet().stream().sorted().collect(Collectors.toList());
 				
 		for(int documentId: documentIds) {
-			output.writeInt(documentId);
-			output.writeInt(this.seekList.get(documentId));
+			writer.writeInt(documentId);
+			writer.writeInt(this.seekList.get(documentId));
 		}
 	}
 }

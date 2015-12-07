@@ -3,21 +3,17 @@ package indexing.documentmap;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
 import documents.PatentDocument;
+import io.FileFactory;
+import io.FileReader;
 
 public class DocumentMapReader implements AutoCloseable {
 
 	/**
 	 * Contains the file reader for the document map.
 	 */
-	private RandomAccessFile documentMapFile;
-	
-	/**
-	 * Contains the number of documents contained in the map.
-	 */
-	private int documentsCount = 0;
+	private FileReader documentMapFile;
 	
 	
 	/**
@@ -25,19 +21,10 @@ public class DocumentMapReader implements AutoCloseable {
 	 * @param documentMapFile
 	 * @throws IOException
 	 */
-	public DocumentMapReader(File documentMapFile) throws IOException {
-		this.documentMapFile = new RandomAccessFile(documentMapFile, "r");
-		this.documentsCount = this.documentMapFile.readInt();
+	public DocumentMapReader(File documentMapFile, boolean isCompressed) throws IOException {
+		this.documentMapFile = FileFactory.getInstance().getReader(documentMapFile, isCompressed);
 	}
 	
-	
-	/**
-	 * Gets the number of documents contained in the map.
-	 * @return
-	 */
-	public int getDocumentsCount() {
-		return this.documentsCount;
-	}
 	
 	/**
 	 * Gets a document from map by specifying its id and a start offset in the map file.
@@ -53,17 +40,14 @@ public class DocumentMapReader implements AutoCloseable {
 				// Read document id
 				int readDocumentId = this.documentMapFile.readInt();
 				
-				// Read length of properties
-				int propertiesLength = this.documentMapFile.readInt();
+				// Read skip pointer
+				int skipPointer = this.documentMapFile.readInt();
 				
 				if(readDocumentId == documentId) {
-					byte[] propertyBytes = new byte[propertiesLength];
-					this.documentMapFile.readFully(propertyBytes);
-					
-					return PatentDocument.fromPropertyBytes(readDocumentId, propertyBytes);
+					return PatentDocument.load(readDocumentId, documentMapFile);
 				}
 				else {
-					this.documentMapFile.seek(this.documentMapFile.getFilePointer() + propertiesLength);
+					this.documentMapFile.seek(this.documentMapFile.getFilePointer() + skipPointer);
 				}
 			}
 			catch(EOFException e) {

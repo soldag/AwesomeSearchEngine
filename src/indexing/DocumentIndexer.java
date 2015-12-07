@@ -94,7 +94,7 @@ public class DocumentIndexer {
 		this.deleteIndexFiles();
 
 		// Parse and index documents
-		try(DocumentMapConstructor documentMapConstructor = new DocumentMapConstructor(this.documentMapFile, new DocumentMapSeekList())) {
+		try(DocumentMapConstructor documentMapConstructor = new DocumentMapConstructor(this.documentMapFile, new DocumentMapSeekList(), this.compress)) {
 			for(String documentPath: documentPaths) {
 				try {
 					this.indexSingleDocumentFile(documentPath, documentMapConstructor);

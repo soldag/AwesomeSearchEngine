@@ -3,9 +3,9 @@ package indexing.invertedindex;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
-import indexing.Token;
+import io.FileFactory;
+import io.FileWriter;
 import postings.ContentType;
 import postings.PostingTable;
 import postings.TokenPostings;
@@ -83,7 +83,7 @@ public class InvertedIndexConstructor {
 		String[] sortedTokens = this.invertedIndex.tokenSet().stream().sorted().toArray(String[]::new);		
 		
 		// Open temporary file
-		try (RandomAccessFile indexWriter = new RandomAccessFile(indexFile, "rw")) {
+		try (FileWriter indexWriter = FileFactory.getInstance().getWriter(indexFile, this.compress)) {
 			// Write term counts
 			indexWriter.writeInt(this.invertedIndex.tokenSet().size());
 			
@@ -95,21 +95,24 @@ public class InvertedIndexConstructor {
 				}
 				
 				// Write token
-				Token.write(token, indexWriter);
+				indexWriter.writeString(token);
 				
 				// Write postings
 				TokenPostings postings = this.invertedIndex.ofToken(token);
-				postings.writeTo(indexWriter, this.compress);
+				indexWriter.startSkippingArea();
+				postings.save(indexWriter);
+				indexWriter.endSkippingArea();
 			}
 		}
 		
 		// Write seek list to file
 		if(createSeekList) {
-			try(RandomAccessFile seekListWriter = new RandomAccessFile(seekListFile, "rw")) {
+			try(FileWriter seekListWriter = FileFactory.getInstance().getWriter(seekListFile, this.compress)) {
 				this.seekList.save(seekListWriter);
 			}
 		}
 	}
+
 	
 	/**
 	 * Gets the number of tokens in the inverted index.

@@ -1,13 +1,14 @@
 package documents;
 
 
-import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import io.FileReader;
+import io.FileWriter;
 import postings.ContentType;
 
 public class PatentDocument {
@@ -148,96 +149,6 @@ public class PatentDocument {
 		return this.getContentOffsets().containsKey(contentType);
 	}
 	
-	
-	/**
-	 * Creates a new PatentDocument instance by deserializing given byte array representing the whole document.
-	 * @param patentDocumentBytes
-	 * @return PatentDocument
-	 * @throws UnsupportedEncodingException
-	 */
-	public static PatentDocument fromBytes(byte[] patentDocumentBytes) throws UnsupportedEncodingException {
-		ByteBuffer buffer = ByteBuffer.wrap(patentDocumentBytes);
-		
-		int id = buffer.getInt();
-		int propertiesLength = buffer.getInt();
-		byte[] propertyBytes = new byte[propertiesLength];
-		System.arraycopy(patentDocumentBytes, buffer.position(), propertyBytes, 0, propertiesLength);
-		
-		return PatentDocument.fromPropertyBytes(id, propertyBytes);
-	}
-	
-	/**
-	 * Creates a new PatentDocument instance by deserializing given byte array representing only the properties.
-	 * @param id
-	 * @param propertyBytes
-	 * @return
-	 * @throws UnsupportedEncodingException
-	 */
-	public static PatentDocument fromPropertyBytes(int id, byte[] propertyBytes) throws UnsupportedEncodingException {
-		ByteBuffer buffer = ByteBuffer.wrap(propertyBytes);
-
-		// Read file id
-		int fileId = buffer.getInt();
-		
-		// Read token counts and offsets for all content type
-		Map<ContentType, Integer> tokenCounts = new HashMap<ContentType, Integer>();
-		Map<ContentType, Pair<Long, Integer>> contentOffsets = new HashMap<ContentType, Pair<Long, Integer>>();
-		for(ContentType contentType: ContentType.orderedValues()) {
-			// Read token count
-			int tokenCount = buffer.getInt();
-			tokenCounts.put(contentType, tokenCount);
-			
-			// Read offset
-			long offset = buffer.getLong();
-			int length = buffer.getInt();
-			if(offset >= 0 && length > 0) {
-				contentOffsets.put(contentType, Pair.of(offset, length));
-			}
-		}
-		
-		return new PatentDocument(id, fileId, contentOffsets, tokenCounts);
-	}
-	
-	/**
-	 * Serializes current PatentDocument to byte array.
-	 * @return
-	 * @throws UnsupportedEncodingException
-	 */
-	public byte[] toBytes() throws UnsupportedEncodingException {
-		// Calculate capacity of buffer
-		int tokenCountsLength = ContentType.values().length * Integer.BYTES; // token count per content type
-		int offsetsLength = ContentType.values().length * (Integer.BYTES + Long.BYTES); // offset + length per content type
-		int propertiesLength = Integer.BYTES + tokenCountsLength + offsetsLength; // File id + tokens count + offsets
-		int capacity = 2 * Integer.BYTES + propertiesLength; // Document id + properties length (skip pointer) + properties bytes
-		ByteBuffer buffer = ByteBuffer.allocate(capacity);
-		
-		// Write document id
-		buffer.putInt(this.getId());
-		
-		// Write properties length
-		buffer.putInt(propertiesLength);
-		
-		// Write file id
-		buffer.putInt(this.getFileId());
-		
-		// Write token counts and offsets for all content type
-		for(ContentType contentType: ContentType.orderedValues()) {
-			// Write token count
-			buffer.putInt(this.getTokensCount(contentType));
-			
-			// Write offsets
-			Pair<Long, Integer> offset = this.getContentOffset(contentType);
-			if(offset == null) {
-				offset = Pair.of(0l, 0);
-			}
-
-			buffer.putLong(offset.getLeft());
-			buffer.putInt(offset.getRight());
-		}
-		
-		return buffer.array();
-	}
-	
 	@Override
 	public boolean equals(Object obj) {
 		if(obj instanceof PatentDocument) {
@@ -251,5 +162,85 @@ public class PatentDocument {
 	@Override
 	public String toString() {
 		return Integer.toString(this.getId());
+	}
+	
+	
+	/**
+	 * Loads a document from the document map using the given file reader. 
+	 * The file descriptor has to be right before the document id.
+	 * @param reader
+	 * @return
+	 * @throws IOException
+	 */
+	public static PatentDocument load(FileReader reader) throws IOException {
+		int id = reader.readInt();
+		reader.readInt();
+		
+		return PatentDocument.load(id, reader);
+	}
+	
+	/**
+	 * Loads a document from the document map using the given file reader. 
+	 * The file descriptor has to be right after the document id and the length of the properties.
+	 * @param id
+	 * @param reader
+	 * @return
+	 * @throws IOException
+	 */
+	public static PatentDocument load(int id, FileReader reader) throws IOException {
+		// Read file id
+		int fileId = reader.readInt();
+		
+		// Read token counts and offsets for all content type
+		Map<ContentType, Integer> tokenCounts = new HashMap<ContentType, Integer>();
+		Map<ContentType, Pair<Long, Integer>> contentOffsets = new HashMap<ContentType, Pair<Long, Integer>>();
+		for(ContentType contentType: ContentType.orderedValues()) {
+			// Read token count
+			int tokenCount = reader.readInt();
+			tokenCounts.put(contentType, tokenCount);
+			
+			// Read offset
+			long offset = reader.readLong();
+			int length = reader.readInt();
+			if(offset >= 0 && length > 0) {
+				contentOffsets.put(contentType, Pair.of(offset, length));
+			}
+		}
+		
+		return new PatentDocument(id, fileId, contentOffsets, tokenCounts);
+	}
+	
+	/**
+	 * Saves a document to file using the given file writer.
+	 * @param writer
+	 * @throws IOException
+	 */
+	public void save(FileWriter writer) throws IOException {
+		// Write document id
+		writer.writeInt(this.getId());
+		
+		// Start skipping area for properties of the document
+		writer.startSkippingArea();
+		
+		// Write file id
+		writer.writeInt(this.getFileId());
+		
+		// Write token counts and offsets for all content type
+		for(ContentType contentType: ContentType.orderedValues()) {
+			// Write token count
+			writer.writeInt(this.getTokensCount(contentType));
+			
+			// Write offsets
+			Pair<Long, Integer> offset = this.getContentOffset(contentType);
+			if(offset == null) {
+				offset = Pair.of(0l, 0);
+			}
+
+			writer.writeLong(offset.getLeft());
+			writer.writeInt(offset.getRight());
+		}
+		
+		// End skipping area for properties of the document
+		writer.endSkippingArea();
 	}
 }
