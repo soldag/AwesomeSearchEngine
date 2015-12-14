@@ -191,17 +191,17 @@ public class AwesomeSearchEngine extends SearchEngine {
     }
 
     @Override
-    void index(String directory) {
+    public void index(String directory) {
     	this.index(directory, false);
     }
 
     @Override
-    boolean loadIndex(String directory) {
+    public boolean loadIndex(String directory) {
     	return this.loadIndex(false);
     }
     
     @Override
-    void compressIndex(String directory) {
+    public void compressIndex(String directory) {
     	this.index(directory, true);
     }
 
@@ -211,7 +211,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     }
     
     @Override
-    ArrayList<String> search(String query, int topK, int prf) {
+    public ArrayList<String> search(String query, int topK, int prf) {
     	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
 	    	try {
 	    		QueryResult result = this.queryProcessor.search(query, topK);
@@ -227,6 +227,14 @@ public class AwesomeSearchEngine extends SearchEngine {
     	
 		return new ArrayList<String>();
     }
+
+
+	@Override
+	public Double computeNdcg(ArrayList<String> goldRanking, ArrayList<String> ranking, int p) {
+		// TODO: Implement me!
+		return 0d;
+	}
+	
     
     /**
      * Indexes all documents of a given directory. Argument compress determines, whether the index should be compressed.

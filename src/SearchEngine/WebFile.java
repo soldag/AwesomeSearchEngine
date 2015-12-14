@@ -1,18 +1,6 @@
-
 package SearchEngine;
 
-/**
- *
- * @author: Konstantina.Lazarid
- * @dataset: US patent grants : ipg files from http://www.google.com/googlebooks/uspto-patents-grants-text.html
- * @course: Information Retrieval and Web Search, Hasso-Plattner Institut, 2015
- *
- */
- 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -24,9 +12,9 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 
 /*
-* use the function 'ArrayList <String> getGoogleRanking(String query)' to get the gold rankings from google.
-* this function returns the patent titles that google printed for this query.
-* the result set will be at most 100 US utility patents. You should only use the topK of them.
+* use the function 'ArrayList <String> getGoogleRanking(String query)' to get the gold rankings from google for a given query and compute NDCG later on
+* this function returns the patent titles that google returned for a given query
+* the result set will be at most 100 US utility patents (int safeNumber)
 */
 
 public class WebFile {
@@ -37,13 +25,6 @@ public class WebFile {
     private String MIMEtype = null;
     private String charset = null;
     private Object content = null;
-
-    private boolean caching = false;
-    private SearchEngine MyEngine;
-    
-    public void setEngine(AwesomeSearchEngine CurrentEngine){
-        MyEngine = CurrentEngine;
-    }
     
     /**
      * Open a web file.
@@ -180,22 +161,22 @@ public class WebFile {
         return MIMEtype;
     }
 
-    // returns the patent titles from google patent search for a given query string
+    // returns the patent titles from google patent search engine for a given query string
     // the titles returned will be at most 100
-    ArrayList <String> getGoogleRanking(String query) {
+    public ArrayList <String> getGoogleRanking(String query) {
 
         ArrayList <String> ranking = new ArrayList <>();
         int safeNumber = 100;  // to get enough US utility patents and exclude others
         try {
-            // pose the query
+            // issue the query
             String queryTerms = query.replaceAll(" ", "+");
-            String Queryurl = "https://www.google.com/search?hl=en&q=" + queryTerms + "&tbm=pts&num=" + safeNumber; // only English patents
+            String queryUrl = "https://www.google.com/search?hl=en&q=" + queryTerms + "&tbm=pts&num=" + safeNumber; // only English patents
             String page = "";
-            openWebFile(Queryurl);
+            openWebFile(queryUrl);
             page = (String) getContent();
             // get all patent urls returned from google (only the utility ones)
             LinkedHashMap <String, String> patents = new LinkedHashMap <>(); // key: patent url, value: patent title
-            patternUrlCheck(page, patents);
+            patternUrlCheck(page, patents); // if utility, store it
             // get the titles
             for (Map.Entry <String, String> patent : patents.entrySet()) {
                 String patentTitle = patent.getValue();
@@ -207,18 +188,16 @@ public class WebFile {
                     // find the original title
                     String completeTitle = "";
                     completeTitle = patternTitleCheck(patentText);
-                 //   System.out.print("completeTitle\t" + completeTitle + "\n");
                     ranking.add(completeTitle);
                 } 
+                // if whole title
                 else {
-                 //   System.out.print("patentTitle\t" + patentTitle + "\n");
                     ranking.add(patentTitle);
                 }
             }
         } catch (IOException ex) {
             Logger.getLogger(WebFile.class.getName()).log(Level.SEVERE, null, ex);
         }
-        if(caching) storeResults(ranking, query);
         return ranking;
     }
     
@@ -237,7 +216,6 @@ public class WebFile {
             utility = patternUtilityCheck(href);
             if (utility) urls.put(href, patentTitle);
         }
-     //   System.out.print("\n" + urls.size() + " US utility patents found" + "\n");
     }
     
     public boolean patternUtilityCheck (String currentUrl){
@@ -248,7 +226,7 @@ public class WebFile {
         String regex = "\\d+"; // only digits
         boolean utility = false;
         while (matcher.find()) {
-            // this is a US patent -> check if it is a utility patent
+            // this is a US patent -> check if it is a utility patent too
             patentSuffix = matcher.group(1).replaceAll("[^\\d.]", "");
             if(patentSuffix.matches(regex)) {
                 utility = true;
@@ -262,34 +240,10 @@ public class WebFile {
         Pattern pattern = Pattern.compile("<meta name=\"DC.title\" content=\"(.*?)\">");
         Matcher matcher = pattern.matcher(patentText);
         String completeTitle = "";
-        while (matcher.find()) {
+        if (matcher.find()) {
             completeTitle = matcher.group(1); // redirect to the patent's page and get the complete title
-            break;
         }
         return completeTitle;
     }
  
-    public void enableCaching(){
-        caching = true;
-    }
-    
-    @SuppressWarnings("ConvertToTryWithResources")
-    public void storeResults(ArrayList <String> ranking, String query){
-        
-        try {
-            ArrayList <String> excludedSymbols = new ArrayList <> ();
-            excludedSymbols.add("\\"); excludedSymbols.add("/"); excludedSymbols.add(":"); excludedSymbols.add("*");
-            excludedSymbols.add("?"); excludedSymbols.add("\""); excludedSymbols.add("<"); excludedSymbols.add(">"); excludedSymbols.add("|");
-            for(String symbol: excludedSymbols){
-                query.replaceAll(symbol, "");
-            }
-            PrintWriter writer = new PrintWriter(MyEngine.getResultsDirectory() + query.replaceAll(" ", "_") + ".txt", "UTF-8");
-            for(String title: ranking){
-                writer.write(title + "\n");
-            }
-            writer.close();
-        } catch (FileNotFoundException | UnsupportedEncodingException ex) {
-            Logger.getLogger(WebFile.class.getName()).log(Level.SEVERE, null, ex);
-        } 
-    }
 }
