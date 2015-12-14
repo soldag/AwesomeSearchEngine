@@ -30,6 +30,7 @@ import indexing.DocumentIndexer;
 import parsing.PatentContentLookup;
 import querying.DocumentRanker;
 import querying.QueryProcessor;
+import querying.queries.QueryParser;
 import querying.results.QueryResult;
 import querying.spellingcorrection.DamerauLevenshteinCalculator;
 import textprocessing.TextPreprocessor;
@@ -48,6 +49,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 	 */
 	private TextPreprocessor textPreprocessor;
 	private DocumentIndexer documentIndexer;
+	private QueryParser queryParser;
 	private QueryProcessor queryProcessor;
 	private PatentContentLookup patentContentLookup;
 	private SnippetGenerator snippetGenerator;
@@ -112,15 +114,24 @@ public class AwesomeSearchEngine extends SearchEngine {
     	return this.documentIndexer;
     }
     
+    private QueryParser getQueryParser() {
+    	if(this.queryParser == null) {
+    		this.queryParser = new QueryParser(this.getTextPreprocessor());
+    	}
+    	
+    	return this.queryParser;
+    }
+    
     /**
      * Returns the current query processor.
-     * @param compress
+     * @param isCompressed
      * @return
      */
-    private QueryProcessor getQueryProcessor(boolean compress) {
-    	if(this.queryProcessor == null) {
+    private QueryProcessor getQueryProcessor(boolean isCompressed) {
+    	if(this.queryProcessor == null || this.queryProcessor.isCompressed() != isCompressed) {
     		try {
 				this.queryProcessor = new QueryProcessor(
+					this.getQueryParser(),
 					this.getTextPreprocessor(), 
 					new DamerauLevenshteinCalculator(1, 1, 1, 1),
 					new DocumentRanker(),
@@ -129,7 +140,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 					this.documentMapSeekListFile, 
 					this.indexFile, 
 					this.indexSeekListFile,
-					compress);
+					isCompressed);
 			} catch (FileNotFoundException e) {
 				System.err.println(e.getMessage());
 				System.exit(1);
@@ -203,7 +214,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     ArrayList<String> search(String query, int topK, int prf) {
     	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
 	    	try {
-	    		QueryResult result = this.queryProcessor.search(query, topK, prf);
+	    		QueryResult result = this.queryProcessor.search(query, topK);
 	    		
 	    		return this.getResultFormatter().format(result);
 			} catch (IOException e) {

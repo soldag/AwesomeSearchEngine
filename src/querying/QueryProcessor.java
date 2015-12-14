@@ -23,6 +23,13 @@ import postings.DocumentPostings;
 import postings.PositionMap;
 import postings.PostingTable;
 import querying.results.QueryResult;
+import querying.queries.BooleanQuery;
+import querying.queries.KeywordQuery;
+import querying.queries.MixedQuery;
+import querying.queries.PhraseQuery;
+import querying.queries.PrfQuery;
+import querying.queries.Query;
+import querying.queries.QueryParser;
 import querying.results.PrfQueryResult;
 import querying.spellingcorrection.DamerauLevenshteinCalculator;
 import querying.spellingcorrection.SpellingCorrector;
@@ -33,18 +40,14 @@ import visualization.SnippetGenerator;
 public class QueryProcessor {
 	
 	/**
-	 * Contains a list of supported boolean operators.
+	 * Contains the number of most frequent tokens that are used for pseudo-relevance-feedback.
 	 */
-	private static final List<String> BOOLEAN_OPERATORS = Arrays.asList("AND", "OR", "NOT");
-	
-	/**
-	 * Contains the number of most used tokens that are used for pseudo-relevance-feedback.
-	 */
-	private static final int PRF_K = 10;
+	private static final int PRF_MOST_FREQUENT_TOKENS = 10;
 	
 	/**
 	 * Contains necessary services.
 	 */
+	private QueryParser queryParser;
 	private TextPreprocessor textPreprocessor;
 	private DocumentRanker documentRanker;
 	private DamerauLevenshteinCalculator damerauLevenshtein;
@@ -76,6 +79,7 @@ public class QueryProcessor {
 	
 	/**
 	 * Creates a new QueryProcessor instance.
+	 * @param queryParser
 	 * @param textProcessor
 	 * @param damerauLevenshtein
 	 * @param documentRanker
@@ -86,8 +90,9 @@ public class QueryProcessor {
 	 * @param isCompressed
 	 * @throws FileNotFoundException
 	 */
-	public QueryProcessor(TextPreprocessor textProcessor, DamerauLevenshteinCalculator damerauLevenshtein, DocumentRanker documentRanker, SnippetGenerator snippetGenerator,
-			File documentMapFile, File documentMapSeekListFile, File indexFile, File indexSeekListFile, boolean isCompressed) throws FileNotFoundException {
+	public QueryProcessor(QueryParser queryParser, TextPreprocessor textProcessor, DamerauLevenshteinCalculator damerauLevenshtein, DocumentRanker documentRanker, 
+			SnippetGenerator snippetGenerator, File documentMapFile, File documentMapSeekListFile, File indexFile, File indexSeekListFile, boolean isCompressed) throws FileNotFoundException {
+		this.queryParser = queryParser;
 		this.textPreprocessor = textProcessor;
 		this.damerauLevenshtein = damerauLevenshtein;
 		this.documentRanker = documentRanker;
@@ -102,6 +107,15 @@ public class QueryProcessor {
 		this.indexSeekList = new InvertedIndexSeekList();		
 		this.isCompressed = isCompressed;
 	}
+	
+	
+	/**
+	 * Gets a boolean, that determines, whether the index is compressed, or not.
+	 * @return
+	 */
+	public boolean isCompressed() {
+		return this.isCompressed;
+	}
 
 	
 	/**
@@ -111,6 +125,7 @@ public class QueryProcessor {
 	public boolean isReady() {
 		return this.isReady;
 	}
+	
 	
 	/**
 	 * Loads the seek lists from disk to memory in order to perform queries.
@@ -133,115 +148,123 @@ public class QueryProcessor {
 	}
 	
 	/**
-	 * Search for a given query in the document collection.
-	 * @param query
-	 * @param topK
+	 * Searches for a given query string in the document collection.
+	 * Result is limited to 'resultLimit' documents.
+	 * @param queryString
+	 * @param resultLimit
 	 * @return
 	 * @throws IOException
 	 */
-	public QueryResult search(String query, int topK, int prf) throws IOException {
-		String mode = "";
-		List<String> tokens = this.textPreprocessor.tokenize(query, true);
-		String booleanOperator = this.getBooleanOperator(tokens);
-		if(booleanOperator != null) {
-			tokens.remove(booleanOperator);
-			mode = booleanOperator.toUpperCase();
-		}
-		else if(query.startsWith("'") && query.endsWith("'")) {
-			mode = "PHRASE";
-		}
-		
-		tokens = this.textPreprocessor.removeStopWords(tokens);
-		
-		switch(mode) {
-			case "AND":
-				return this.searchAnd(tokens);
-				
-			case "OR":
-				return this.searchOr(tokens);
-				
-			case "NOT":
-				return this.searchNot(tokens);
-				
-			case "PHRASE":
-				return this.searchPhrase(tokens, topK);
-				
-			default:
-				return this.searchKeywords(tokens, topK, prf);
-		}
+	public QueryResult search(String queryString, int resultLimit) throws IOException {
+		Query query = this.queryParser.parse(queryString);
+		return this.search(query, resultLimit, true);
 	}
 	
 	/**
-	 * Extracts the boolean operator from a tokenized query. If no operator is present, null is returned.
-	 * @param tokens
+	 * Searches for a given query in the document collection.
+	 * @param query
+	 * @param resultLimit Number of documents, that should be present at most in the result. If this value is less than 0, all relevant documents are returned. 
+	 * @param weightDocuments Determines, whether the result should be weighted or not. 
 	 * @return
+	 * @throws IOException
 	 */
-	private String getBooleanOperator(List<String> tokens) {
-		if(tokens.size() == 3) {
-			String operator = tokens.get(1);
-			if(BOOLEAN_OPERATORS.contains(operator.toUpperCase())) {
-				return operator;
+	private QueryResult search(Query query, int resultLimit, boolean weightDocuments) throws IOException {
+		// Search for query depending on its type
+		QueryResult result;
+		switch(query.getType()) {
+			case BooleanQuery.TYPE:
+				result = this.search((BooleanQuery)query);
+				break;
+				
+			case PhraseQuery.TYPE:
+				result = this.search((PhraseQuery)query);
+				break;
+				
+			case MixedQuery.TYPE:
+				Query[] queries = ((MixedQuery)query).getQueries();
+				result = QueryResult.disjunct(this.searchAllUnweighted(queries));
+				break;
+				
+			case KeywordQuery.TYPE:
+				result = this.search((KeywordQuery)query);
+				break;
+				
+			default: 
+				result = new QueryResult();
+				break;
+		}
+		
+		// If enabled, extend query using pseudo relevance feedback (only supported for keyword queries)
+		if(query instanceof PrfQuery) {
+			PrfQuery prfQuery = (PrfQuery)query;
+			if(prfQuery.getPrf() > 0) {
+				PrfQuery extendedQuery = this.extendPrfQuery(prfQuery, result);
+				result = PrfQueryResult.fromResults(this.search(extendedQuery, resultLimit, false), result);
 			}
 		}
 		
-		return null;
-	}
-	
-	/**
-	 * Search for conjunction of given tokens in the document collection.
-	 * @param tokens
-	 * @return
-	 * @throws IOException
-	 */
-	private QueryResult searchAnd(List<String> tokens) throws IOException {
-		// Search for single tokens separately
-		QueryResult result1 = this.searchToken(tokens.get(0));
-		QueryResult result2 = this.searchToken(tokens.get(1));
+		// Load documents of result
+		result.getPostings().loadDocuments(this::getDocument);
 		
-		return QueryResult.conjunct(result1, result2);
-	}
-	
-	/**
-	 * Search for disjunction of given tokens in the document collection.
-	 * @param tokens
-	 * @return
-	 * @throws IOException
-	 */
-	private QueryResult searchOr(List<String> tokens) throws IOException {
-		QueryResult[] results = tokens.stream()
-									.map(token -> this.searchToken(token))
-									.toArray(QueryResult[]::new);
+		// Weight resulting documents, if specified so
+		if(weightDocuments && query.getType() != BooleanQuery.TYPE) {
+			result = this.documentRanker.weightResult(result, resultLimit, this.indexReader.getTotalTokenCount());
+		}
 		
-		return QueryResult.disjunct(results);
+		return result;
 	}
 	
 	/**
-	 * Search for negated conjunction of given tokens in the document collection.
-	 * @param tokens
+	 * Searches for multiple queries and return result array (unweighted).
+	 * @param queries
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult searchNot(List<String> tokens) throws IOException {
-		// Search for single tokens separately
-		QueryResult result1 = this.searchToken(tokens.get(0));
-		QueryResult result2 = this.searchToken(tokens.get(1));
+	private QueryResult[] searchAllUnweighted(Query... queries) throws IOException {
+		QueryResult[] results = new QueryResult[queries.length];
+		for(int i = 0; i < queries.length; i++) {
+			results[i] = this.search(queries[i], -1, false);
+		}
 		
-		return QueryResult.conjunctNegated(result1, result2);
+		return results;
 	}
 	
+	
 	/**
-	 * Searched for the phrase of given tokens in the document collection. Only document, containing tokens in the given order are returned.
-	 * @param tokens
-	 * @param topK
+	 * Evaluates the given boolean query. 
+	 * @param query
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult searchPhrase(List<String> tokens, int topK) throws IOException {
+	private QueryResult search(BooleanQuery query) throws IOException {
+		switch(query.getOperator()) {		
+			case Or:
+				return QueryResult.disjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				
+			case And:
+				return QueryResult.conjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				
+			case Not:
+				return QueryResult.relativeComplement(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				
+			default:
+				return new QueryResult();
+		}
+	}
+	
+	
+	/**
+	 * Searched for a phrase of tokens in the document collection. Only document, containing the tokens in the given order are returned.
+	 * @param tokens
+	 * @return
+	 * @throws IOException
+	 */
+	private QueryResult search(PhraseQuery query) throws IOException {
 		PostingTable resultTokenPostings = null;
 		PostingTable lastTokenPostings = null;
 		Map<String, String> spellingCorrections = null;
 		
-		for(String token: tokens) {
+		for(String token: query.getQueryTokens()) {
 			// Search for token
 			QueryResult result = this.searchToken(token);
 			
@@ -298,13 +321,8 @@ public class QueryProcessor {
 		if(resultTokenPostings == null) {
 			return new QueryResult();
 		}
-
-		// Weight documents
-		resultTokenPostings.loadDocuments(this::getDocument);
-		QueryResult result = new QueryResult(resultTokenPostings, spellingCorrections);
-		result = this.documentRanker.weightResult(result, this.indexReader.getTotalTokenCount(), topK);
 		
-		return result;
+		return new QueryResult(resultTokenPostings, spellingCorrections);
 	}
 	
 	/**
@@ -319,103 +337,24 @@ public class QueryProcessor {
 								.anyMatch(pos2 -> pos2 == pos1 + 1));
 	}
 	
+	
 	/**
-	 * Searches for a given keyword query. Results of query tokens are combined(disjunction) and weighted.
-	 * @param tokens
-	 * @param topK
-	 * @param prf
+	 * Evaluates the given keyword query. 
+	 * @param query
 	 * @return
-	 * @throws IOException 
+	 * @throws IOException
 	 */
-	private QueryResult searchKeywords(List<String> tokens, int topK, int prf) throws IOException {
+	private QueryResult search(KeywordQuery query) throws IOException {
 		// Search for tokens
-		QueryResult result = this.keywordSearch(tokens, topK);
-		
-		// If enabled, extend query using pseudo relevance feedback
-		if(prf > 0) {
-			result = this.extendPrf(tokens, topK, prf, result);
+		List<String> queryTokens = query.getQueryTokens();
+		QueryResult[] results = new QueryResult[queryTokens.size()];
+		for(int i = 0; i < queryTokens.size(); i++) {
+			results[i] = this.searchToken(queryTokens.get(i));
 		}
 		
-		return result;
+		return QueryResult.disjunct(results);
 	}
 	
-	/**
-	 * Extend the query by most frequent tokens of the snippets of the top documents of the original query (pseudo relevance feedback).
-	 * @param tokens
-	 * @param topK
-	 * @param prf
-	 * @param originalResult
-	 * @return
-	 * @throws IOException
-	 */
-	private QueryResult extendPrf(List<String> tokens, int topK, int prf, QueryResult originalResult) throws IOException {
-		originalResult.getPostings().loadDocuments(this::getDocument);
-		List<String> additionalTerms = originalResult.getPostings().documentSet().stream()
-										.limit(prf)
-										.map(document -> this.snippetGenerator.generate(document, originalResult))
-										.flatMap(x -> this.getMostFrequentTokens(
-														x.stream()
-																.flatMap(y -> this.textPreprocessor.removeStopWords(y.getTokens()).stream())
-																.collect(Collectors.toList()),
-														PRF_K).stream())
-										.collect(Collectors.toList());
-		tokens.addAll(additionalTerms);
-		tokens = tokens.stream().distinct().collect(Collectors.toList());
-		return this.keywordSearch(tokens, topK, originalResult);
-	}
-	
-	/**
-	 * Returns the most frequent tokens from a list limited to 'limit'.
-	 * @param tokens
-	 * @param limit
-	 * @return
-	 */
-	private List<String> getMostFrequentTokens(List<String> tokens, int limit) {
-		Map<String, Integer> tokenCounts = new HashMap<String, Integer>();
-		for(String token: tokens) {
-			tokenCounts.putIfAbsent(token, 0);
-			tokenCounts.put(token, tokenCounts.get(token) + 1);
-		}
-		
-		return tokenCounts.entrySet().stream()
-				.sorted(MapValueComparator.natural())
-				.map(x -> x.getKey())
-				.distinct()
-				.limit(limit)
-				.collect(Collectors.toList());
-	}
-	
-	/**
-	 * Runs a keyword search for a list of query tokens and weights the result.
-	 * @param tokens
-	 * @param topK
-	 * @return List of patent documents.
-	 * @throws IOException
-	 */
-	private QueryResult keywordSearch(List<String> tokens, int topK) throws IOException {
-		return this.keywordSearch(tokens, topK, null);
-	}
-	
-	/**
-	 * Runs a keyword search for a list of extended query tokens and weights the result.
-	 * @param tokens
-	 * @param topK
-	 * @return List of patent documents.
-	 * @throws IOException
-	 */
-	private QueryResult keywordSearch(List<String> tokens, int topK, QueryResult originalResult) throws IOException {
-		// Search for tokens
-		QueryResult result = this.searchOr(tokens);
-		if(originalResult != null) {
-			result = PrfQueryResult.fromResults(result, originalResult);
-		}
-		
-		// Weight documents
-		result.getPostings().loadDocuments(this::getDocument);
-		result = this.documentRanker.weightResult(result, this.indexReader.getTotalTokenCount(), topK);
-		
-		return result;
-	}
 	
 	/**
 	 * Gets all postings of a given token from index.
@@ -427,7 +366,7 @@ public class QueryProcessor {
 	}
 	
 	/**
-	 * Gets all postings of a given (corrected) token from index. 
+	 * Gets all postings of a given (possibly corrected) token from index. 
 	 * The original misspelled token has to be passed as second argument.
 	 * @param token
 	 * @param misspelledToken
@@ -472,15 +411,59 @@ public class QueryProcessor {
 		}
 	}
 	
+	
+	/**
+	 * Extend the query by most frequent tokens of the snippets of the top documents of the original query (pseudo relevance feedback).
+	 * @param query
+	 * @param originalResult
+	 * @return
+	 * @throws IOException
+	 */
+	private PrfQuery extendPrfQuery(final PrfQuery query, QueryResult originalResult) throws IOException {
+		originalResult.getPostings().loadDocuments(this::getDocument);
+		List<String> additionalTokens = originalResult.getPostings().documentSet().stream()
+										.limit(query.getPrf())
+										.map(document -> this.snippetGenerator.generate(document, originalResult))
+										.flatMap(x -> this.getMostFrequentTokens(
+														x.stream()
+																.flatMap(y -> this.textPreprocessor.removeStopWords(y.getTokens()).stream())
+																.filter(y -> !query.containsToken(y))
+																.collect(Collectors.toList()),
+														PRF_MOST_FREQUENT_TOKENS).stream())
+										.collect(Collectors.toList());
+		
+		
+		return query.extendBy(additionalTokens);
+	}
+	
+	/**
+	 * Returns the most frequent tokens from a list limited to 'limit'.
+	 * @param tokens
+	 * @param limit
+	 * @return
+	 */
+	private List<String> getMostFrequentTokens(List<String> tokens, int limit) {
+		Map<String, Integer> tokenCounts = new HashMap<String, Integer>();
+		for(String token: tokens) {
+			tokenCounts.putIfAbsent(token, 0);
+			tokenCounts.put(token, tokenCounts.get(token) + 1);
+		}
+		
+		return tokenCounts.entrySet().stream()
+				.sorted(MapValueComparator.natural())
+				.map(x -> x.getKey())
+				.distinct()
+				.limit(limit)
+				.collect(Collectors.toList());
+	}
+	
+	
 	/**
 	 * Retrieves the PatentDocument from document map by specifying its id.
 	 * @param documentId
 	 * @return
 	 */
 	private PatentDocument getDocument(int documentId) {
-		if(documentId == 6836939) {
-			System.out.println("");
-		}
 		int startOffset = this.documentMapSeekList.getIndexOffset(documentId);
 		try {
 			return this.documentMapReader.getDocument(documentId, startOffset);

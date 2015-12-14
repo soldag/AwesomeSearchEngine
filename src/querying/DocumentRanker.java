@@ -32,14 +32,19 @@ public class DocumentRanker {
 	private static final double NON_QUERY_TOKEN_FACTOR = 0.25;
 	
 	/**
-	 * Weights a query result using query-likelihood-model. Resulting query result is limited to 'limit' entries.
+	 * Weights a query result using query-likelihood-model. Resulting query result is limited to 'documentLimit' entries.
 	 * @param result
+	 * @param resultLimit
 	 * @param collectionTokenCount
-	 * @param limit
 	 * @return
 	 */
-	public QueryResult weightResult(QueryResult result, int collectionTokenCount, int limit) {
+	public QueryResult weightResult(QueryResult result, int resultLimit, int collectionTokenCount) {
 		PostingTable resultPostings = result.getPostings();
+		
+		// If result should not be limited, set resultLimit to number of resulting documents
+		if(resultLimit < 0) {
+			resultLimit = resultPostings.documentIdSet().size();
+		}
 		
 		// Calculate weights for each document
 		Map<PatentDocument, Double> weights = resultPostings.documentSet().stream()
@@ -50,7 +55,7 @@ public class DocumentRanker {
 		// Sort documents by weight and limit to given parameter
 		List<PatentDocument> rankedDocuments = weights.entrySet().stream()
 													.sorted(MapValueComparator.reverse())
-													.limit(limit)
+													.limit(resultLimit)
 													.map(e -> e.getKey())
 													.collect(Collectors.toList());
 		

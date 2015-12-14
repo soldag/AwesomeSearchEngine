@@ -2,6 +2,7 @@ package postings;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -250,6 +251,7 @@ public class PostingTable {
 	 */
 	public void putAll(PostingTable postingTable) {
 		this.postings.putAll(postingTable.postings);
+		this.documents.putAll(postingTable.documents);
 	}
 	
 	
@@ -381,7 +383,7 @@ public class PostingTable {
 		PostingTable result = new PostingTable();
 		
 		// Get intersection of document ids
-		Set<Integer> documentIds = postingTables[0].documentIdSet();
+		Set<Integer> documentIds = new HashSet<Integer>(postingTables[0].documentIdSet());
 		for(int i = 1; i < postingTables.length; i++) {
 			documentIds.retainAll(postingTables[i].documentIdSet());
 		}
@@ -391,29 +393,41 @@ public class PostingTable {
 				.flatMap(x -> x.postings.cellSet().stream())
 				.filter(cell -> documentIds.contains(cell.getColumnKey()))
 				.forEach(cell -> result.put(cell.getRowKey(), cell.getColumnKey(), cell.getValue()));
+
+		// Conjunct document maps and filter out abandoned ones.
+		Arrays.stream(postingTables)
+				.flatMap(x -> x.documents.values().stream())
+				.filter(x -> result.containsDocument(x))
+				.forEach(x -> result.putDocument(x));
 		
 		return result;
 	}
 
 	/**
-	 * Conjunct multiple PostingTable instances negatively (p_1 AND NOT (p_2 AND ... AND p_n)).
+	 * Calculate the relative complement (set-theoretic difference) of multiple PostingTable instances.
 	 * @param postingTables
 	 * @return
 	 */
-	public static PostingTable conjunctNegated(PostingTable...postingTables) {
+	public static PostingTable relativeComplement(PostingTable...postingTables) {
 		PostingTable result = new PostingTable();
 		
-		// Get intersection of document ids
-		Set<Integer> documentIds = postingTables[0].documentIdSet();
+		// Get complement of document ids
+		Set<Integer> documentIds = new HashSet<Integer>(postingTables[0].documentIdSet());
 		for(int i = 1; i < postingTables.length; i++) {
 			documentIds.removeAll(postingTables[i].documentIdSet());
 		}
 
-		// Add all posting with one of the conjuncted document ids to result
+		// Add all posting with one of the filtered document ids to result
 		Arrays.stream(postingTables)
 			.flatMap(x -> x.postings.cellSet().stream())
-			.filter(cell -> !documentIds.contains(cell.getColumnKey()))
+			.filter(cell -> documentIds.contains(cell.getColumnKey()))
 			.forEach(cell -> result.put(cell.getRowKey(), cell.getColumnKey(), cell.getValue()));
+		
+		// Conjunct document maps and filter out abandoned ones.
+		Arrays.stream(postingTables)
+				.flatMap(x -> x.documents.values().stream())
+				.filter(x -> result.containsDocument(x))
+				.forEach(x -> result.putDocument(x));
 		
 		return result;
 	}

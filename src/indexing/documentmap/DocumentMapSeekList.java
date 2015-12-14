@@ -36,7 +36,6 @@ public class DocumentMapSeekList extends GenericSeekList<Integer> {
 			
 			this.seekList.put(documentId, offset);
 		}
-		System.out.println("");
 	}
 	
 	/**

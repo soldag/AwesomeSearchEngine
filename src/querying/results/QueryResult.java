@@ -102,13 +102,13 @@ public class QueryResult {
 	}
 	
 	/**
-	 * Conjuncts multiple QueryResult instances negatively (q_1 AND NOT (q_2 AND ... AND q_n)).
+	 * Calculates the relative complement (set-theoretic difference) of multiple QueryResult instances.
 	 * @param results
 	 * @return
 	 */
-	public static QueryResult conjunctNegated(QueryResult...results) {
+	public static QueryResult relativeComplement(QueryResult...results) {
 		PostingTable[] tokenPostings = Arrays.stream(results).map(x -> x.getPostings()).toArray(PostingTable[]::new);
-		PostingTable conjunctedTokenPostings = PostingTable.conjunctNegated(tokenPostings);
+		PostingTable conjunctedTokenPostings = PostingTable.relativeComplement(tokenPostings);
 		
 		return new QueryResult(conjunctedTokenPostings, disjunctSpellingCorrections(results));
 	}
