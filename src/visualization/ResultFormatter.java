@@ -58,7 +58,6 @@ public class ResultFormatter {
 			resultBuilder.append(ANSI_BOLD + title + ANSI_BOLD_RESET);
 			resultBuilder.append(System.getProperty("line.separator"));
 			resultBuilder.append(snippet);
-			resultBuilder.append(System.getProperty("line.separator"));
 			
 			formattedResults.add(resultBuilder.toString());
 		}

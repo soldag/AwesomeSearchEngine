@@ -26,6 +26,7 @@ import java.util.ArrayList;
 
 import org.apache.commons.io.FilenameUtils;
 
+import evaluation.NdcgCalculator;
 import indexing.DocumentIndexer;
 import parsing.PatentContentLookup;
 import querying.DocumentRanker;
@@ -54,6 +55,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private PatentContentLookup patentContentLookup;
 	private SnippetGenerator snippetGenerator;
 	private ResultFormatter resultFormatter;
+	private NdcgCalculator ncdgCalculator;
     
 	/**
 	 * Contains the path of the directory containing the patent data.
@@ -189,6 +191,19 @@ public class AwesomeSearchEngine extends SearchEngine {
     	
     	return this.resultFormatter;
     }
+    
+    /**
+     * Returns the current ncdg calculator.
+     * @return
+     */
+    private NdcgCalculator getNcdgCalculator() {
+    	if(ncdgCalculator == null) {
+    		this.ncdgCalculator = new NdcgCalculator();
+    	}
+    	
+		return ncdgCalculator;
+	}
+    
 
     @Override
     public void index(String directory) {
@@ -231,8 +246,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 
 	@Override
 	public Double computeNdcg(ArrayList<String> goldRanking, ArrayList<String> ranking, int p) {
-		// TODO: Implement me!
-		return 0d;
+		return this.getNcdgCalculator().calculate(goldRanking, ranking, p);
 	}
 	
     

@@ -22,27 +22,37 @@ public class SearchEngineTest {
         SearchEngine engine = new AwesomeSearchEngine();
         
         start = System.currentTimeMillis();
-        engine.index(dataDirectory);
+        engine.compressIndex(dataDirectory);
         time = System.currentTimeMillis() - start;
         
         System.out.println("Indexing Time: " + time + "ms");
 
         start = System.currentTimeMillis();
-        engine.loadIndex(dataDirectory);
+        engine.loadCompressedIndex(dataDirectory);
         time = System.currentTimeMillis() - start;
         System.out.println("Loading Index Time: " + time + "ms");
         
         start = System.currentTimeMillis();
-        String query = "commom";
-        ArrayList<String> results = engine.search(query, 10, 2);
+        String query = "\"a scanning\"";
+        ArrayList<String> results = engine.search(query, 10, 0);
         time = System.currentTimeMillis() - start;
         System.out.println("Search Time: " + time + "ms");
         
+        start = System.currentTimeMillis();
+        WebFile webFile = new WebFile();
+        ArrayList<String> goldRanking = webFile.getGoogleRanking(query);
+        time = System.currentTimeMillis() - start;
+        System.out.println("Gold Ranking Retrieval Time: " + time + "ms");
+        
         System.out.println();
         System.out.println("Results:");
-        for(String title: results) {
-        	System.out.println(title);
-        }
+        for(int i = 0; i < results.size(); i++) {
+        	System.out.println(results.get(i));
+        	
+        	double ndcg = engine.computeNdcg(goldRanking, results, i + 1);
+        	System.out.println(String.format("NDCG: %.2f", ndcg));
+        	System.out.println();
+        }    
     }
 
 }
