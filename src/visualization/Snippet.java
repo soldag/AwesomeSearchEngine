@@ -7,12 +7,6 @@ import java.util.stream.Collectors;
 public class Snippet {
 	
 	/**
-	 * Contains ANSI codes for output formatting.
-	 */
-	private static final String ANSI_GREEN = "\u001B[32m";
-	private static final String ANSI_COLOR_RESET = "\u001B[0m";
-	
-	/**
 	 * Contains the tokens of the snippet.
 	 */
 	private List<String> tokens;
@@ -74,7 +68,7 @@ public class Snippet {
 		List<String> formattedTokens = new ArrayList<String>(this.tokens.size()); 
 		for(int i = 0; i < this.tokens.size(); i++) {
 			if(this.queryTokenIndexes.contains(i)) {
-				formattedTokens.add(ANSI_GREEN + this.tokens.get(i) + ANSI_COLOR_RESET);
+				formattedTokens.add(ResultStyle.ANSI_COLOR_GREEN + this.tokens.get(i) + ResultStyle.ANSI_COLOR_RESET);
 			}
 			else {
 				formattedTokens.add(this.tokens.get(i));

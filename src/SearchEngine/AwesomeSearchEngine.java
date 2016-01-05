@@ -186,6 +186,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     	if(this.resultFormatter == null) {
     		this.resultFormatter = new ResultFormatter(
     				this.getPatentContentLookup(), 
+    				this.getTextPreprocessor(),
     				this.getSnippetGenerator());
     	}
     	

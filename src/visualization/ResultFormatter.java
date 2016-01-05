@@ -2,35 +2,35 @@ package visualization;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import documents.PatentDocument;
 import parsing.PatentContentLookup;
 import postings.ContentType;
 import querying.results.QueryResult;
+import textprocessing.TextPreprocessor;
 
 public class ResultFormatter {
-	
-	/**
-	 * Contains ANSI constants for formatting console output.
-	 */
-	private static final String ANSI_BOLD = "\033[1m";
-	private static final String ANSI_BOLD_RESET = "\033[0m";
 	
 	/**
 	 * Contains necessary services.
 	 */
 	private PatentContentLookup patentContentLookup;
+	private final TextPreprocessor textPreprocessor;
 	private SnippetGenerator snippetGenerator;
 	
 	
 	/**
 	 * Creates a new ResultFormatter instance.
-	 * @param titleLookup
+	 * @param patentContentLookup
+	 * @param textPreprocessor
 	 * @param snippetGenerator
 	 */
-	public ResultFormatter(PatentContentLookup patentContentLookup, SnippetGenerator snippetGenerator) {
+	public ResultFormatter(PatentContentLookup patentContentLookup, TextPreprocessor textPreprocessor, SnippetGenerator snippetGenerator) {
 		this.patentContentLookup = patentContentLookup;
+		this.textPreprocessor = textPreprocessor;
 		this.snippetGenerator = snippetGenerator;
 	}
 	
@@ -55,7 +55,7 @@ public class ResultFormatter {
 			StringBuilder resultBuilder = new StringBuilder();
 			resultBuilder.append(id);
 			resultBuilder.append(" ");
-			resultBuilder.append(ANSI_BOLD + title + ANSI_BOLD_RESET);
+			resultBuilder.append(this.formatTitle(title, document, result));
 			resultBuilder.append(System.getProperty("line.separator"));
 			resultBuilder.append(snippet);
 			
@@ -63,5 +63,39 @@ public class ResultFormatter {
 		}
 		
 		return formattedResults;
+	}
+	
+	/**
+	 * Highlights query tokens and formats the whole title bold.
+	 * @param title
+	 * @param document
+	 * @param result
+	 * @return
+	 */
+	private String formatTitle(String title, PatentDocument document, QueryResult result) {
+		// Tokenize title
+		List<String> tokenizedTitle;
+		try {
+			tokenizedTitle = this.textPreprocessor.tokenize(title);
+		} catch (IOException e) {
+			return title;
+		}
+		
+		// Get positions of query tokens in title
+		int[] queryTokenPositions = result.getPostings().ofDocument(document).positions().stream()
+												.filter(positionMap -> positionMap.containsContentType(ContentType.Title))
+												.flatMapToInt(positionMap -> Arrays.stream(positionMap.ofContentType(ContentType.Title)))
+												.toArray();
+		
+		// Highlight query tokens in title
+		for(int position: queryTokenPositions) {
+			String token = tokenizedTitle.get(position);
+			title = title.replaceAll("\\b" + token + "\\b", ResultStyle.ANSI_COLOR_GREEN + token + ResultStyle.ANSI_COLOR_RESET);
+		}
+		
+		// Format whole title bold
+		title = ResultStyle.ANSI_BOLD + title + ResultStyle.ANSI_BOLD_RESET;
+		
+		return title;
 	}
 }
