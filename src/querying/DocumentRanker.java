@@ -95,17 +95,31 @@ public class DocumentRanker {
 	 * @return
 	 */	
 	private double weightDocument(PatentDocument document, ContentType contentType, QueryResult result, int collectionTokenCount) {
-		DocumentPostings tokenPostings = result.getPostings().ofDocument(document);
-		if(tokenPostings.positions().stream().anyMatch(positionMap -> positionMap.containsContentType(contentType))) {
+		DocumentPostings documentPostings = result.getPostings().ofDocument(document);
+		if(documentPostings.positions().stream().anyMatch(positionMap -> positionMap.containsContentType(contentType))) {
 			return result.getPostings().tokenSet().stream()
-							.filter(token -> tokenPostings.containsToken(token) && tokenPostings.ofToken(token).containsContentType(contentType))
-							.mapToDouble(token -> this.getFactor(token, result) * 
+							.mapToDouble(token -> this.getPrfFactor(token, result) * 
 												  this.queryLikelihood(
-													tokenPostings.ofToken(token).ofContentType(contentType).length, 
+													this.countTokenOccurrences(token, documentPostings, contentType), 
 													document.getTokensCount(contentType), 
 													this.getCollectionFrequency(token, result), 
 													collectionTokenCount))
 							.reduce(1, (x,y) -> x*y);
+		}
+		
+		return 0;
+	}
+	
+	/**
+	 * Counts the number of token occurrences in the specified content of the given postings 
+	 * @param token
+	 * @param documentPostings
+	 * @param contentType
+	 * @return
+	 */
+	private int countTokenOccurrences(String token, DocumentPostings documentPostings, ContentType contentType) {
+		if(documentPostings.containsToken(token) && documentPostings.ofToken(token).containsContentType(contentType)) {
+			return documentPostings.ofToken(token).ofContentType(contentType).length;
 		}
 		
 		return 0;
@@ -117,7 +131,7 @@ public class DocumentRanker {
 	 * @param result
 	 * @return
 	 */
-	private double getFactor(String token, QueryResult result) {
+	private double getPrfFactor(String token, QueryResult result) {
 		if(result instanceof PrfQueryResult) {
 			PrfQueryResult prfResult = (PrfQueryResult)result;
 			Set<String> originalQueryTokens = prfResult.getOriginalResult().getPostings().tokenSet();
