@@ -182,8 +182,7 @@ public class QueryProcessor {
 				break;
 				
 			case MixedQuery.TYPE:
-				Query[] queries = ((MixedQuery)query).getQueries();
-				result = QueryResult.disjunct(this.searchAllUnweighted(queries));
+				result = this.search((MixedQuery)query);
 				break;
 				
 			case KeywordQuery.TYPE:
@@ -327,7 +326,7 @@ public class QueryProcessor {
 	}
 	
 	/**
-	 * Determines, whether position1 contains at least one position that is precedessor of a position if positions2. 
+	 * Determines, whether position1 contains at least one position that is predecessor of a position if positions2. 
 	 * @param posting1
 	 * @param posting2
 	 * @return boolean
@@ -336,6 +335,18 @@ public class QueryProcessor {
 		return Arrays.stream(positions1)
 					.anyMatch(pos1 -> Arrays.stream(positions2)
 								.anyMatch(pos2 -> pos2 == pos1 + 1));
+	}
+	
+	
+	/**
+	 * Evaluates the given mixed query.
+	 * @param query
+	 * @return
+	 * @throws IOException
+	 */
+	private QueryResult search(MixedQuery query) throws IOException {
+		Query[] queries = query.getQueries();
+		return QueryResult.disjunct(this.searchAllUnweighted(queries));
 	}
 	
 	
