@@ -1,63 +1,49 @@
 package visualization;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.Set;
 
 public class Snippet {
 	
 	/**
-	 * Contains the tokens of the snippet.
+	 * Contains the text of the snippet.
 	 */
-	private List<String> tokens;
+	private String snippet;
 	
 	/**
-	 * Contains the indexes of those tokens, that are part of the query.
+	 * Contains those tokens, that are part of the query.
 	 */
-	private List<Integer> queryTokenIndexes;
+	private Set<String> queryTokens;
 
-	
+
 	/**
 	 * Creates a new Snippet instance.
 	 */
 	public Snippet() {
-		this(new ArrayList<String>(), new ArrayList<Integer>());
+		this(null, new HashSet<String>());
 	}
 	
 	/**
 	 * Creates a new Snippet instance.
-	 * @param tokens
-	 * @param queryTokenIndexes
+	 * @param snippet
 	 */
-	public Snippet(List<String> tokens, List<Integer> queryTokenIndexes) {
-		this.tokens = tokens;
-		this.queryTokenIndexes = queryTokenIndexes;
-	}
-	
-	
-	/**
-	 * Adds a new token to the snippet.
-	 * @param token
-	 * @param isQueryToken
-	 */
-	public void add(String token, boolean isQueryToken) {
-		this.tokens.add(token);
-		if(isQueryToken) {
-			this.queryTokenIndexes.add(this.tokens.size() - 1);
-		}
+	public Snippet(String snippet) {
+		this(snippet, new HashSet<String>());
 	}
 	
 	/**
-	 * Returns the tokens of the snippet.
-	 * @return
+	 * Creates a new Snippet instance.
+	 * @param snippet
+	 * @param queryTokens
 	 */
-	public List<String> getTokens() {
-		return this.tokens;
+	public Snippet(String snippet, Set<String> queryTokens) {
+		this.snippet = snippet;
+		this.queryTokens = queryTokens;
 	}
 	
 	@Override
 	public String toString() {
-		return this.tokens.stream().collect(Collectors.joining(" "));
+		return this.snippet;
 	}
 	
 	/**
@@ -65,16 +51,11 @@ public class Snippet {
 	 * @return
 	 */
 	public String toFormattedString() {
-		List<String> formattedTokens = new ArrayList<String>(this.tokens.size()); 
-		for(int i = 0; i < this.tokens.size(); i++) {
-			if(this.queryTokenIndexes.contains(i)) {
-				formattedTokens.add(ResultStyle.ANSI_COLOR_GREEN + this.tokens.get(i) + ResultStyle.ANSI_COLOR_RESET);
-			}
-			else {
-				formattedTokens.add(this.tokens.get(i));
-			}
+		String formattedSnippet = this.snippet;
+		for(String queryToken: this.queryTokens) {
+			formattedSnippet = formattedSnippet.replaceAll("\\b" + queryToken + "\\b", ResultStyle.ANSI_COLOR_GREEN + queryToken + ResultStyle.ANSI_COLOR_RESET);
 		}
-		
-		return formattedTokens.stream().collect(Collectors.joining(" "));
+
+		return formattedSnippet;
 	}
 }

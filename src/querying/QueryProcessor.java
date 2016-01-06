@@ -3,6 +3,7 @@ package querying;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -424,12 +425,8 @@ public class QueryProcessor {
 		List<String> additionalTokens = originalResult.getPostings().documentSet().stream()
 										.limit(query.getPrf())
 										.map(document -> this.snippetGenerator.generate(document, originalResult))
-										.flatMap(x -> this.getMostFrequentTokens(
-														x.stream()
-																.flatMap(y -> this.textPreprocessor.removeStopWords(y.getTokens()).stream())
-																.filter(y -> !query.containsToken(y))
-																.collect(Collectors.toList()),
-														PRF_MOST_FREQUENT_TOKENS).stream())
+										.flatMap(x -> this.getMostFrequentTokens(x.toString(), PRF_MOST_FREQUENT_TOKENS).stream())
+										.filter(token -> !query.containsToken(token))
 										.collect(Collectors.toList());
 		
 		
@@ -437,12 +434,19 @@ public class QueryProcessor {
 	}
 	
 	/**
-	 * Returns the most frequent tokens from a list limited to 'limit'.
-	 * @param tokens
+	 * Returns the most frequent tokens of a text limited to 'limit'.
+	 * @param text
 	 * @param limit
 	 * @return
 	 */
-	private List<String> getMostFrequentTokens(List<String> tokens, int limit) {
+	private List<String> getMostFrequentTokens(String text, int limit) {
+		List<String> tokens;
+		try {
+			tokens = this.textPreprocessor.removeStopWords(this.textPreprocessor.tokenize(text));
+		} catch (IOException e) {
+			return new ArrayList<String>();
+		}
+		
 		Map<String, Integer> tokenCounts = new HashMap<String, Integer>();
 		for(String token: tokens) {
 			tokenCounts.putIfAbsent(token, 0);

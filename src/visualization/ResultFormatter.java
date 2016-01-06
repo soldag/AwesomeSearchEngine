@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import documents.PatentDocument;
 import parsing.PatentContentLookup;
@@ -47,9 +46,7 @@ public class ResultFormatter {
 			// Get properties
 			int id = document.getId();
 			String title = this.patentContentLookup.get(document, ContentType.Title);
-			String snippet = this.snippetGenerator.generate(document, result).stream()
-								.map(x -> x.toFormattedString())
-								.collect(Collectors.joining("..."));
+			Snippet snippet = this.snippetGenerator.generate(document, result);
 			
 			// Format properties
 			StringBuilder resultBuilder = new StringBuilder();
@@ -57,7 +54,7 @@ public class ResultFormatter {
 			resultBuilder.append(" ");
 			resultBuilder.append(this.formatTitle(title, document, result));
 			resultBuilder.append(System.getProperty("line.separator"));
-			resultBuilder.append(snippet);
+			resultBuilder.append(snippet.toFormattedString());
 			
 			formattedResults.add(resultBuilder.toString());
 		}
