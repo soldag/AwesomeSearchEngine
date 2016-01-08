@@ -136,14 +136,25 @@ public class InvertedIndexMerger {
 		}
 	}
 	
-	private void write(FileWriter writer, String token, TokenPostings postings, boolean createSeekList) throws UnsupportedEncodingException, IOException {
+	/**
+	 * Writes given token and its postings to specified file.
+	 * @param indexWriter
+	 * @param token
+	 * @param postings
+	 * @param createSeekList
+	 * @throws UnsupportedEncodingException
+	 * @throws IOException
+	 */
+	private void write(FileWriter indexWriter, String token, TokenPostings postings, boolean createSeekList) throws UnsupportedEncodingException, IOException {
 		// Add token to seek list
 		if(createSeekList) {
-			this.seekList.put(token, (int)writer.getFilePointer());
+			this.seekList.put(token, (int)indexWriter.getFilePointer());
 		}
 		
 		// Write to destination file
-		writer.writeString(token);
-		postings.save(writer);
+		indexWriter.writeString(token);
+		indexWriter.startSkippingArea();
+		postings.save(indexWriter);
+		indexWriter.endSkippingArea();
 	}
 }

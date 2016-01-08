@@ -68,13 +68,14 @@ public class InvertedIndexReader implements AutoCloseable {
 						postings.putAll(readToken, readPostings);
 						continue;
 					}
-					else if(readToken.compareTo(token) > 0){
-						break;
-					}
 				}			
 				else if(readToken.equals(token)) {
 					TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength);
 					postings.putAll(readToken, readPostings);
+					break;
+				}
+				
+				if(readToken.compareTo(token) > 0){
 					break;
 				}
 				

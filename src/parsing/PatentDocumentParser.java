@@ -24,7 +24,7 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	/**
 	 * XPaths constants for XML elements containing the whole patent and its document ID.
 	 */
-	private static final String PATENT_PATH = "/my-root/us-patent-grant";
+	private static final String PATENT_PATH = "/my_root/us-patent-grant";
 	private static final String DOCUMENT_ID_PATH = "us-bibliographic-data-grant/publication-reference/document-id/doc-number";
 	
 	/**

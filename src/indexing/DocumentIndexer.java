@@ -25,9 +25,9 @@ import java.nio.file.Paths;
 public class DocumentIndexer {
 	
 	/**
-	 * Determines the limit of free bytes in memory. If this limit is exceeded, memory index has to be written to file.
+	 * Determines the memory limit. If this limit is exceeded, memory index has to be written to file.
 	 */
-	private static final int FREE_MEMORY_LIMIT = 512000000;
+	private static final int MEMORY_LIMIT = 1000000000;
 	
 	/**
 	 * Contains the prefix for temporary index files.
@@ -95,7 +95,10 @@ public class DocumentIndexer {
 
 		// Parse and index documents
 		try(DocumentMapConstructor documentMapConstructor = new DocumentMapConstructor(this.documentMapFile, new DocumentMapSeekList(), this.compress)) {
-			for(String documentPath: documentPaths) {
+			for(int i = 0; i < documentPaths.length; i++) {
+				System.out.println(String.format("Index document %d/%d...", i + 1, documentPaths.length));
+				
+				String documentPath = documentPaths[i];
 				try {
 					this.indexSingleDocumentFile(documentPath, documentMapConstructor);
 				} catch (XMLStreamException e) {
@@ -115,6 +118,8 @@ public class DocumentIndexer {
 			if(indexConstructor.size() > 0) {
 				this.writeToTempFile();
 			}
+			
+			System.out.println("Merge index files...");
 			InvertedIndexMerger indexMerger = new InvertedIndexMerger(this.compress, new InvertedIndexSeekList());
 			indexMerger.merge(this.indexFile, this.temporaryIndexFiles, this.indexSeekListFile);
 		}
@@ -140,7 +145,7 @@ public class DocumentIndexer {
 			documentMapConstructor.add(document);
 			
 			// If size of the memory index is too high, write memory index to new temporary file and clear memory
-			if(this.getFreeMemory() < FREE_MEMORY_LIMIT) {
+			if(this.getUsedMemory() >= MEMORY_LIMIT) {
 				this.writeToTempFile();
 				
 				// Run garbage collector
@@ -162,13 +167,15 @@ public class DocumentIndexer {
 			// Tokenize, stem and remove stop-words from content, and add single tokens to index
 			List<String> tokens = this.textPreprocessor.tokenize(document.getContent(contentType));
 			for(int position = 0; position < tokens.size(); position++) {
-				String token = this.textPreprocessor.stem(tokens.get(position));
+				String token = tokens.get(position);
 				if(!this.textPreprocessor.isStopWord(token)) {
 					// Stem token
 					token = this.textPreprocessor.stem(token);
 					
 					// Add posting to memory index
-					this.indexConstructor.add(document.getId(), token, contentType, position);
+					if(!token.isEmpty()) {
+						this.indexConstructor.add(document.getId(), token, contentType, position);
+					}
 				}
 			}
 			
@@ -179,12 +186,11 @@ public class DocumentIndexer {
 	}	
 	
 	/**
-	 * Returns number of free memory bytes.
+	 * Returns number of used memory bytes.
 	 * @return long
 	 */
-	private long getFreeMemory() {
-		long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
-		return Runtime.getRuntime().maxMemory() - usedMemory;
+	private long getUsedMemory() {
+		return Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
 	}
 	
 	
