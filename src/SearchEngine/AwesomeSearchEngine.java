@@ -213,7 +213,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 
     @Override
     public boolean loadIndex(String directory) {
-    	return this.loadIndex(false);
+    	return this.loadIndex(directory, false);
     }
     
     @Override
@@ -223,7 +223,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 
     @Override
     boolean loadCompressedIndex(String directory) {
-    	return this.loadIndex(true);
+    	return this.loadIndex(directory, true);
     }
     
     @Override
@@ -253,17 +253,11 @@ public class AwesomeSearchEngine extends SearchEngine {
     
     /**
      * Indexes all documents of a given directory. Argument compress determines, whether the index should be compressed.
-     * @param directory
+     * @param documentDirectory
      * @param compress
      */
-    private void index(String directory, boolean compress) {
-    	// Check, if given path exists and is a directory
-    	this.documentDirectory = Paths.get(directory);
-    	if(!this.documentDirectory.toFile().isDirectory()) {
-			System.err.println("Specified document directory is not a directory!");
-			System.exit(1);
-    	}
-    	
+    private void index(String documentDirectory, boolean compress) {
+    	this.setDocumentDirectory(documentDirectory);    	
     	try {
         	// Get xml files inside given directory
     		String[] documentFiles = Files.walk(this.documentDirectory)
@@ -284,7 +278,9 @@ public class AwesomeSearchEngine extends SearchEngine {
      * @param compress
      * @return
      */
-    private boolean loadIndex(boolean compress) {
+    private boolean loadIndex(String documentDirectory, boolean compress) {
+    	this.setDocumentDirectory(documentDirectory);
+    	
     	try {
 			this.getQueryProcessor(compress).load();
 		} catch (IOException e) {
@@ -293,5 +289,18 @@ public class AwesomeSearchEngine extends SearchEngine {
 		}
         
         return true;
+    }
+    
+    /**
+     * Sets the current document directory.
+     * @param documentDirectory
+     */
+    private void setDocumentDirectory(String documentDirectory) {
+    	// Check, if given path exists and is a directory
+    	this.documentDirectory = Paths.get(documentDirectory);
+    	if(!this.documentDirectory.toFile().isDirectory()) {
+			System.err.println("Specified document directory is not a directory!");
+			System.exit(1);
+    	}
     }
 }

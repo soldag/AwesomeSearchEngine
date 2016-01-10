@@ -53,7 +53,7 @@ public class PatentContentLookup {
 	 * @throws IOException
 	 */
 	protected String readFromFile(int fileId, Pair<Long, Integer> position) throws FileNotFoundException, IOException {
-		File sourceFile = documentDirectory.resolve(this.getFileName(fileId)).toFile();
+		File sourceFile = this.documentDirectory.resolve(this.getFileName(fileId)).toFile();
 		try(RandomAccessFile file = new RandomAccessFile(sourceFile, "r")) {
 			file.seek(position.getLeft());
 			byte[] buffer = new byte[position.getRight()];

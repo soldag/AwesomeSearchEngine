@@ -3,6 +3,8 @@ package postings;
 import java.io.IOException;
 import java.util.Set;
 
+import org.apache.commons.lang3.ArrayUtils;
+
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import com.google.common.primitives.Ints;
@@ -43,9 +45,7 @@ public class PositionMap {
 	 * @return
 	 */
 	public int[] ofContentType(ContentType contentType) {
-		return this.positions.get(contentType).stream()
-					.mapToInt(x -> x.intValue())
-					.toArray();
+		return ArrayUtils.toPrimitive(this.positions.get(contentType).stream().toArray(Integer[]::new));
 	}
 	
 	

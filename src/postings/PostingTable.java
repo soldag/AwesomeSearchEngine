@@ -354,11 +354,8 @@ public class PostingTable {
 	 * @param document
 	 */
 	private void putDocument(PatentDocument document) {
-		if(!this.documents.containsKey(document.getId())) {
-			this.documents.put(document.getId(), document);
-		}
+		this.documents.putIfAbsent(document.getId(), document);
 	}
-	
 	
 	/**
 	 * Disjuncts multiple PostingTable instances.
