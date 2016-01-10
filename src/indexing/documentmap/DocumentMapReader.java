@@ -15,6 +15,11 @@ public class DocumentMapReader implements AutoCloseable {
 	 */
 	private FileReader documentMapFile;
 	
+	/**
+	 * Contains the number of all documents stored in the index.
+	 */
+	private int totalDocumentsCount = 0;
+	
 	
 	/**
 	 * Creates a new DocumentMapReader instance.
@@ -23,8 +28,17 @@ public class DocumentMapReader implements AutoCloseable {
 	 */
 	public DocumentMapReader(File documentMapFile, boolean isCompressed) throws IOException {
 		this.documentMapFile = FileFactory.getInstance().getReader(documentMapFile, isCompressed);
+		this.totalDocumentsCount = this.documentMapFile.readInt();
 	}
 	
+	
+	/**
+	 * Gets the number of all documents stored in the index.
+	 * @return
+	 */
+	public int getTotalDocumentsCount() {
+		return this.totalDocumentsCount;
+	}	
 	
 	/**
 	 * Gets a document from map by specifying its id and a start offset in the map file.

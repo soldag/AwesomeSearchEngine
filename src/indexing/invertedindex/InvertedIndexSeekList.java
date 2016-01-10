@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import indexing.GenericSeekList;
+import indexing.generic.GenericSeekList;
 import io.FileReader;
 import io.FileWriter;
 

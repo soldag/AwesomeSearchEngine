@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import indexing.GenericSeekList;
+import indexing.generic.GenericSeekList;
 import io.FileReader;
 import io.FileWriter;
 
@@ -42,7 +42,7 @@ public class DocumentMapSeekList extends GenericSeekList<Integer> {
 	 * Saves the seek list to a specified FileWriter.
 	 */
 	public void save(FileWriter writer) throws IOException {
-		// Sort tokens alphabetically
+		// Sort document ids alphabetically
 		List<Integer> documentIds = this.seekList.keySet().stream().sorted().collect(Collectors.toList());
 				
 		for(int documentId: documentIds) {

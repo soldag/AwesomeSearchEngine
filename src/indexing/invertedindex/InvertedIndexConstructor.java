@@ -1,26 +1,15 @@
 package indexing.invertedindex;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Set;
 
-import io.FileFactory;
+import indexing.generic.GenericIndexConstructor;
 import io.FileWriter;
 import postings.ContentType;
 import postings.PostingTable;
 import postings.TokenPostings;
 
-public class InvertedIndexConstructor {
-
-	/**
-	 * Determines, whether the index should be compressed.
-	 */
-	private boolean compress;
-	
-	/**
-	 * Contains the corresponding seek list, if it should be constructed.
-	 */
-	private InvertedIndexSeekList seekList;
+public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 	
 	/**
 	 * Contains the actual inverted index.
@@ -33,7 +22,7 @@ public class InvertedIndexConstructor {
 	 * @param compress
 	 */
 	public InvertedIndexConstructor(boolean compress) {
-		this(compress, null);
+		super(compress);
 	}
 	
 	/**
@@ -42,8 +31,7 @@ public class InvertedIndexConstructor {
 	 * @param seekList
 	 */
 	public InvertedIndexConstructor(boolean compress, InvertedIndexSeekList seekList) {
-		this.compress = compress;
-		this.seekList = seekList;
+		super(compress, seekList);
 	}
 	
 	
@@ -57,67 +45,25 @@ public class InvertedIndexConstructor {
 	public void add(int documentId, String token, ContentType contentType, int position) {
 		this.invertedIndex.put(token, documentId, contentType, position);
 	}
-	
-	/**
-	 * Writes index to file. 
-	 * @param indexFile
-	 * @throws FileNotFoundException
-	 * @throws IOException
-	 */
-	public void writeToFile(File indexFile) throws FileNotFoundException, IOException {
-		this.writeToFile(indexFile, null);
-	}
-	
-	/**
-	 * Writes index and seek list to file.
-	 * @param indexFile
-	 * @param seekListFile
-	 * @throws FileNotFoundException
-	 * @throws IOException
-	 */
-	public void writeToFile(File indexFile, File seekListFile) throws FileNotFoundException, IOException {
-		// Determine, if seek list should be created
-		boolean createSeekList = seekListFile != null && this.seekList != null;
-		
-		// Sort tokens
-		String[] sortedTokens = this.invertedIndex.tokenSet().stream().sorted().toArray(String[]::new);		
-		
-		// Open temporary file
-		try (FileWriter indexWriter = FileFactory.getInstance().getWriter(indexFile, this.compress)) {
-			// Write term counts
-			indexWriter.writeInt(this.invertedIndex.tokenSet().size());
-			
-			// Write postings for each token
-			for(String token: sortedTokens) {				
-				// Add seek list entry
-				if(createSeekList) {
-					this.seekList.put(token, (int)indexWriter.getFilePointer());
-				}
-				
-				// Write token
-				indexWriter.writeString(token);
-				
-				// Write postings
-				TokenPostings postings = this.invertedIndex.ofToken(token);
-				indexWriter.startSkippingArea();
-				postings.save(indexWriter);
-				indexWriter.endSkippingArea();
-			}
-		}
-		
-		// Write seek list to file
-		if(createSeekList) {
-			try(FileWriter seekListWriter = FileFactory.getInstance().getWriter(seekListFile, this.compress)) {
-				this.seekList.save(seekListWriter);
-			}
-		}
+
+	@Override
+	protected Set<String> keys() {
+		return this.invertedIndex.tokenSet();
 	}
 
+	@Override
+	protected void writeEntry(String key, FileWriter indexWriter) throws IOException {
+		// Write token
+		indexWriter.writeString(key);
+		
+		// Write postings
+		TokenPostings postings = this.invertedIndex.ofToken(key);
+		indexWriter.startSkippingArea();
+		postings.save(indexWriter);
+		indexWriter.endSkippingArea();
+	}
 	
-	/**
-	 * Gets the number of tokens in the inverted index.
-	 * @return
-	 */
+	@Override
 	public int size() {
 		return this.invertedIndex.size();
 	}
@@ -125,8 +71,9 @@ public class InvertedIndexConstructor {
 	/**
 	 * Deletes all entries of the inverted index.
 	 */
+	@Override
 	public void clear() {
+		super.clear();
 		this.invertedIndex.clear();
-		this.seekList.clear();
 	}
 }

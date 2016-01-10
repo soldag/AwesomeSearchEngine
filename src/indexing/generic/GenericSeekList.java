@@ -1,4 +1,4 @@
-package indexing;
+package indexing.generic;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -28,7 +28,7 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	 * Creates a new GenericSeekList instance.
 	 * @param skip_number
 	 */
-	public GenericSeekList(int skip_number) {
+	protected GenericSeekList(int skip_number) {
 		this.skipNumber = skip_number;
 	}
 	
@@ -75,7 +75,7 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	}
 	
 	/**
-	 * Adds new entry to seek list.
+	 * Adds new entry to seek list. Entries have to be put into the seek list in the order in which they should be written to file.
 	 * @param key
 	 * @param value
 	 */

@@ -38,11 +38,12 @@ public class DocumentIndexer {
 	 * Contains text preprocessor instance.
 	 */
 	private TextPreprocessor textPreprocessor;
-	
+		
 	/**
-	 * Contains the service for constructing the index.
+	 * Contain the constructors for the inverted index and document map.
 	 */
 	private InvertedIndexConstructor indexConstructor;
+	private DocumentMapConstructor documentMapConstructor;
 	
 	/**
 	 *  Contain index files that should be constructed.
@@ -81,6 +82,7 @@ public class DocumentIndexer {
 		this.compress = compress;
 		
 		this.indexConstructor = new InvertedIndexConstructor(this.compress, new InvertedIndexSeekList());
+		this.documentMapConstructor = new DocumentMapConstructor(this.compress, new DocumentMapSeekList());
 	}
 	
 	
@@ -94,21 +96,20 @@ public class DocumentIndexer {
 		this.deleteIndexFiles();
 
 		// Parse and index documents
-		try(DocumentMapConstructor documentMapConstructor = new DocumentMapConstructor(this.documentMapFile, new DocumentMapSeekList(), this.compress)) {
-			for(int i = 0; i < documentPaths.length; i++) {
-				System.out.println(String.format("Index document %d/%d...", i + 1, documentPaths.length));
-				
-				String documentPath = documentPaths[i];
-				try {
-					this.indexSingleDocumentFile(documentPath, documentMapConstructor);
-				} catch (XMLStreamException e) {
-					String fileName = Paths.get(documentPath).getFileName().toString();
-					System.out.println(String.format("File '%s' could not be parsed and was skipped.", fileName));
-				}
-			}
+		for(int i = 0; i < documentPaths.length; i++) {
+			System.out.println(String.format("Index document %d/%d...", i + 1, documentPaths.length));
 			
-			documentMapConstructor.writeSeekList(this.documentMapSeekListFile);
+			String documentPath = documentPaths[i];
+			try {
+				this.indexSingleDocumentFile(documentPath);
+			} catch (XMLStreamException e) {
+				String fileName = Paths.get(documentPath).getFileName().toString();
+				System.out.println(String.format("File '%s' could not be parsed and was skipped.", fileName));
+			}
 		}
+		
+		// Write document map to file
+		this.documentMapConstructor.writeToFile(this.documentMapFile, this.documentMapSeekListFile);
 		
 		// Write remaining index entries to file and merge temporary files, if necessary
 		if(this.temporaryIndexFiles.size() == 0) {
@@ -131,21 +132,21 @@ public class DocumentIndexer {
 	/**
 	 * Indexes a single document. 
 	 * @param documentFilePath
-	 * @param indexConstructor
 	 * @throws XMLStreamException
 	 * @throws IOException
 	 */
-	private void indexSingleDocumentFile(String documentFilePath, DocumentMapConstructor documentMapConstructor) throws XMLStreamException, IOException {
+	private void indexSingleDocumentFile(String documentFilePath) throws XMLStreamException, IOException {
 		PatentDocumentParser patentParser = new PatentDocumentParser(documentFilePath);
 		for(PatentContentDocument document: patentParser) {
 			// Add all tokens from document to memory index
 			this.addTokens(document);
 			
 			// Add document to document map
-			documentMapConstructor.add(document);
+			this.documentMapConstructor.add(document);
 			
 			// If size of the memory index is too high, write memory index to new temporary file and clear memory
 			if(this.getUsedMemory() >= MEMORY_LIMIT) {
+				System.out.println("Write memory index to temp file, because memory limit has exceeded.");
 				this.writeToTempFile();
 				
 				// Run garbage collector

@@ -1,50 +1,39 @@
 package indexing.documentmap;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 import documents.PatentDocument;
-import io.FileFactory;
+import indexing.generic.GenericIndexConstructor;
 import io.FileWriter;
 
-public class DocumentMapConstructor implements AutoCloseable {
+public class DocumentMapConstructor extends GenericIndexConstructor<Integer> {
 
 	/**
-	 * Contains the corresponding seek list, if it should be constructed.
+	 * Contains the documents mapped to their ids.
 	 */
-	private DocumentMapSeekList seekList;
-	
-	/**
-	 * Contains the file write for the document map.
-	 */
-	private FileWriter documentMapWriter;	
-
-	/**
-	 * Determines, whether the document map should be compressed.
-	 */
-	private boolean compress;
+	private Map<Integer, PatentDocument> documentMap = new HashMap<Integer, PatentDocument>();
 	
 	
 	/**
 	 * Creates a new DocumentMapConstructor instance, that does not create a seek list.
-	 * @param documentMapFile
+	 * @param compress
 	 * @throws IOException
 	 */
-	public DocumentMapConstructor(File documentMapFile, boolean compress) throws IOException {
-		this(documentMapFile, null, compress);
+	public DocumentMapConstructor(boolean compress) throws IOException {
+		super(compress);
 	}
 	
 	/**
 	 * Creates a new DocumentMapConstructor instance, that creates a seek list.
-	 * @param documentMapFile
+	 * @param compress
 	 * @param seekList
 	 * @throws IOException
 	 */
-	public DocumentMapConstructor(File documentMapFile, DocumentMapSeekList seekList, boolean compress) throws IOException {
-		this.seekList = seekList;
-		this.compress = compress;
-		this.documentMapWriter = FileFactory.getInstance().getWriter(documentMapFile, this.compress);
+	public DocumentMapConstructor(boolean compress, DocumentMapSeekList seekList) {
+		super(compress, seekList);
 	}
 	
 	
@@ -53,30 +42,29 @@ public class DocumentMapConstructor implements AutoCloseable {
 	 * @param document
 	 * @throws IOException
 	 */
-	public void add(PatentDocument document) throws IOException {
-		// Add document to seek list
-		this.seekList.put(document.getId(), (int)this.documentMapWriter.getFilePointer());
-		
-		// Write to file
-		document.save(documentMapWriter);
+	public void add(PatentDocument document) {
+		this.documentMap.put(document.getId(), document);
+	}
+
+	@Override
+	protected Set<Integer> keys() {
+		return this.documentMap.keySet();
+	}
+
+	@Override
+	protected void writeEntry(Integer key, FileWriter indexWriter) throws IOException {
+		PatentDocument document = this.documentMap.get(key);
+		document.save(indexWriter);
 	}
 	
-	/**
-	 * Writes the constructed seek list to file.
-	 * @param seekListFile
-	 * @throws FileNotFoundException
-	 * @throws IOException
-	 */
-	public void writeSeekList(File seekListFile) throws FileNotFoundException, IOException {
-		FileWriter seekListWriter = FileFactory.getInstance().getWriter(seekListFile, this.compress);
-		this.seekList.save(seekListWriter);
-		seekListWriter.close();
+	@Override
+	public int size() {
+		return this.documentMap.size();
 	}
 	
-	/**
-	 * Closes this resource, relinquishing any underlying resources.
-	 */
-	public void close() throws IOException {		
-		this.documentMapWriter.close();
+	@Override
+	public void clear() {
+		super.clear();
+		this.documentMap.clear();
 	}
 }
