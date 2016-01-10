@@ -46,11 +46,17 @@ public class DocumentRanker {
 			resultLimit = resultPostings.documentIdSet().size();
 		}
 		
+		// Determine collection frequencies of query tokens
+		Map<String, Integer> collectionFrequencies = resultPostings.tokenSet().stream()
+															.collect(Collectors.toMap(
+																	Function.identity(), 
+																	token -> this.getCollectionFrequency(token, result)));
+		
 		// Calculate weights for each document
 		Map<PatentDocument, Double> weights = resultPostings.documentSet().stream()
 													.collect(Collectors.toMap(
 															Function.identity(), 
-															document -> this.weightDocument(document, result, collectionTokenCount)));
+															document -> this.weightDocument(document, result, collectionFrequencies, collectionTokenCount)));
 		
 		// Sort documents by weight and limit to given parameter
 		List<PatentDocument> rankedDocuments = weights.entrySet().stream()
@@ -77,12 +83,14 @@ public class DocumentRanker {
 	 * @param document
 	 * @param tokenPostings
 	 * @param result
+	 * @param collectionFrequencies
 	 * @param collectionTokenCount
 	 * @return
 	 */	
-	private double weightDocument(PatentDocument document, QueryResult result, int collectionTokenCount) {
+	private double weightDocument(PatentDocument document, QueryResult result, Map<String, Integer> collectionFrequencies, int collectionTokenCount) {
 		return Arrays.stream(ContentType.values())
-				.mapToDouble(contentType -> contentType.getWeightingFactor() * this.weightDocument(document, contentType, result, collectionTokenCount))
+				.mapToDouble(contentType -> contentType.getWeightingFactor() * 
+											this.weightDocument(document, contentType, result,collectionFrequencies, collectionTokenCount))
 				.sum();
 	}
 	
@@ -91,10 +99,11 @@ public class DocumentRanker {
 	 * @param document
 	 * @param tokenPostings
 	 * @param result
+	 * @param collectionFrequencies
 	 * @param collectionTokenCount
 	 * @return
 	 */	
-	private double weightDocument(PatentDocument document, ContentType contentType, QueryResult result, int collectionTokenCount) {
+	private double weightDocument(PatentDocument document, ContentType contentType, QueryResult result, Map<String, Integer> collectionFrequencies, int collectionTokenCount) {
 		DocumentPostings documentPostings = result.getPostings().ofDocument(document);
 		if(documentPostings.positions().stream().anyMatch(positionMap -> positionMap.containsContentType(contentType))) {
 			return result.getPostings().tokenSet().stream()
@@ -102,7 +111,7 @@ public class DocumentRanker {
 												  this.queryLikelihood(
 													this.countTokenOccurrences(token, documentPostings, contentType), 
 													document.getTokensCount(contentType), 
-													this.getCollectionFrequency(token, result), 
+													collectionFrequencies.get(token), 
 													collectionTokenCount))
 							.reduce(1, (x,y) -> x*y);
 		}
