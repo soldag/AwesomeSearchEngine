@@ -45,12 +45,21 @@ public enum ContentType {
 	
 	
 	/**
+	 * Contains an array containing the constants of this enum type ordered by their ordinal value.
+	 */
+	private static ContentType[] orderedValues;
+	
+	/**
 	 * Returns an array containing the constants of this enum type ordered by their ordinal value.
 	 * @return
 	 */
 	public static ContentType[] orderedValues() {
-		return Arrays.stream(ContentType.values())
-				.sorted((x,y) -> Integer.compare(x.ordinal(), y.ordinal()))
-				.toArray(ContentType[]::new);
+		if(ContentType.orderedValues == null) {
+			ContentType.orderedValues = Arrays.stream(ContentType.values())
+											.sorted((x,y) -> Integer.compare(x.ordinal(), y.ordinal()))
+											.toArray(ContentType[]::new);
+		}
+		
+		return ContentType.orderedValues;
 	}
 }
