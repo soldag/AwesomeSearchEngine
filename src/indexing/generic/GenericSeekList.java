@@ -1,7 +1,8 @@
 package indexing.generic;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.TreeMap;
 
 import io.FileReader;
 import io.FileWriter;
@@ -21,7 +22,7 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	/**
 	 * Contains the actual seek list in memory.
 	 */
-	protected LinkedHashMap<T, Integer> seekList = new LinkedHashMap<T, Integer>();
+	protected TreeMap<T, Integer> seekList = new TreeMap<T, Integer>();
 	
 	
 	/**
@@ -49,29 +50,12 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	 * @return
 	 */
 	public int getIndexOffset(T key) {
-		// Direct match: seek list contains token
-		if(this.seekList.containsKey(key)) {
-			return this.seekList.get(key);
+		Map.Entry<T, Integer> entry = this.seekList.floorEntry(key);
+		if(entry != null) {
+			return entry.getValue();
 		}
 		
-		// Iterate over seek list and determine the nearest predecessor and successor of the token
-		int startOffset = -1;
-		for(T entryToken: this.seekList.keySet()) {
-			if(key.compareTo(entryToken) < 0) {
-				if(startOffset >= 0) {
-					break;
-				}
-				else {
-					// Already the first token in the seek list (which is also the first one in the index) is bigger, than the token searched-for.
-					// This means, the index does not contain this token.
-					return -1;
-				}
-			}
-			startOffset = this.seekList.get(entryToken);
-		}
-		
-		// Token could only be appear after the last token of the seek list in index file, thus no end offset can be specified.
-		return startOffset;
+		return -1;
 	}
 	
 	/**
