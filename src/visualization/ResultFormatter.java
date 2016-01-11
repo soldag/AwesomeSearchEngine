@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import documents.PatentContentDocument;
 import documents.PatentDocument;
 import parsing.PatentContentLookup;
 import postings.ContentType;
@@ -43,10 +44,13 @@ public class ResultFormatter {
 	public ArrayList<String> format(QueryResult result) throws IOException {
 		ArrayList<String> formattedResults = new ArrayList<String>();
 		for(PatentDocument document: result.getPostings().documentSet()) {
+			// Load contents of document
+			PatentContentDocument contentDocument = this.patentContentLookup.loadContent(document);
+			
 			// Get properties
 			int id = document.getId();
-			String title = this.patentContentLookup.get(document, ContentType.Title);
-			Snippet snippet = this.snippetGenerator.generate(document, result);
+			String title = contentDocument.getContent(ContentType.Title);
+			Snippet snippet = this.snippetGenerator.generate(contentDocument, result);
 			
 			// Format properties
 			StringBuilder resultBuilder = new StringBuilder();

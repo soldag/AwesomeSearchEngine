@@ -14,6 +14,7 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 
+import documents.PatentContentDocument;
 import documents.PatentDocument;
 import parsing.PatentContentLookup;
 import postings.ContentType;
@@ -60,6 +61,24 @@ public class SnippetGenerator {
 	 * @return
 	 */
 	public Snippet generate(PatentDocument document, QueryResult result) {
+		// Get contents of given document
+		PatentContentDocument contentDocument;
+		try {
+			contentDocument = this.patentContentLookup.loadContent(document);
+		} catch (IOException e) {
+			return null;
+		}
+		
+		return this.generate(contentDocument, result);
+	}
+	
+	/**
+	 * Generates a snippet for the given document of a specific result.
+	 * @param document
+	 * @param result
+	 * @return
+	 */
+	public Snippet generate(PatentContentDocument document, QueryResult result) {
 		// If prf is enabled, use original result for snippet generation.
 		if(result instanceof PrfQueryResult) {
 			result = ((PrfQueryResult)result).getOriginalResult();
@@ -71,7 +90,7 @@ public class SnippetGenerator {
 		String[] abstractSentences;
 		Table<Integer, String, List<Integer>> mappedQueryTokens;
 		try {
-			String abstractText = this.patentContentLookup.get(document, ContentType.Abstract);
+			String abstractText = document.getContent(ContentType.Abstract);
 			tokenizedAbstract = this.textPreprocessor.tokenize(abstractText);
 			abstractSentences = this.splitIntoSentences(abstractText);
 

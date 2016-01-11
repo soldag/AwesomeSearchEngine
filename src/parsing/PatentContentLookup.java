@@ -6,10 +6,10 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 
-import org.apache.commons.lang3.tuple.Pair;
+import com.ximpleware.extended.ParseExceptionHuge;
 
+import documents.PatentContentDocument;
 import documents.PatentDocument;
-import postings.ContentType;
 
 public class PatentContentLookup {
 	
@@ -29,38 +29,42 @@ public class PatentContentLookup {
 	
 	
 	/**
-	 * Gets a specific content type from the given patent document.
+	 * Loads the content of the given document.
 	 * @param document
 	 * @return
-	 * @throws FileNotFoundException
 	 * @throws IOException
 	 */
-	public String get(PatentDocument document, ContentType contentType) throws FileNotFoundException, IOException {
-		if(document.hasContent(contentType)) {
-			return this.readFromFile(document.getFileId(), document.getContentOffset(contentType));
-		}
+	public PatentContentDocument loadContent(PatentDocument document) throws IOException {
+		// Read XML element of the given document from file
+		byte[] documentBytes = this.readFromFile(document);
+		
+		// Parse element to PatentContentDocument
+		try {
+			PatentDocumentParser parser = new PatentDocumentParser(document.getFileId(), documentBytes);
+			if(parser.hasNext()) {
+				return parser.next();
+			}
+		} catch (ParseExceptionHuge e) { }
 		
 		return null;
 	}
 	
 	/**
-	 * Reads a text section of a document file (specified by its file id) determined by its position (byte offset and length). 
-	 * XML tags are removed during extraction.
+	 * Reads the patent XML element of the given document from corresponding document file.
 	 * @param fileId
 	 * @param position
 	 * @return
 	 * @throws FileNotFoundException
 	 * @throws IOException
 	 */
-	protected String readFromFile(int fileId, Pair<Long, Integer> position) throws FileNotFoundException, IOException {
-		File sourceFile = this.documentDirectory.resolve(this.getFileName(fileId)).toFile();
+	private byte[] readFromFile(PatentDocument document) throws IOException {
+		File sourceFile = this.documentDirectory.resolve(this.getFileName(document.getFileId())).toFile();
 		try(RandomAccessFile file = new RandomAccessFile(sourceFile, "r")) {
-			file.seek(position.getLeft());
-			byte[] buffer = new byte[position.getRight()];
+			file.seek(document.getOffset());
+			byte[] buffer = new byte[document.getLength()];
 			file.readFully(buffer);
-			String title = new String(buffer);
 			
-			return this.removeXML(title);
+			return buffer;
 		}
 	}
 
@@ -71,14 +75,5 @@ public class PatentContentLookup {
 	 */
 	private String getFileName(int fileId) {
 		return String.format("ipg%0" + PatentDocument.FILE_ID_LENGTH + "d.xml", fileId);
-	}
-	
-	/**
-	 * Removes all xml tags from a given string.
-	 * @param text
-	 * @return
-	 */
-	private String removeXML(String text) {
-		return text.replaceAll("<[^>]+>?","").trim();
 	}
 }
