@@ -9,9 +9,9 @@ import java.util.stream.IntStream;
 public class NdcgCalculator {
 	
 	/**
-	 * Contains a pattern matching the patent title in within a formatted result entry of a document.
+	 * Contains a pattern matching the document id in within a formatted result entry of a document.
 	 */
-	private static final Pattern RESULT_TITLE_PATTERN = Pattern.compile("\033\\[1m(?<title>.*)\033\\[0m");	
+	private static final Pattern DOCUMENT_ID_PATTERN = Pattern.compile("0(?<id>\\d+) ");	
 	
 	
 	/**
@@ -22,11 +22,11 @@ public class NdcgCalculator {
 	 * @return
 	 */
 	public double calculate(ArrayList<String> goldRanking, ArrayList<String> ranking, int rank) {
-		// Get title of patent at the specified position of our ranking
-		String title = this.extractTitle(ranking.get(rank - 1));
+		// Get document id of patent at the specified position of our ranking
+		String documentId = this.extractDocumentId(ranking.get(rank - 1));
 		
 		// Get rank of the same patent in the gold ranking
-		int goldRank = goldRanking.indexOf(title);
+		int goldRank = goldRanking.indexOf(documentId);
 		if(goldRank < 0) {
 			return 0d;
 		}
@@ -39,14 +39,14 @@ public class NdcgCalculator {
 	}
 	
 	/**
-	 * Extracts the patent title of a given patent result (including document id, title and snippet)
+	 * Extracts the document id of a given patent result (including document id, title and snippet)
 	 * @param result
 	 * @return
 	 */
-	private String extractTitle(String result) {
-		Matcher matcher = RESULT_TITLE_PATTERN.matcher(result);
+	private String extractDocumentId(String result) {
+		Matcher matcher = DOCUMENT_ID_PATTERN.matcher(result);
 		if(matcher.find()) {
-			return matcher.group("title");
+			return matcher.group("id");
 		}
 		
 		return null;
