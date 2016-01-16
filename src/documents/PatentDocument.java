@@ -29,7 +29,7 @@ public class PatentDocument {
 	/**
 	 * Contains the byte offset in the source file. 
 	 */
-	private final long offset;
+	private final int offset;
 	
 	/**
 	 * Contains the byte length in the source file.
@@ -49,7 +49,7 @@ public class PatentDocument {
 	 * @param offset
 	 * @param length
 	 */
-	public PatentDocument(int id, int fileId, long offset, int length) {
+	public PatentDocument(int id, int fileId, int offset, int length) {
 		this(id, fileId, offset, length, new HashMap<ContentType, Integer>());
 	}
 	
@@ -61,7 +61,7 @@ public class PatentDocument {
 	 * @param length
 	 * @param tokensCounts
 	 */
-	public PatentDocument(int id, int fileId, long offset, int length, Map<ContentType, Integer> tokenCounts) {
+	public PatentDocument(int id, int fileId, int offset, int length, Map<ContentType, Integer> tokenCounts) {
 		this.id = id;
 		this.fileId = fileId;
 		this.offset = offset;
@@ -90,7 +90,7 @@ public class PatentDocument {
 	 * Gets the byte offset in the source file.
 	 * @return
 	 */
-	public long getOffset() {
+	public int getOffset() {
 		return this.offset;
 	}
 	
@@ -187,7 +187,7 @@ public class PatentDocument {
 		int fileId = reader.readInt();
 		
 		// Read offset and length
-		long offset = reader.readLong();
+		int offset = reader.readInt();
 		int length = reader.readInt();
 		
 		// Read token counts for all content type
@@ -217,7 +217,7 @@ public class PatentDocument {
 		writer.writeInt(this.getFileId());
 		
 		// Write offset and length
-		writer.writeLong(this.getOffset());
+		writer.writeInt(this.getOffset());
 		writer.writeInt(this.getLength());
 		
 		// Write token counts for all content type

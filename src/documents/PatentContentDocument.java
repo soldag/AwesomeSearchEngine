@@ -28,7 +28,7 @@ public class PatentContentDocument extends PatentDocument {
 	 * @param length
 	 * @param contents
 	 */
-	public PatentContentDocument(int documentId, int fileId, long offset, int length, Map<ContentType, String> contents) {
+	public PatentContentDocument(int documentId, int fileId, int offset, int length, Map<ContentType, String> contents) {
 		super(documentId, fileId, offset, length);
 		
 		this.contents = contents;

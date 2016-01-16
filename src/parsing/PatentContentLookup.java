@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
 
-import com.ximpleware.extended.ParseExceptionHuge;
+import com.ximpleware.ParseException;
 
 import documents.PatentContentDocument;
 import documents.PatentDocument;
@@ -44,7 +44,7 @@ public class PatentContentLookup {
 			if(parser.hasNext()) {
 				return parser.next();
 			}
-		} catch (ParseExceptionHuge e) { }
+		} catch (ParseException e) { }
 		
 		return null;
 	}

@@ -7,15 +7,14 @@ import java.util.NoSuchElementException;
 
 import org.apache.commons.io.FilenameUtils;
 
-import com.ximpleware.extended.AutoPilotHuge;
-import com.ximpleware.extended.NavExceptionHuge;
-import com.ximpleware.extended.ParseExceptionHuge;
-import com.ximpleware.extended.TextIter;
-import com.ximpleware.extended.VTDGenHuge;
-import com.ximpleware.extended.VTDNavHuge;
-import com.ximpleware.extended.XMLBuffer;
-import com.ximpleware.extended.XPathEvalExceptionHuge;
-import com.ximpleware.extended.XPathParseExceptionHuge;
+import com.ximpleware.AutoPilot;
+import com.ximpleware.NavException;
+import com.ximpleware.ParseException;
+import com.ximpleware.TextIter;
+import com.ximpleware.VTDGen;
+import com.ximpleware.VTDNav;
+import com.ximpleware.XPathEvalException;
+import com.ximpleware.XPathParseException;
 
 import documents.PatentContentDocument;
 import postings.ContentType;
@@ -36,8 +35,8 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	/**
 	 * Contains VTD-XML parser instances.
 	 */
-	private VTDNavHuge navigation;
-	private AutoPilotHuge autoPilot;
+	private VTDNav navigation;
+	private AutoPilot autoPilot;
 	
 	/**
 	 * Contains the root token of the currently processed patent document.
@@ -52,8 +51,8 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	public PatentDocumentParser(String filePath) {
 		this.fileId = Integer.parseInt(FilenameUtils.getBaseName(filePath).substring(3));
 		
-		VTDGenHuge generator = new VTDGenHuge();
-		generator.parseFile(filePath, true, VTDGenHuge.MEM_MAPPED);
+		VTDGen generator = new VTDGen();
+		generator.parseFile(filePath, true);
 		
 		this.initialize(generator);
 	}
@@ -62,12 +61,11 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	 * Creates a new PatentDocumentParser instance for a given byte array containing a XML document.
 	 * @param filePath
 	 */
-	public PatentDocumentParser(int fileId, byte[] fileBytes) throws ParseExceptionHuge {
+	public PatentDocumentParser(int fileId, byte[] fileBytes) throws ParseException {
 		this.fileId = fileId;
 		
-		VTDGenHuge generator = new VTDGenHuge();
-		XMLBuffer buffer = new XMLBuffer(fileBytes);
-		generator.setDoc(buffer);
+		VTDGen generator = new VTDGen();
+		generator.setDoc(fileBytes);
 		generator.parse(true);
 		
 		this.initialize(generator);
@@ -77,15 +75,15 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	 * Initialize parser using given generator.
 	 * @param generator
 	 */
-	private void initialize(VTDGenHuge generator) {
+	private void initialize(VTDGen generator) {
 		this.navigation = generator.getNav();
-		this.autoPilot = new AutoPilotHuge(this.navigation);
+		this.autoPilot = new AutoPilot(this.navigation);
 		
 		// Start iteration over patent documents
 		try {
 			this.autoPilot.selectXPath(PATENT_PATH);
 			this.skipToNextPatent();
-		} catch (XPathParseExceptionHuge | NavExceptionHuge e) { }
+		} catch (XPathParseException | NavException e) { }
 	}
 	
 
@@ -97,8 +95,7 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	@Override
 	public PatentContentDocument next() {
 		int documentId = -1;
-		long offset;
-		int length;
+		int offset, length;
 		Map<ContentType, String> contents = new HashMap<ContentType, String>();
 		
 		this.navigation.push();
@@ -114,11 +111,11 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 			}
 			
 			// Determine offset and length
-			long[] fragment = this.navigation.getElementFragment();
-			offset = fragment[0];
-	        length = (int)fragment[1];
+			long fragment = this.navigation.getElementFragment();
+			offset = (int)fragment;
+			length = (int)(fragment >> 32);
 			
-		} catch (NavExceptionHuge | XPathParseExceptionHuge | XPathEvalExceptionHuge e) {
+		} catch (NavException | XPathParseException | XPathEvalException e) {
 			throw new NoSuchElementException();
 		}
 		
@@ -126,7 +123,7 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 		
 		try {
 			this.skipToNextPatent();
-		} catch (NavExceptionHuge e) {
+		} catch (NavException e) {
 			this.currentDocumentToken = -1;
 		}
 		
@@ -137,11 +134,11 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	 * Gets a specific part of the current patent.
 	 * @param documentPart
 	 * @return
-	 * @throws XPathParseExceptionHuge
-	 * @throws NavExceptionHuge
-	 * @throws XPathEvalExceptionHuge
+	 * @throws XPathParseException
+	 * @throws NavException
+	 * @throws XPathEvalException
 	 */
-	private String getDocumentPart(ContentType documentPart) throws XPathParseExceptionHuge, NavExceptionHuge, XPathEvalExceptionHuge {
+	private String getDocumentPart(ContentType documentPart) throws XPathParseException, NavException, XPathEvalException {
 		return this.getProperty(documentPart.getXPath());
 	}
 	
@@ -149,16 +146,16 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	 * Gets a specific part of the current patent defined by a xpath to its elements.
 	 * @param xpath
 	 * @return
-	 * @throws XPathParseExceptionHuge
-	 * @throws NavExceptionHuge
-	 * @throws XPathEvalExceptionHuge
+	 * @throws XPathParseException
+	 * @throws NavException
+	 * @throws XPathEvalException
 	 */
-	private String getProperty(String xpath) throws XPathParseExceptionHuge, NavExceptionHuge, XPathEvalExceptionHuge {
+	private String getProperty(String xpath) throws XPathParseException, NavException, XPathEvalException {
 		// Store navigation context
 		this.navigation.push();
 		
 		// Navigate to first token matching given xpath
-		AutoPilotHuge localAutoPilot = new AutoPilotHuge(this.navigation);
+		AutoPilot localAutoPilot = new AutoPilot(this.navigation);
 		localAutoPilot.selectXPath(xpath);
 		StringBuilder valueBuilder = new StringBuilder();
 		while(localAutoPilot.evalXPath() != -1){
@@ -172,16 +169,17 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 		
 		if(valueBuilder.length() == 0) {
 			return null;
-		}		
+		}
+		
 		return valueBuilder.toString();
 	}
 	
 	/**
 	 * Reads text of the current token and its children. 
 	 * @return
-	 * @throws NavExceptionHuge
+	 * @throws NavException
 	 */
-	private String extractMixedText() throws NavExceptionHuge {
+	private String extractMixedText() throws NavException {
 		// Store navigation context
 		this.navigation.push();
 		
@@ -195,7 +193,7 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 		while ((i = iter.getNext()) != -1) {
 			textBuilder.append(this.navigation.toString(i));
 			
-			if(this.navigation.toElement(VTDNavHuge.FIRST_CHILD)) {
+			if(this.navigation.toElement(VTDNav.FIRST_CHILD)) {
 				textBuilder.append(this.extractMixedText());
 			}
 		}
@@ -208,12 +206,12 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	
 	/**
 	 * Skips to the next patent element.
-	 * @throws NavExceptionHuge
+	 * @throws NavException
 	 */
-	private void skipToNextPatent() throws NavExceptionHuge {
+	private void skipToNextPatent() throws NavException {
 		try {
 			this.currentDocumentToken = this.autoPilot.evalXPath();
-		} catch (XPathEvalExceptionHuge e) { }
+		} catch (XPathEvalException e) { }
 	}
 
 	@Override
