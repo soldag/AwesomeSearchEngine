@@ -77,13 +77,44 @@ public abstract class GenericSeekList<K extends Comparable<K>> {
 		this.seekList.clear();
 	}
 	
-	/**
-	 * Loads the seek list from a specified FileReader.
-	 */
-	public abstract void load(IndexReader reader) throws IOException;
 	
 	/**
-	 * Saves the seek list to a specified FileWriter.
+	 * Loads the seek list from a specified IndexReader.
 	 */
-	public abstract void save(IndexWriter writer) throws IOException;
+	public void load(IndexReader reader) throws IOException {
+		this.clear();
+		
+		while(reader.getFilePointer() < reader.length()) {
+			K key = this.readKey(reader);
+			int offset = reader.readInt();
+			
+			this.seekList.put(key, offset);
+		}
+	}
+	
+	/**
+	 * Saves the seek list to a specified IndexWriter.
+	 */
+	public void save(IndexWriter writer) throws IOException {
+		for(Map.Entry<K, Integer> entry: this.seekList.entrySet()) {
+			this.writeKey(entry.getKey(), writer);
+			writer.writeInt(entry.getValue());
+		}
+	}
+
+	/**
+	 * Reads a key from the specified IndexReader.
+	 * @param reader
+	 * @return
+	 * @throws IOException
+	 */
+	protected abstract K readKey(IndexReader reader) throws IOException;
+	
+	/**
+	 * Writes the given key to the specified IndexWriter.
+	 * @param key
+	 * @param writer
+	 * @throws IOException
+	 */
+	protected abstract void writeKey(K key, IndexWriter writer) throws IOException;
 }

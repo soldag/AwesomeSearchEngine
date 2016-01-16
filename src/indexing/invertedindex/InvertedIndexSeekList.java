@@ -1,8 +1,6 @@
 package indexing.invertedindex;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.stream.Collectors;
 
 import indexing.generic.GenericSeekList;
 import io.index.IndexReader;
@@ -22,31 +20,16 @@ public class InvertedIndexSeekList extends GenericSeekList<String> {
 	public InvertedIndexSeekList() {
 		super(SKIP_NUMBER);
 	}
-	
-	
-	/**
-	 * Loads the seek list from a specified FileReader.
-	 */
-	public void load(IndexReader reader) throws IOException {
-		this.clear();
-		
-		while(reader.getFilePointer() < reader.length()) {
-			String token = reader.readString();
-			int offset = reader.readInt();				
-			this.put(token, offset);
-		}
+
+
+	@Override
+	protected String readKey(IndexReader reader) throws IOException {
+		return reader.readString();
 	}
-	
-	/**
-	 * Saves the seek list to a specified FileWriter.
-	 */
-	public void save(IndexWriter writer) throws IOException {
-		// Sort tokens alphabetically
-		List<String> tokens = this.keySet().stream().sorted().collect(Collectors.toList());
-		
-		for(String token: tokens) {
-			writer.writeString(token);
-			writer.writeInt(this.get(token));
-		}
+
+
+	@Override
+	protected void writeKey(String token, IndexWriter writer) throws IOException {
+		writer.writeString(token);
 	}
 }
