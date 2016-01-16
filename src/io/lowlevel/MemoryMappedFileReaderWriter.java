@@ -57,7 +57,7 @@ public class MemoryMappedFileReaderWriter implements FileReader, FileWriter {
 	@Override
 	public int read(byte[] bytes) throws IOException {
 		if(!this.buffer.hasRemaining()) {
-			throw new EOFException();
+			return -1;
 		}
 		
 		int length = Math.min(bytes.length, this.buffer.remaining());

@@ -43,21 +43,33 @@ public class UncompressedIndexReader implements IndexReader, AutoCloseable {
 	@Override
 	public short readShort() throws IOException {
 		byte[] bytes = new byte[Short.BYTES];
-		this.read(bytes);
+		int length = this.read(bytes);
+		if(length < bytes.length) {
+			return -1;
+		}
+		
 		return Shorts.fromByteArray(bytes);
 	}
 
 	@Override
 	public int readInt() throws IOException {
 		byte[] bytes = new byte[Integer.BYTES];
-		this.read(bytes);
+		int length = this.read(bytes);
+		if(length < bytes.length) {
+			return -1;
+		}
+		
 		return Ints.fromByteArray(bytes);
 	}
 
 	@Override
 	public long readLong() throws IOException {
 		byte[] bytes = new byte[Long.BYTES];
-		this.read(bytes);
+		int length = this.read(bytes);
+		if(length < bytes.length) {
+			return -1;
+		}
+		
 		return Longs.fromByteArray(bytes);
 	}
 

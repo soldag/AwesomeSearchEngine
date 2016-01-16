@@ -108,7 +108,10 @@ public class BufferedFileReader implements FileReader {
 	@Override
 	public byte readByte() throws IOException {
 		byte[] bytes = new byte[1];
-		this.read(bytes);
+		int length = this.read(bytes);
+		if (length < 1) {
+			throw new EOFException();
+		}
 		
 		return bytes[0];
 	}
