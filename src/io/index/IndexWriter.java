@@ -1,22 +1,22 @@
-package io;
+package io.index;
 
 import java.io.IOException;
 
-public interface FileWriter extends FileOperator {
+import io.lowlevel.FileWriter;
+
+public interface IndexWriter extends FileWriter {
 
 	/**
-	 * Writes b.length bytes from the specified byte array to this file, starting at the current file pointer.
-	 * @param bytes
-	 * @throws IOException
+	 * Determines, whether the data is stored compressed in the file.
+	 * @return
 	 */
-	public void write(byte[] bytes) throws IOException;
+	public boolean isCompressed();
 	
 	/**
-	 * Writes the specified byte to this file.
-	 * @param value
-	 * @throws IOException
+	 * Returns an index writer instance of uncompressed access to the current file.
+	 * @return
 	 */
-	public void writeByte(byte value) throws IOException;
+	public IndexWriter uncompressed();
 	
 	/**
 	 * Writes a short to the file as two bytes, high byte first.

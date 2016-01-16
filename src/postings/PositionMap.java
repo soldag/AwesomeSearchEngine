@@ -5,19 +5,19 @@ import java.util.Set;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.TreeMultimap;
 import com.google.common.primitives.Ints;
 
-import io.FileReader;
-import io.FileWriter;
+import io.index.IndexReader;
+import io.index.IndexWriter;
 
 public class PositionMap {
 
 	/**
 	 * Contains multiple positions for different content types.
 	 */
-	private Multimap<ContentType, Integer> positions = TreeMultimap.create();
+	private Multimap<ContentType, Integer> positions = HashMultimap.create();
 	
 	
 	/**
@@ -45,7 +45,7 @@ public class PositionMap {
 	 * @return
 	 */
 	public int[] ofContentType(ContentType contentType) {
-		return ArrayUtils.toPrimitive(this.positions.get(contentType).stream().toArray(Integer[]::new));
+		return ArrayUtils.toPrimitive(this.positions.get(contentType).stream().sorted().toArray(Integer[]::new));
 	}
 	
 	
@@ -96,7 +96,7 @@ public class PositionMap {
 	 * @return
 	 * @throws IOException
 	 */
-	public static PositionMap load(FileReader reader) throws IOException {
+	public static PositionMap load(IndexReader reader) throws IOException {
 		PositionMap positionMap = new PositionMap();
 		for(ContentType contentType: ContentType.orderedValues()) {
 			int lastPosition = 0;
@@ -120,7 +120,7 @@ public class PositionMap {
 	 * @return
 	 * @throws IOException 
 	 */
-	public void save(FileWriter writer) throws IOException {
+	public void save(IndexWriter writer) throws IOException {
 		for(ContentType contentType: ContentType.orderedValues()) {
 			if(!this.containsContentType(contentType)) {
 				// If document does not contain this type, set number of the corresponding positions to 0

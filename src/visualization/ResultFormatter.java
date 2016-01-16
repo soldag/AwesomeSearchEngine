@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import documents.PatentContentDocument;
 import documents.PatentDocument;
@@ -36,12 +37,13 @@ public class ResultFormatter {
 	
 
 	/**
-	 * Formats the given result for outputting on console. Resulting lists contains formatted string for each document in the result.
+	 * Formats the given result and corresponding NCDG values for outputting on console. Resulting lists contains formatted string for each document in the result.
 	 * @param result
+	 * @param ncdgValues
 	 * @return
 	 * @throws IOException
 	 */
-	public ArrayList<String> format(QueryResult result) throws IOException {
+	public ArrayList<String> format(QueryResult result, Map<Integer, Double> ncdgValues) throws IOException {
 		ArrayList<String> formattedResults = new ArrayList<String>();
 		for(PatentDocument document: result.getPostings().documentSet()) {
 			// Load contents of document
@@ -55,9 +57,11 @@ public class ResultFormatter {
 			// Format properties
 			StringBuilder resultBuilder = new StringBuilder();
 			resultBuilder.append(id);
-			resultBuilder.append(" ");
+			resultBuilder.append("\t");
 			resultBuilder.append(this.formatTitle(title, document, result));
-			resultBuilder.append(System.getProperty("line.separator"));
+			resultBuilder.append("\t");
+			resultBuilder.append(ncdgValues.get(id));
+			resultBuilder.append("\n");
 			resultBuilder.append(snippet.toFormattedString());
 			
 			formattedResults.add(resultBuilder.toString());

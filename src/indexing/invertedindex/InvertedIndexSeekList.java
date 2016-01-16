@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import indexing.generic.GenericSeekList;
-import io.FileReader;
-import io.FileWriter;
+import io.index.IndexReader;
+import io.index.IndexWriter;
 
 public class InvertedIndexSeekList extends GenericSeekList<String> {
 	
@@ -27,26 +27,26 @@ public class InvertedIndexSeekList extends GenericSeekList<String> {
 	/**
 	 * Loads the seek list from a specified FileReader.
 	 */
-	public void load(FileReader reader) throws IOException {
-		this.seekList.clear();
+	public void load(IndexReader reader) throws IOException {
+		this.clear();
 		
 		while(reader.getFilePointer() < reader.length()) {
 			String token = reader.readString();
 			int offset = reader.readInt();				
-			this.seekList.put(token, offset);
+			this.put(token, offset);
 		}
 	}
 	
 	/**
 	 * Saves the seek list to a specified FileWriter.
 	 */
-	public void save(FileWriter writer) throws IOException {
+	public void save(IndexWriter writer) throws IOException {
 		// Sort tokens alphabetically
-		List<String> tokens = this.seekList.keySet().stream().sorted().collect(Collectors.toList());
+		List<String> tokens = this.keySet().stream().sorted().collect(Collectors.toList());
 		
 		for(String token: tokens) {
 			writer.writeString(token);
-			writer.writeInt(this.seekList.get(token));
+			writer.writeInt(this.get(token));
 		}
 	}
 }

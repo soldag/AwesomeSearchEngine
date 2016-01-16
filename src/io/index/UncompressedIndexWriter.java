@@ -1,9 +1,6 @@
-package io;
+package io.index;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
 import org.apache.commons.io.output.ByteArrayOutputStream;
 
@@ -11,7 +8,9 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 
-public class IndexFile implements FileReader, FileWriter, AutoCloseable {
+import io.lowlevel.FileWriter;
+
+public class UncompressedIndexWriter implements IndexWriter, AutoCloseable {
 	
 	/**
 	 * Contains the encoding used for storing strings.
@@ -19,9 +18,9 @@ public class IndexFile implements FileReader, FileWriter, AutoCloseable {
 	private static final String ENCODING = "UTF-8";
 
 	/**
-	 * Contains the actual file.
+	 * Contains the corresponding file writer.
 	 */
-	private RandomAccessFile file;
+	private FileWriter fileWriter;
 	
 	/**
 	 * Determines, whether a skipping area is active.
@@ -35,33 +34,22 @@ public class IndexFile implements FileReader, FileWriter, AutoCloseable {
 	
 
 	/**
-	 * Creates a new IndexFile instance for the given file.
-	 * @param file
-	 * @param mode
-	 * @throws FileNotFoundException
+	 * Creates a new UncompressedIndexWriter instance using the given FileWriter.
+	 * @param fileWriter
 	 */
-	public IndexFile(File file, String mode) throws FileNotFoundException {
-		this.file = new RandomAccessFile(file, mode);
+	public UncompressedIndexWriter(FileWriter fileWriter) {
+		this.fileWriter = fileWriter;
 	}
 	
 	
 	@Override
-	public void read(byte[] bytes) throws IOException {
-		this.file.readFully(bytes);
-	}
-	
 	public void write(byte[] bytes) throws IOException {
 		if(this.skippingAreaActive) {
 			this.skippingAreaBuffer.write(bytes);
 		}
 		else {
-			this.file.write(bytes);
+			this.fileWriter.write(bytes);
 		}
-	}
-	
-	@Override
-	public byte readByte() throws IOException {
-		return this.file.readByte();
 	}
 	
 	public void writeByte(byte value) throws IOException {
@@ -69,17 +57,9 @@ public class IndexFile implements FileReader, FileWriter, AutoCloseable {
 			this.skippingAreaBuffer.write(value);
 		}
 		else {
-			this.file.writeByte(value);
+			this.fileWriter.writeByte(value);
 		}
 	}
-
-	@Override
-	public short readShort() throws IOException {
-		byte[] bytes = new byte[Short.BYTES];
-		this.read(bytes);
-		return Shorts.fromByteArray(bytes);
-	}
-
 
 	@Override
 	public void writeShort(short value) throws IOException {
@@ -87,43 +67,16 @@ public class IndexFile implements FileReader, FileWriter, AutoCloseable {
 		this.write(bytes);
 	}
 
-
-	@Override
-	public int readInt() throws IOException {
-		byte[] bytes = new byte[Integer.BYTES];
-		this.read(bytes);
-		return Ints.fromByteArray(bytes);
-	}
-
-
 	@Override
 	public void writeInt(int value) throws IOException {
 		byte[] bytes = Ints.toByteArray(value);
 		this.write(bytes);
 	}
 
-
-	@Override
-	public long readLong() throws IOException {
-		byte[] bytes = new byte[Long.BYTES];
-		this.read(bytes);
-		return Longs.fromByteArray(bytes);
-	}
-
-
 	@Override
 	public void writeLong(long value) throws IOException {
 		byte[] bytes = Longs.toByteArray(value);
 		this.write(bytes);
-	}
-
-	@Override
-	public String readString() throws IOException {
-		int length = this.readInt();
-		byte[] bytes = new byte[length];
-		this.read(bytes);
-		
-		return new String(bytes, ENCODING);
 	}
 	
 	@Override
@@ -132,11 +85,7 @@ public class IndexFile implements FileReader, FileWriter, AutoCloseable {
 		this.writeInt(bytes.length);
 		this.write(bytes);
 	}
-
-	@Override
-	public long getFilePointer() throws IOException {
-		return this.file.getFilePointer();
-	}
+	
 
 	@Override
 	public void startSkippingArea() throws IOException {
@@ -167,15 +116,27 @@ public class IndexFile implements FileReader, FileWriter, AutoCloseable {
 	public boolean isCompressed() {
 		return false;
 	}
+	
+	@Override
+	public IndexWriter uncompressed() {
+		return this;
+	}
+
 
 	@Override
-	public void seek(long pos) throws IOException {
-		this.file.seek(pos);
+	public long getFilePointer() throws IOException {
+		return this.fileWriter.getFilePointer();
 	}
 	
 	public long length() throws IOException {
-		return this.file.length();
+		return this.fileWriter.length();
 	}
+
+	@Override
+	public void seek(long pos) throws IOException {
+		this.fileWriter.seek(pos);
+	}
+	
 
 	@Override
 	public void close() throws IOException {
@@ -183,6 +144,6 @@ public class IndexFile implements FileReader, FileWriter, AutoCloseable {
 			this.flushSkippingArea();
 		}
 		
-		this.file.close();
+		this.fileWriter.close();
 	}
 }

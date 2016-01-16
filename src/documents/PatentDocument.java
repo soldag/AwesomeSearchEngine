@@ -5,8 +5,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.FileReader;
-import io.FileWriter;
+import io.index.IndexReader;
+import io.index.IndexWriter;
 import postings.ContentType;
 
 public class PatentDocument {
@@ -107,12 +107,16 @@ public class PatentDocument {
 	 * @return
 	 * @throws IllegalStateException
 	 */
-	public int getTokensCount() throws IllegalStateException {
+	public int getTotalTokensCount() throws IllegalStateException {
 		if(this.tokenCounts.isEmpty()) {
 			throw new IllegalStateException("Document was not tokenized, yet.");
 		}
 		
 		return this.tokenCounts.values().stream().mapToInt(count -> count.intValue()).sum();
+	}
+	
+	public Map<ContentType, Integer> getTokensCount() {
+		return this.tokenCounts;
 	}
 	
 	/**
@@ -163,7 +167,7 @@ public class PatentDocument {
 	 * @return
 	 * @throws IOException
 	 */
-	public static PatentDocument load(FileReader reader) throws IOException {
+	public static PatentDocument load(IndexReader reader) throws IOException {
 		int id = reader.readInt();
 		reader.readInt();
 		
@@ -178,7 +182,7 @@ public class PatentDocument {
 	 * @return
 	 * @throws IOException
 	 */
-	public static PatentDocument load(int id, FileReader reader) throws IOException {
+	public static PatentDocument load(int id, IndexReader reader) throws IOException {
 		// Read file id
 		int fileId = reader.readInt();
 		
@@ -202,7 +206,7 @@ public class PatentDocument {
 	 * @param writer
 	 * @throws IOException
 	 */
-	public void save(FileWriter writer) throws IOException {
+	public void save(IndexWriter writer) throws IOException {
 		// Write document id
 		writer.writeInt(this.getId());
 		

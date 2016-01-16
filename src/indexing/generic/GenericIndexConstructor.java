@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import io.FileFactory;
-import io.FileWriter;
+import io.FileReaderWriterFactory;
+import io.index.IndexWriter;
 
 public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 	
@@ -61,9 +61,9 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 		boolean createSeekList = seekListFile != null && this.seekList != null;	
 		
 		// Open index file
-		try (FileWriter indexWriter = FileFactory.getInstance().getWriter(indexFile, this.compress)) {
-			// Write entries counts
-			indexWriter.writeInt(this.keys().size());
+		try (IndexWriter indexWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(indexFile, this.compress)) {
+			// Write size
+			indexWriter.writeLong(this.size());
 			
 			// Write values for each index entry
 			List<T> sortedKeys = this.keys().stream().sorted().collect(Collectors.toList());
@@ -80,7 +80,7 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 		
 		// Write seek list to file
 		if(createSeekList) {
-			try(FileWriter seekListWriter = FileFactory.getInstance().getWriter(seekListFile, this.compress)) {
+			try(IndexWriter seekListWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(seekListFile, this.compress)) {
 				this.seekList.save(seekListWriter);
 			}
 		}
@@ -90,20 +90,25 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 	 * Gets the set of keys of the index entries.
 	 * @return
 	 */
-	protected abstract Set<T> keys();
+	public abstract Set<T> keys();
 	
 	/**
 	 * Writes index entry identified by its key to file using the given file writer.
 	 * @param key
 	 * @param indexWriter
 	 */
-	protected abstract void writeEntry(T key, FileWriter indexWriter) throws IOException;
+	protected abstract void writeEntry(T key, IndexWriter indexWriter) throws IOException;
 
 	/**
-	 * Gets the number of entries in the index.
+	 * Gets the size of the index.
 	 * @return
 	 */
-	public abstract int size();
+	public abstract long size();
+	
+	/**
+	 * Gets the number of entries in the index.
+	 */
+	public abstract int entriesCount();
 	
 	/**
 	 * Deletes all entries of the index.

@@ -55,4 +55,13 @@ public class PatentContentDocument extends PatentDocument {
 		
 		return null;
 	}
+	
+	/**
+	 * Returns a clone of the current PatentDocument without content to save memory consumption.
+	 * @return
+	 */
+	public PatentDocument withoutContent() {
+		//Map<ContentType,>
+		return new PatentDocument(this.getId(), this.getFileId(), this.getOffset(), this.getLength(), this.getTokensCount());
+	}
 }

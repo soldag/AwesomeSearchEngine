@@ -9,6 +9,7 @@ import javax.xml.stream.XMLStreamException;
 
 import documents.PatentContentDocument;
 import indexing.documentmap.DocumentMapConstructor;
+import indexing.documentmap.DocumentMapMerger;
 import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexConstructor;
 import indexing.invertedindex.InvertedIndexMerger;
@@ -32,7 +33,8 @@ public class DocumentIndexer {
 	/**
 	 * Contains the prefix for temporary index files.
 	 */
-	private static final String TEMP_INDEX_PREFIX = "awse_index_%d";
+	private static final String TEMP_INVERTED_INDEX_PREFIX = "awse_index_%d";
+	private static final String TEMP_DOCUMENT_MAP_PREFIX = "awse_document_map_%d";
 	
 	/**
 	 * Contains text preprocessor instance.
@@ -61,7 +63,8 @@ public class DocumentIndexer {
 	/**
 	 * Contains all created temporary index files.
 	 */
-	private List<File> temporaryIndexFiles = new ArrayList<File>();
+	private List<File> tempInvertedIndexFiles = new ArrayList<File>();
+	private List<File> tempDocumentMapFiles = new ArrayList<File>();
 	
 	/**
 	 * Creates a new DocumentIndexer instance.
@@ -108,22 +111,8 @@ public class DocumentIndexer {
 			}
 		}
 		
-		// Write document map to file
-		this.documentMapConstructor.writeToFile(this.documentMapFile, this.documentMapSeekListFile);
-		
-		// Write remaining index entries to file and merge temporary files, if necessary
-		if(this.temporaryIndexFiles.size() == 0) {
-			this.writeToFinalFile();
-		}
-		else {
-			if(indexConstructor.size() > 0) {
-				this.writeToTempFile();
-			}
-			
-			System.out.println("Merge index files...");
-			InvertedIndexMerger indexMerger = new InvertedIndexMerger(this.compress, new InvertedIndexSeekList());
-			indexMerger.merge(this.indexFile, this.temporaryIndexFiles, this.indexSeekListFile);
-		}
+		// Write constructed indexes to files
+		this.writeFinalIndexFiles();
 		
 		// Delete temporary files
 		this.clearTemporaryIndexes();
@@ -142,12 +131,19 @@ public class DocumentIndexer {
 			this.addTokens(document);
 			
 			// Add document to document map
-			this.documentMapConstructor.add(document);
+			this.documentMapConstructor.add(document.withoutContent());
 			
-			// If size of the memory index is too high, write memory index to new temporary file and clear memory
-			if(this.getUsedMemory() >= MEMORY_LIMIT) {
-				System.out.println("Write memory index to temp file, because memory limit has exceeded.");
-				this.writeToTempFile();
+			// If size of the memory indexes is too high, write them to new temporary file and clean memory.
+			if(this.indexConstructor.entriesCount() > 1000000) {
+				//System.out.println("Write memory index to temp file, because memory limit has exceeded.");
+				this.writeTemporaryInvertedIndex();
+				
+				// Run garbage collector
+				System.gc();
+				System.runFinalization();
+			}
+			if(this.documentMapConstructor.entriesCount() > 1000000) {
+				this.writeTemporaryDocumentMap();
 				
 				// Run garbage collector
 				System.gc();
@@ -196,26 +192,80 @@ public class DocumentIndexer {
 	
 	
 	/**
-	 * Write memory index to temporary index file.
-	 * @throws FileNotFoundException
+	 * Write inverted index from memory to temporary index files.
 	 * @throws IOException
-	 */
-	private void writeToTempFile() throws FileNotFoundException, IOException {
-		File tempIndexFile = File.createTempFile(TEMP_INDEX_PREFIX, "");
-		this.temporaryIndexFiles.add(tempIndexFile);
-		
-		this.indexConstructor.writeToFile(tempIndexFile);
+	 */	
+	private void writeTemporaryInvertedIndex() throws IOException {
+		File invertedIndexFile = File.createTempFile(TEMP_INVERTED_INDEX_PREFIX, "");
+		this.tempInvertedIndexFiles.add(invertedIndexFile);		
+		this.indexConstructor.writeToFile(invertedIndexFile);
 		this.indexConstructor.clear();
 	}
 	
 	/**
-	 * Write memory index to final index file. 
+	 * Write document map from memory to temporary index files.
+	 * @throws IOException
+	 */
+	private void writeTemporaryDocumentMap() throws IOException {
+		File documentMapFile = File.createTempFile(TEMP_DOCUMENT_MAP_PREFIX, "");
+		this.tempDocumentMapFiles.add(documentMapFile);		
+		this.documentMapConstructor.writeToFile(documentMapFile);
+		this.documentMapConstructor.clear();
+	}
+	
+	/**
+	 * Write constructed indexes to final files.
+	 * Merging of temporary files may be necessary.
+	 * @throws IOException
+	 */
+	private void writeFinalIndexFiles() throws IOException {		
+		// Write remaining document map entries to file and merge temporary files, if necessary
+		if(this.tempDocumentMapFiles.isEmpty()) {
+			this.writeFinalDocumentMap();
+		}
+		else {
+			if(this.documentMapConstructor.size() > 0) {
+				this.writeTemporaryDocumentMap();
+			}
+			
+			System.out.println("Merge document map files...");
+			DocumentMapMerger indexMerger = new DocumentMapMerger(this.compress);
+			indexMerger.merge(this.documentMapFile, this.tempDocumentMapFiles, this.documentMapSeekListFile);
+		}
+		
+		// Write remaining inverted index entries to file and merge temporary files, if necessary
+		if(this.tempInvertedIndexFiles.isEmpty()) {
+			this.writeFinalInvertedIndex();
+		}
+		else {
+			if(this.indexConstructor.size() > 0) {
+				this.writeTemporaryInvertedIndex();
+			}
+			
+			System.out.println("Merge inverted index files...");
+			InvertedIndexMerger indexMerger = new InvertedIndexMerger(this.compress);
+			indexMerger.merge(this.indexFile, this.tempInvertedIndexFiles, this.indexSeekListFile);
+		}
+	}
+	
+	/**
+	 * Write inverted index from memory to final index file. 
 	 * @throws FileNotFoundException
 	 * @throws IOException
 	 */
-	private void writeToFinalFile() throws FileNotFoundException, IOException {
+	private void writeFinalInvertedIndex() throws IOException {
 		this.indexConstructor.writeToFile(this.indexFile, this.indexSeekListFile);
 		this.indexConstructor.clear();
+	}
+	
+	/**
+	 * Write document map from memory to final index file. 
+	 * @throws FileNotFoundException
+	 * @throws IOException
+	 */
+	private void writeFinalDocumentMap() throws IOException {
+		this.documentMapConstructor.writeToFile(this.documentMapFile, this.documentMapSeekListFile);
+		this.documentMapConstructor.clear();
 	}
 	
 	/**
@@ -223,12 +273,21 @@ public class DocumentIndexer {
 	 * @throws IOException
 	 */
 	public void clearTemporaryIndexes() throws IOException {
-		for(File indexFile: this.temporaryIndexFiles) {
+		// Inverted index
+		for(File indexFile: this.tempInvertedIndexFiles) {
 			if(indexFile.exists()) {
 				indexFile.delete();
 			}
 		}
-		this.temporaryIndexFiles.clear();
+		this.tempInvertedIndexFiles.clear();
+		
+		// Document map
+		for(File indexFile: this.tempDocumentMapFiles) {
+			if(indexFile.exists()) {
+				indexFile.delete();
+			}
+		}
+		this.tempDocumentMapFiles.clear();
 	}
 	
 	/**

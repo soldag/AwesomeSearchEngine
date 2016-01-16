@@ -8,8 +8,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import documents.PatentDocument;
-import io.FileReader;
-import io.FileWriter;
+import io.index.IndexReader;
+import io.index.IndexWriter;
 
 public class TokenPostings {
 
@@ -142,6 +142,17 @@ public class TokenPostings {
 	}
 	
 	
+	/**
+	 * Gets the number of all occurrences of the tokens.
+	 * @return
+	 */
+	public long totalOccurencesCount() {
+		return this.positions().stream()
+					.mapToLong(positions -> positions.size())
+					.sum();
+	}
+	
+	
 	@Override
 	public String toString() {
 		return this.postings.toString();
@@ -155,7 +166,7 @@ public class TokenPostings {
 	 * @return
 	 * @throws IOException
 	 */
-	public static TokenPostings load(FileReader reader) throws IOException {
+	public static TokenPostings load(IndexReader reader) throws IOException {
 		int length = reader.readInt();
 		return TokenPostings.load(reader, length);
 	}
@@ -168,7 +179,7 @@ public class TokenPostings {
 	 * @return
 	 * @throws IOException
 	 */
-	public static TokenPostings load(FileReader reader, int length) throws IOException {
+	public static TokenPostings load(IndexReader reader, int length) throws IOException {
 		TokenPostings postings = new TokenPostings();
 		
 		int lastDocumentId = 0;
@@ -195,7 +206,7 @@ public class TokenPostings {
 	 * @param writer
 	 * @throws IOException
 	 */
-	public void save(FileWriter writer) throws IOException {
+	public void save(IndexWriter writer) throws IOException {
 		int lastDocumentId = 0;
 		int[] sortedDocumentIds = this.documentIdSet().stream().mapToInt(x -> x.intValue()).sorted().toArray();
 		for(int documentId: sortedDocumentIds) {

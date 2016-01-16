@@ -8,81 +8,51 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import indexing.generic.IndexMerger;
+import io.FileReaderWriterFactory;
+import io.index.IndexReader;
+import io.index.IndexWriter;
 import postings.TokenPostings;
-import io.FileFactory;
-import io.FileReader;
-import io.FileWriter;
 
-public class InvertedIndexMerger {
+public class InvertedIndexMerger implements IndexMerger {
 	
 	/**
-	 * Determines, whether the index files, that should be merged, are compressed or not.
+	 * Determines, whether the index files are compressed or not.
 	 */
-	private final boolean isCompressed;
-	
-	/**
-	 * Contains the corresponding seek list, if it should be constructed.
-	 */
-	private InvertedIndexSeekList seekList;
-	
+	private boolean isCompressed;
+
 	
 	/**
 	 * Creates a new InvertedIndexMerger instance.
 	 * @param isCompressed
 	 */
 	public InvertedIndexMerger(boolean isCompressed) {
-		this(isCompressed, null);
-	}
-	
-	/**
-	 * Creates a new InvertedIndexMerger instance.
-	 * @param isCompressed
-	 * @param seekList
-	 */
-	public InvertedIndexMerger(boolean isCompressed, InvertedIndexSeekList seekList) {
 		this.isCompressed = isCompressed;
-		this.seekList = seekList;
 	}
 	
 	
-	/**
-	 * Merges the given list of temporary index files to the specified destination index file, without creating a seek list.
-	 * @param destinationIndexFile
-	 * @param temporaryIndexFiles
-	 * @throws IOException
-	 */
-	public void merge(File destinationIndexFile, List<File> temporaryIndexFiles) throws IOException {
-		this.merge(destinationIndexFile, temporaryIndexFiles, null);
-	}
-
-	/**
-	 * Merges the given list of temporary index files to the specified destination index file and creates a seek list for the newly created index.
-	 * @param destinationIndexFile
-	 * @param temporaryIndexFiles
-	 * @param seekListFile
-	 * @throws IOException
-	 */
+	@Override
 	public void merge(File destinationIndexFile, List<File> temporaryIndexFiles, File seekListFile) throws IOException {
-		// Determine, if seek list should be created
-		boolean createSeekList = seekListFile != null && this.seekList != null;
+		// Initialize seeklist
+		InvertedIndexSeekList seekList = new InvertedIndexSeekList();
 		
 		// Create destination index file
-		try (FileWriter destinationFile = FileFactory.getInstance().getWriter(destinationIndexFile, this.isCompressed)) {
+		try (IndexWriter destinationFile = FileReaderWriterFactory.getInstance().getDirectIndexWriter(destinationIndexFile, this.isCompressed)) {
 			// Open temporary index files
 			List<String> firstTokens = new ArrayList<String>(temporaryIndexFiles.size());
-			List<FileReader> sourceFiles = new ArrayList<FileReader>(temporaryIndexFiles.size());
-			int totalTermsCount = 0;
+			List<IndexReader> sourceFiles = new ArrayList<IndexReader>(temporaryIndexFiles.size());
+			long totalPositionsCount = 0;
 			for(File temporaryIndexFile: temporaryIndexFiles) {
-				FileReader tempFile = FileFactory.getInstance().getReader(temporaryIndexFile, this.isCompressed);
+				IndexReader tempFile = FileReaderWriterFactory.getInstance().getBufferedIndexReader(temporaryIndexFile, this.isCompressed);
 				sourceFiles.add(tempFile);
-				totalTermsCount += tempFile.readInt();
+				totalPositionsCount += tempFile.readInt();
 				firstTokens.add(tempFile.readString());
 			}
 			
-			// Write total terms count
-			destinationFile.writeInt(totalTermsCount);
+			// Write total positions count
+			destinationFile.uncompressed().writeLong(totalPositionsCount);
 			
-			String lastToken = "";
+			String lastToken = null;
 			TokenPostings lastPostings = null;
 			while(firstTokens.size() > 0) {
 				// Get first token (alphabetically) and corresponding postings
@@ -90,23 +60,24 @@ public class InvertedIndexMerger {
 										.boxed()
 										.min(Comparator.comparing(x -> firstTokens.get(x)))
 										.get();
-				FileReader currentFile = sourceFiles.get(nextTokenIndex);
+				IndexReader currentFile = sourceFiles.get(nextTokenIndex);
 				
 				// Get token and postings
 				String token = firstTokens.get(nextTokenIndex);
 				TokenPostings postings = TokenPostings.load(currentFile);
 				
-				if(lastToken.equals(token) && lastPostings != null) {
+				if(lastToken != null && lastToken.equals(token) && lastPostings != null) {
 					// Token was already read from another file, so merge postings
 					lastPostings.putAll(postings);
 				}
 				else {
 					// New token was read, to write saved token and corresponding postings to file
-					if(lastPostings != null) {
-						this.write(destinationFile, lastToken, lastPostings, createSeekList);
+					if(lastToken != null && lastPostings != null) {
+						this.write(destinationFile, lastToken, lastPostings, seekList);
+						totalPositionsCount += lastPostings.totalOccurencesCount();
 					}
 
-					// Save current token and its postings for the case, that there are more postings for this token in other files
+					// Save current token and its postings for the case, that there are more values for this token in other files
 					lastToken = token;
 					lastPostings = postings;
 				}				
@@ -122,34 +93,22 @@ public class InvertedIndexMerger {
 					
 					// If end of last file was reached, write remaining entry to file
 					if(sourceFiles.isEmpty()) {
-						this.write(destinationFile, lastToken, lastPostings, createSeekList);
+						this.write(destinationFile, lastToken, lastPostings, seekList);
+						totalPositionsCount += lastPostings.totalOccurencesCount();
 					}
 				}
 			}
 		}
 		
 		// Write seek list to file
-		if(createSeekList) {
-			try(FileWriter seekListWriter = FileFactory.getInstance().getWriter(seekListFile, this.isCompressed)) {
-				this.seekList.save(seekListWriter);
-			}
+		try(IndexWriter seekListWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(seekListFile, this.isCompressed)) {
+			seekList.save(seekListWriter);
 		}
 	}
 	
-	/**
-	 * Writes given token and its postings to specified file.
-	 * @param indexWriter
-	 * @param token
-	 * @param postings
-	 * @param createSeekList
-	 * @throws UnsupportedEncodingException
-	 * @throws IOException
-	 */
-	private void write(FileWriter indexWriter, String token, TokenPostings postings, boolean createSeekList) throws UnsupportedEncodingException, IOException {
+	private void write(IndexWriter indexWriter, String token, TokenPostings postings, InvertedIndexSeekList seekList) throws UnsupportedEncodingException, IOException {
 		// Add token to seek list
-		if(createSeekList) {
-			this.seekList.put(token, (int)indexWriter.getFilePointer());
-		}
+		seekList.put(token, (int)indexWriter.getFilePointer());
 		
 		// Write to destination file
 		indexWriter.writeString(token);

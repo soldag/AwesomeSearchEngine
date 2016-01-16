@@ -1,20 +1,22 @@
 package indexing.documentmap;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import documents.PatentDocument;
+import gnu.trove.map.hash.TIntObjectHashMap;
 import indexing.generic.GenericIndexConstructor;
-import io.FileWriter;
+import io.index.IndexWriter;
 
 public class DocumentMapConstructor extends GenericIndexConstructor<Integer> {
 
 	/**
 	 * Contains the documents mapped to their ids.
 	 */
-	private Map<Integer, PatentDocument> documentMap = new HashMap<Integer, PatentDocument>();
+	
+	private TIntObjectHashMap<PatentDocument> documentMap = new TIntObjectHashMap<PatentDocument>();
 	
 	
 	/**
@@ -47,24 +49,29 @@ public class DocumentMapConstructor extends GenericIndexConstructor<Integer> {
 	}
 
 	@Override
-	protected Set<Integer> keys() {
-		return this.documentMap.keySet();
+	public Set<Integer> keys() {
+		return IntStream.of(this.documentMap.keys()).boxed().collect(Collectors.toSet());
 	}
 
 	@Override
-	protected void writeEntry(Integer key, FileWriter indexWriter) throws IOException {
+	protected void writeEntry(Integer key, IndexWriter indexWriter) throws IOException {
 		PatentDocument document = this.documentMap.get(key);
 		document.save(indexWriter);
 	}
 	
 	@Override
-	public int size() {
+	public long size() {
+		return this.documentMap.size();
+	}
+	
+	@Override
+	public int entriesCount() {
 		return this.documentMap.size();
 	}
 	
 	@Override
 	public void clear() {
 		super.clear();
-		this.documentMap.clear();
+		this.documentMap = new TIntObjectHashMap<PatentDocument>();
 	}
 }

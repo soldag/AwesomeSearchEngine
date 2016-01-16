@@ -2,12 +2,13 @@ package indexing.generic;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
-import io.FileReader;
-import io.FileWriter;
+import io.index.IndexReader;
+import io.index.IndexWriter;
 
-public abstract class GenericSeekList<T extends Comparable<T>> {
+public abstract class GenericSeekList<K extends Comparable<K>> {
 	
 	/**
 	 * Determines, how many entries are skipped in between two seek list entries.
@@ -22,7 +23,7 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	/**
 	 * Contains the actual seek list in memory.
 	 */
-	protected TreeMap<T, Integer> seekList = new TreeMap<T, Integer>();
+	private TreeMap<K, Integer> seekList = new TreeMap<K, Integer>();
 	
 	
 	/**
@@ -35,22 +36,20 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	
 	
 	/**
-	 * Loads the seek list from a specified FileReader.
+	 * Gets the set of keys of the seek list.
+	 * @return
 	 */
-	public abstract void load(FileReader reader) throws IOException;
-	
-	/**
-	 * Saves the seek list to a specified FileWriter.
-	 */
-	public abstract void save(FileWriter writer) throws IOException;
+	public Set<K> keySet() {
+		return this.seekList.keySet();
+	}
 	
 	/**
 	 * Gets the start offset of the corresponding index file for finding the specified key.
 	 * @param key
 	 * @return
 	 */
-	public int getIndexOffset(T key) {
-		Map.Entry<T, Integer> entry = this.seekList.floorEntry(key);
+	public int get(K key) {
+		Map.Entry<K, Integer> entry = this.seekList.floorEntry(key);
 		if(entry != null) {
 			return entry.getValue();
 		}
@@ -63,7 +62,7 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	 * @param key
 	 * @param value
 	 */
-	public void put(T key, int value) {
+	public void put(K key, int value) {
 		if(this.totalEntriesCount % this.skipNumber == 0) {
 			this.seekList.put(key, value);
 		}
@@ -77,4 +76,14 @@ public abstract class GenericSeekList<T extends Comparable<T>> {
 	public void clear() {
 		this.seekList.clear();
 	}
+	
+	/**
+	 * Loads the seek list from a specified FileReader.
+	 */
+	public abstract void load(IndexReader reader) throws IOException;
+	
+	/**
+	 * Saves the seek list to a specified FileWriter.
+	 */
+	public abstract void save(IndexWriter writer) throws IOException;
 }

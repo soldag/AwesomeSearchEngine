@@ -1,18 +1,10 @@
 package evaluation;
 
-import java.util.ArrayList;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
 import java.util.stream.IntStream;
 
 
 public class NdcgCalculator {
-	
-	/**
-	 * Contains a pattern matching the document id in within a formatted result entry of a document.
-	 */
-	private static final Pattern DOCUMENT_ID_PATTERN = Pattern.compile("0(?<id>\\d+) ");	
-	
 	
 	/**
 	 * Calculate normalized discounted cumulative gain for actual ranking and a given gold ranking for the very same query at a given rank.
@@ -21,9 +13,9 @@ public class NdcgCalculator {
 	 * @param rank
 	 * @return
 	 */
-	public double calculate(ArrayList<String> goldRanking, ArrayList<String> ranking, int rank) {
+	public double calculate(List<String> goldRanking, List<String> ranking, int rank) {
 		// Get document id of patent at the specified position of our ranking
-		String documentId = this.extractDocumentId(ranking.get(rank - 1));
+		String documentId = ranking.get(rank - 1);
 		
 		// Get rank of the same patent in the gold ranking
 		int goldRank = goldRanking.indexOf(documentId);
@@ -36,20 +28,6 @@ public class NdcgCalculator {
 		double goldDCG = this.calculateDCG(goldRank);
 		
 		return actualDCG / goldDCG;
-	}
-	
-	/**
-	 * Extracts the document id of a given patent result (including document id, title and snippet)
-	 * @param result
-	 * @return
-	 */
-	private String extractDocumentId(String result) {
-		Matcher matcher = DOCUMENT_ID_PATTERN.matcher(result);
-		if(matcher.find()) {
-			return matcher.group("id");
-		}
-		
-		return null;
 	}
 	
 	/**

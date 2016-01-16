@@ -23,6 +23,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -56,16 +60,17 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private SnippetGenerator snippetGenerator;
 	private ResultFormatter resultFormatter;
 	private NdcgCalculator ncdgCalculator;
-    
+	private WebFile webFile;
+	
 	/**
-	 * Contains the path of the directory containing the patent data.
+	 * Contain necessary directory paths.
 	 */
-	private Path documentDirectory;
+	private final Path teamDirectoryPath = Paths.get("/Volumes/Extern/index/team") /*Paths.get(teamDirectory)*/; //TODO testing
+	private final Path dataDirectoryPath = Paths.get(dataDirectory);
 	
 	/**
 	 *  Contain the necessary index files.
 	 */
-	private final Path teamDirectoryPath = Paths.get(teamDirectory);
 	private final File indexFile = this.teamDirectoryPath.resolve("index.bin").toFile();
 	private final File indexSeekListFile = this.teamDirectoryPath.resolve("index_seek_list.bin").toFile();
 	private final File documentMapFile = this.teamDirectoryPath.resolve("document_map.bin").toFile();
@@ -158,7 +163,7 @@ public class AwesomeSearchEngine extends SearchEngine {
      */
     private PatentContentLookup getPatentContentLookup() {
     	if(this.patentContentLookup == null) {
-    		this.patentContentLookup = new PatentContentLookup(this.documentDirectory);
+    		this.patentContentLookup = new PatentContentLookup(this.dataDirectoryPath);
     	}
     	
     	return this.patentContentLookup;
@@ -205,34 +210,47 @@ public class AwesomeSearchEngine extends SearchEngine {
 		return ncdgCalculator;
 	}
     
+    /**
+     * Returns the current web file.
+     * @return
+     */
+    private WebFile getWebFile() {
+    	if(this.webFile == null) {
+    		this.webFile = new WebFile();
+    	}
+    	
+    	return this.webFile;
+    }
+    
 
     @Override
-    public void index(String directory) {
-    	this.index(directory, false);
+    public void index() {
+    	this.index(false);
     }
 
     @Override
-    public boolean loadIndex(String directory) {
-    	return this.loadIndex(directory, false);
+    public boolean loadIndex() {
+    	return this.loadIndex(false);
     }
     
     @Override
-    public void compressIndex(String directory) {
-    	this.index(directory, true);
+    public void compressIndex() {
+    	this.index(true);
     }
 
     @Override
-    boolean loadCompressedIndex(String directory) {
-    	return this.loadIndex(directory, true);
+    boolean loadCompressedIndex() {
+    	return this.loadIndex(true);
     }
     
     @Override
-    public ArrayList<String> search(String query, int topK, int prf) {
+    public ArrayList<String> search(String query, int topK) {
     	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
 	    	try {
 	    		QueryResult result = this.queryProcessor.search(query, topK);
+	    		Map<Integer, Double> ncdgValues = this.computeNdcg(query, result);
 	    		
-	    		return this.getResultFormatter().format(result);
+	    		return this.getResultFormatter().format(result, ncdgValues);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -256,11 +274,10 @@ public class AwesomeSearchEngine extends SearchEngine {
      * @param documentDirectory
      * @param compress
      */
-    private void index(String documentDirectory, boolean compress) {
-    	this.setDocumentDirectory(documentDirectory);    	
+    private void index(boolean compress) {
     	try {
         	// Get xml files inside given directory
-    		String[] documentFiles = Files.walk(this.documentDirectory)
+    		String[] documentFiles = Files.walk(this.dataDirectoryPath)
     				.map(path -> path.toString())
     				.filter(path -> FilenameUtils.getName(path).matches(DOCUMENT_FILE_PATTERN))
     				.toArray(String[]::new);
@@ -278,9 +295,7 @@ public class AwesomeSearchEngine extends SearchEngine {
      * @param compress
      * @return
      */
-    private boolean loadIndex(String documentDirectory, boolean compress) {
-    	this.setDocumentDirectory(documentDirectory);
-    	
+    private boolean loadIndex(boolean compress) { 	
     	try {
 			this.getQueryProcessor(compress).load();
 		} catch (IOException e) {
@@ -292,15 +307,26 @@ public class AwesomeSearchEngine extends SearchEngine {
     }
     
     /**
-     * Sets the current document directory.
-     * @param documentDirectory
+     * Calculates the NCDG values for a given query and its result.
+     * @param query
+     * @param result
+     * @return
      */
-    private void setDocumentDirectory(String documentDirectory) {
-    	// Check, if given path exists and is a directory
-    	this.documentDirectory = Paths.get(documentDirectory);
-    	if(!this.documentDirectory.toFile().isDirectory()) {
-			System.err.println("Specified document directory is not a directory!");
-			System.exit(1);
-    	}
+    private Map<Integer, Double> computeNdcg(String query, QueryResult result) {
+    	// Get gold ranking from google
+    	List<String> goldRanking = this.getWebFile().getGoogleRanking(query);
+    	
+    	// Extract document ids from awesome ranking
+    	List<Integer> documentIds = new ArrayList<Integer>(result.getPostings().documentIdSet());
+    	List<String> awesomeRanking = documentIds.stream()
+    										.map(documentId -> documentId.toString())
+    										.collect(Collectors.toList());
+    	
+    	// Calculate NDCG values
+    	return IntStream.range(0, documentIds.size())
+    			.boxed()
+    			.collect(Collectors.toMap(
+	    					i -> documentIds.get(i), 
+	    					i -> this.getNcdgCalculator().calculate(goldRanking, awesomeRanking, i + 1)));
     }
 }

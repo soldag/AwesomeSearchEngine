@@ -17,8 +17,8 @@ import indexing.documentmap.DocumentMapReader;
 import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexReader;
 import indexing.invertedindex.InvertedIndexSeekList;
-import io.FileFactory;
-import io.FileReader;
+import io.FileReaderWriterFactory;
+import io.index.IndexReader;
 import postings.ContentType;
 import postings.DocumentPostings;
 import postings.PositionMap;
@@ -134,12 +134,12 @@ public class QueryProcessor {
 	 */
 	public void load() throws IOException {
 		this.documentMapReader = new DocumentMapReader(documentMapFile, this.isCompressed);
-		try(FileReader seekListReader = FileFactory.getInstance().getReader(this.documentMapSeekListFile, this.isCompressed)) {
+		try(IndexReader seekListReader = FileReaderWriterFactory.getInstance().getDirectIndexReader(this.documentMapSeekListFile, this.isCompressed)) {
 			this.documentMapSeekList.load(seekListReader);
 		}
 		
 		this.indexReader = new InvertedIndexReader(this.indexFile, this.isCompressed);
-		try(FileReader seekListReader = FileFactory.getInstance().getReader(this.indexSeekListFile, this.isCompressed)) {
+		try(IndexReader seekListReader = FileReaderWriterFactory.getInstance().getDirectIndexReader(this.indexSeekListFile, this.isCompressed)) {
 			this.indexSeekList.load(seekListReader);
 		}
 
@@ -396,7 +396,7 @@ public class QueryProcessor {
 			}
 			
 			// Get postings
-			int startOffset = this.indexSeekList.getIndexOffset(token);
+			int startOffset = this.indexSeekList.get(token);
 			PostingTable postings = this.indexReader.getPostings(token, startOffset, prefixSearch);
 			
 			// Spelling correction
@@ -479,7 +479,7 @@ public class QueryProcessor {
 	 * @return
 	 */
 	private PatentDocument getDocument(int documentId) {
-		int startOffset = this.documentMapSeekList.getIndexOffset(documentId);
+		int startOffset = this.documentMapSeekList.get(documentId);
 		try {
 			return this.documentMapReader.getDocument(documentId, startOffset);
 		} catch (IOException e) {

@@ -1,15 +1,9 @@
-package io;
+package io.lowlevel;
 
 import java.io.Closeable;
 import java.io.IOException;
 
 public interface FileOperator extends Closeable {
-
-	/**
-	 * Determines, whether the data is stored compressed in the file.
-	 * @return
-	 */
-	public boolean isCompressed();
 	
 	/**
 	 * Returns the current offset in this file.

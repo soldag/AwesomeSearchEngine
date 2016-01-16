@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import indexing.generic.GenericSeekList;
-import io.FileReader;
-import io.FileWriter;
+import io.index.IndexReader;
+import io.index.IndexWriter;
 
 public class DocumentMapSeekList extends GenericSeekList<Integer> {
 	
@@ -27,27 +27,27 @@ public class DocumentMapSeekList extends GenericSeekList<Integer> {
 	/**
 	 * Loads the seek list from a specified FileReader.
 	 */
-	public void load(FileReader reader) throws IOException {
-		this.seekList.clear();
+	public void load(IndexReader reader) throws IOException {
+		this.clear();
 		
 		while(reader.getFilePointer() < reader.length()) {
 			int documentId = reader.readInt();
 			int offset = reader.readInt();
 			
-			this.seekList.put(documentId, offset);
+			this.put(documentId, offset);
 		}
 	}
 	
 	/**
 	 * Saves the seek list to a specified FileWriter.
 	 */
-	public void save(FileWriter writer) throws IOException {
+	public void save(IndexWriter writer) throws IOException {
 		// Sort document ids alphabetically
-		List<Integer> documentIds = this.seekList.keySet().stream().sorted().collect(Collectors.toList());
+		List<Integer> documentIds = this.keySet().stream().sorted().collect(Collectors.toList());
 				
 		for(int documentId: documentIds) {
 			writer.writeInt(documentId);
-			writer.writeInt(this.seekList.get(documentId));
+			writer.writeInt(this.get(documentId));
 		}
 	}
 }

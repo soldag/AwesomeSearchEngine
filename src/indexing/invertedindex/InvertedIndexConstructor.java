@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.Set;
 
 import indexing.generic.GenericIndexConstructor;
-import io.FileWriter;
+import io.index.IndexWriter;
 import postings.ContentType;
 import postings.PostingTable;
 import postings.TokenPostings;
@@ -47,12 +47,12 @@ public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 	}
 
 	@Override
-	protected Set<String> keys() {
+	public Set<String> keys() {
 		return this.invertedIndex.tokenSet();
 	}
 
 	@Override
-	protected void writeEntry(String key, FileWriter indexWriter) throws IOException {
+	protected void writeEntry(String key, IndexWriter indexWriter) throws IOException {
 		// Write token
 		indexWriter.writeString(key);
 		
@@ -64,7 +64,12 @@ public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 	}
 	
 	@Override
-	public int size() {
+	public long size() {
+		return this.invertedIndex.totalTokenOccurencesCount();
+	}
+	
+	@Override
+	public int entriesCount() {
 		return this.invertedIndex.size();
 	}
 	
@@ -74,6 +79,6 @@ public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 	@Override
 	public void clear() {
 		super.clear();
-		this.invertedIndex.clear();
+		this.invertedIndex = new PostingTable();
 	}
 }

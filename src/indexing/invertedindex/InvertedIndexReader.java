@@ -7,15 +7,15 @@ import java.io.IOException;
 import postings.PostingTable;
 import postings.TokenPostings;
 
-import io.FileFactory;
-import io.FileReader;
+import io.FileReaderWriterFactory;
+import io.index.IndexReader;
 
 public class InvertedIndexReader implements AutoCloseable {
 	
 	/**
 	 * Contains the file reader for the index file.
 	 */
-	private FileReader indexFile;
+	private IndexReader indexFile;
 	
 	/**
 	 * Contains the number of all tokens occurrences in the index.
@@ -30,7 +30,7 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @throws IOException
 	 */
 	public InvertedIndexReader(File indexFile, boolean isCompressed) throws IOException {
-		this.indexFile = FileFactory.getInstance().getReader(indexFile, isCompressed);		
+		this.indexFile = FileReaderWriterFactory.getInstance().getDirectIndexReader(indexFile, isCompressed);		
 		this.totalTokenCount = this.indexFile.readInt();
 	}
 	

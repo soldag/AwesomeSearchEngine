@@ -5,15 +5,15 @@ import java.io.File;
 import java.io.IOException;
 
 import documents.PatentDocument;
-import io.FileFactory;
-import io.FileReader;
+import io.FileReaderWriterFactory;
+import io.index.IndexReader;
 
 public class DocumentMapReader implements AutoCloseable {
 
 	/**
 	 * Contains the file reader for the document map.
 	 */
-	private FileReader documentMapFile;
+	private IndexReader documentMapFile;
 	
 	/**
 	 * Contains the number of all documents stored in the index.
@@ -27,7 +27,7 @@ public class DocumentMapReader implements AutoCloseable {
 	 * @throws IOException
 	 */
 	public DocumentMapReader(File documentMapFile, boolean isCompressed) throws IOException {
-		this.documentMapFile = FileFactory.getInstance().getReader(documentMapFile, isCompressed);
+		this.documentMapFile = FileReaderWriterFactory.getInstance().getDirectIndexReader(documentMapFile, isCompressed);
 		this.totalDocumentsCount = this.documentMapFile.readInt();
 	}
 	

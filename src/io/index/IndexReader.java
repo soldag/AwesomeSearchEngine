@@ -1,22 +1,16 @@
-package io;
+package io.index;
 
 import java.io.IOException;
 
-public interface FileReader extends FileOperator {
+import io.lowlevel.FileReader;
+
+public interface IndexReader extends FileReader {
 
 	/**
-	 * Reads up to b.length bytes of data from this file into an array of bytes.
-	 * @param bytes
-	 * @throws IOException
-	 */
-	public void read(byte[] bytes) throws IOException;
-	
-	/**
-	 * Reads a byte of data from this file.
+	 * Determines, whether the data is stored compressed in the file.
 	 * @return
-	 * @throws IOException
 	 */
-	public byte readByte() throws IOException;
+	public boolean isCompressed();
 	
 	/**
 	 * Reads a signed 16-bit number from this file.
@@ -45,4 +39,15 @@ public interface FileReader extends FileOperator {
 	 * @throws IOException
 	 */
 	public String readString() throws IOException;
+	
+	/**
+	 * Gets the length of the starting skipping area.
+	 * @return
+	 */
+	public int getSkippingAreaLenght() throws IOException;
+	
+	/**
+	 * Skips the starting skipping area.
+	 */
+	public void skipSkippingArea() throws IOException;
 }

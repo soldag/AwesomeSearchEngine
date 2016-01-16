@@ -317,6 +317,16 @@ public class PostingTable {
 	}
 	
 	/**
+	 * Gets the number of occurrences of all tokens.
+	 * @return
+	 */
+	public long totalTokenOccurencesCount() {
+		return this.postings.values().stream()
+					.mapToLong(positions -> positions.size())
+					.sum();
+	}
+	
+	/**
 	 * Deletes all postings from this table.
 	 */
 	public void clear() {
