@@ -3,13 +3,14 @@ package parsing;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.file.Path;
 
 import com.ximpleware.ParseException;
 
 import documents.PatentContentDocument;
 import documents.PatentDocument;
+import io.FileReaderWriterFactory;
+import io.lowlevel.FileReader;
 
 public class PatentContentLookup {
 	
@@ -59,10 +60,10 @@ public class PatentContentLookup {
 	 */
 	private byte[] readFromFile(PatentDocument document) throws IOException {
 		File sourceFile = this.documentDirectory.resolve(this.getFileName(document.getFileId())).toFile();
-		try(RandomAccessFile file = new RandomAccessFile(sourceFile, "r")) {
-			file.seek(document.getOffset());
+		try(FileReader reader = FileReaderWriterFactory.getInstance().getDirectFileReader(sourceFile)) {
+			reader.seek(document.getOffset());
 			byte[] buffer = new byte[document.getLength()];
-			file.readFully(buffer);
+			reader.read(buffer);
 			
 			return buffer;
 		}

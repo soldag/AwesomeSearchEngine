@@ -157,7 +157,7 @@ public class FileReaderWriterFactory {
 	 * @return
 	 * @throws FileNotFoundException
 	 */
-	private FileReader getDirectFileReader(File file) throws FileNotFoundException {
+	public FileReader getDirectFileReader(File file) throws FileNotFoundException {
 		return new DirectFileReaderWriter(file, READ_MODE);
 	}
 	
@@ -167,7 +167,7 @@ public class FileReaderWriterFactory {
 	 * @return
 	 * @throws FileNotFoundException
 	 */
-	private FileWriter getDirectFileWriter(File file) throws FileNotFoundException {
+	public FileWriter getDirectFileWriter(File file) throws FileNotFoundException {
 		return new DirectFileReaderWriter(file, WRITE_MODE);
 	}
 	
@@ -177,7 +177,7 @@ public class FileReaderWriterFactory {
 	 * @return
 	 * @throws FileNotFoundException
 	 */
-	private FileReader getBufferedFileReader(File file) throws FileNotFoundException {
+	public FileReader getBufferedFileReader(File file) throws FileNotFoundException {
 		return new BufferedFileReader(this.getDirectFileReader(file));
 	}
 	
@@ -187,7 +187,7 @@ public class FileReaderWriterFactory {
 	 * @return
 	 * @throws FileNotFoundException
 	 */
-	private FileWriter getBufferedFileWriter(File file) throws FileNotFoundException {
+	public FileWriter getBufferedFileWriter(File file) throws FileNotFoundException {
 		return new BufferedFileWriter(this.getDirectFileWriter(file));
 	}
 	
@@ -197,7 +197,7 @@ public class FileReaderWriterFactory {
 	 * @return
 	 * @throws IOException
 	 */
-	private FileReader getMemoryMappedFileReader(File file) throws IOException {
+	public FileReader getMemoryMappedFileReader(File file) throws IOException {
 		return new MemoryMappedFileReaderWriter(file, READ_MODE);
 	}
 	
@@ -207,7 +207,7 @@ public class FileReaderWriterFactory {
 	 * @return
 	 * @throws IOException
 	 */
-	private FileWriter getMemoryMappedFileWriter(File file) throws IOException {
+	public FileWriter getMemoryMappedFileWriter(File file) throws IOException {
 		return new MemoryMappedFileReaderWriter(file, WRITE_MODE);
 	}
 }

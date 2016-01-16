@@ -27,7 +27,7 @@ public class DocumentMapReader implements AutoCloseable {
 	 * @throws IOException
 	 */
 	public DocumentMapReader(File documentMapFile, boolean isCompressed) throws IOException {
-		this.documentMapFile = FileReaderWriterFactory.getInstance().getDirectIndexReader(documentMapFile, isCompressed);
+		this.documentMapFile = FileReaderWriterFactory.getInstance().getMemoryMappedIndexReader(documentMapFile, isCompressed);
 		this.totalDocumentsCount = this.documentMapFile.readInt();
 	}
 	
