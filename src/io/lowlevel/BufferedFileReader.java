@@ -142,11 +142,11 @@ public class BufferedFileReader implements FileReader {
 			throw new EOFException();
 		}
 		
-		// Check, if position is currently loaded in the buffer 
-		long filePosition = this.fileReader.getFilePointer();
-		if(pos >= filePosition - this.bufferLength && pos < filePosition) {
+		// Check, if position is currently loaded in the buffer
+		long delta = pos - this.getFilePointer();
+		long bufferPosition = this.buffer.position() + delta;
+		if(bufferPosition >= 0 && bufferPosition < this.buffer.limit()) {
 			// Skip to position in buffer
-			long bufferPosition = pos - this.fileReader.getFilePointer() + this.buffer.capacity();
 			this.buffer.position((int)bufferPosition);
 		}
 		else {
