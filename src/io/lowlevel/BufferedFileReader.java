@@ -43,6 +43,7 @@ public class BufferedFileReader implements FileReader {
 	public BufferedFileReader(FileReader fileReader, int bufferLength) {
 		this.fileReader = fileReader;
 		this.bufferLength = bufferLength;
+		this.buffer = ByteBuffer.allocate(0);
 	}
 	
 	
@@ -54,7 +55,7 @@ public class BufferedFileReader implements FileReader {
 		}
 		
 		// If buffer was not initialized yet, fill buffer
-		if(this.buffer == null) {
+		if(this.buffer.capacity() == 0) {
 			this.fillBuffer();
 		}
 		
