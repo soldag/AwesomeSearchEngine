@@ -10,7 +10,6 @@ import org.apache.commons.io.FilenameUtils;
 import com.ximpleware.AutoPilot;
 import com.ximpleware.NavException;
 import com.ximpleware.ParseException;
-import com.ximpleware.TextIter;
 import com.ximpleware.VTDGen;
 import com.ximpleware.VTDNav;
 import com.ximpleware.XPathEvalException;
@@ -24,7 +23,7 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 	/**
 	 * XPaths constants for XML elements containing the whole patent and its document ID.
 	 */
-	private static final String PATENT_PATH = "//us-patent-grant"; //TODO: affects performance?
+	private static final String PATENT_PATH = "//us-patent-grant";
 	private static final String DOCUMENT_ID_PATH = "us-bibliographic-data-grant/publication-reference/document-id/doc-number";
 	
 	/**
@@ -160,7 +159,7 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 		StringBuilder valueBuilder = new StringBuilder();
 		while(localAutoPilot.evalXPath() != -1){
 			// Get value
-			String value = this.extractMixedText();
+			String value = this.navigation.getXPathStringVal();
 			valueBuilder.append(value);
 		}
 		
@@ -172,36 +171,6 @@ public class PatentDocumentParser implements Iterator<PatentContentDocument>, It
 		}
 		
 		return valueBuilder.toString();
-	}
-	
-	/**
-	 * Reads text of the current token and its children. 
-	 * @return
-	 * @throws NavException
-	 */
-	private String extractMixedText() throws NavException {
-		// Store navigation context
-		this.navigation.push();
-		
-		// Create iterator for texts
-		TextIter iter = new TextIter();
-		iter.touch(navigation);
-		
-		// Concatenate text of following text and child nodes of the current element
-		int i;
-		StringBuilder textBuilder = new StringBuilder();
-		while ((i = iter.getNext()) != -1) {
-			textBuilder.append(this.navigation.toString(i));
-			
-			if(this.navigation.toElement(VTDNav.FIRST_CHILD)) {
-				textBuilder.append(this.extractMixedText());
-			}
-		}
-		
-		// Restore initial navigation context, if asked for
-		this.navigation.pop();
-		
-		return textBuilder.toString();
 	}
 	
 	/**
