@@ -16,11 +16,6 @@ public class CompressedIndexWriter extends UncompressedIndexWriter {
 	
 	
 	@Override
-	public IndexWriter uncompressed() {
-		return (UncompressedIndexWriter)this;
-	}
-	
-	@Override
 	public boolean isCompressed() {
 		return true;
 	}

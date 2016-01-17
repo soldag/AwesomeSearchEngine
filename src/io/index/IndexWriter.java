@@ -13,12 +13,6 @@ public interface IndexWriter extends FileWriter {
 	public boolean isCompressed();
 	
 	/**
-	 * Returns an index writer instance of uncompressed access to the current file.
-	 * @return
-	 */
-	public IndexWriter uncompressed();
-	
-	/**
 	 * Writes a short to the file as two bytes, high byte first.
 	 * @param value
 	 * @throws IOException

@@ -95,7 +95,7 @@ public class UncompressedIndexWriter implements IndexWriter, AutoCloseable {
 	@Override
 	public void endSkippingArea() throws IOException {
 		if(!this.skippingAreaActive) {
-			throw new IllegalStateException("A skipping area has to be started frist before ending it.");
+			throw new IllegalStateException("A skipping area has to be started first before ending it.");
 		}
 		
 		// Write buffered bytes
@@ -115,11 +115,6 @@ public class UncompressedIndexWriter implements IndexWriter, AutoCloseable {
 	@Override
 	public boolean isCompressed() {
 		return false;
-	}
-	
-	@Override
-	public IndexWriter uncompressed() {
-		return this;
 	}
 
 

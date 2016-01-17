@@ -207,11 +207,23 @@ public class PatentDocument {
 	 * @throws IOException
 	 */
 	public void save(IndexWriter writer) throws IOException {
-		// Write document id
-		writer.writeInt(this.getId());
-		
-		// Start skipping area for properties of the document
-		writer.startSkippingArea();
+		this.save(writer, false);
+	}
+	
+	/**
+	 * Saves the body(without id) of a document to file using the given file writer.
+	 * @param writer
+	 * @param bodyOnly
+	 * @throws IOException
+	 */
+	public void save(IndexWriter writer, boolean bodyOnly) throws IOException {
+		if(!bodyOnly) {
+			// Write document id
+			writer.writeInt(this.getId());
+			
+			// Start skipping area for properties of the document
+			writer.startSkippingArea();
+		}
 		
 		// Write file id
 		writer.writeInt(this.getFileId());
@@ -226,7 +238,9 @@ public class PatentDocument {
 			writer.writeInt(this.getTokensCount(contentType));
 		}
 		
-		// End skipping area for properties of the document
-		writer.endSkippingArea();
+		if(!bodyOnly) {
+			// End skipping area for properties of the document
+			writer.endSkippingArea();
+		}
 	}
 }
