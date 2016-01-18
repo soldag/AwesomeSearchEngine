@@ -60,7 +60,7 @@ public class DocumentMapConstructor extends GenericIndexConstructor<Integer> {
 	}
 	
 	@Override
-	public long size() {
+	public int size() {
 		return this.documentMap.size();
 	}
 	

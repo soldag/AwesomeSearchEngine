@@ -44,7 +44,7 @@ public interface IndexReader extends FileReader {
 	 * Gets the length of the starting skipping area.
 	 * @return
 	 */
-	public int getSkippingAreaLenght() throws IOException;
+	public int getSkippingAreaLength() throws IOException;
 	
 	/**
 	 * Skips the starting skipping area.

@@ -84,13 +84,13 @@ public class UncompressedIndexReader implements IndexReader, AutoCloseable {
 	
 
 	@Override
-	public int getSkippingAreaLenght() throws IOException {
+	public int getSkippingAreaLength() throws IOException {
 		return this.readInt();
 	}
 
 	@Override
 	public void skipSkippingArea() throws IOException {
-		int length = this.getSkippingAreaLenght();
+		int length = this.getSkippingAreaLength();
 		this.seek(this.getFilePointer() +  length);
 	}
 

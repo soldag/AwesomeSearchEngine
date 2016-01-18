@@ -221,37 +221,24 @@ public class TokenPostings {
 	public String toString() {
 		return this.postings.toString();
 	}
-
 	
 	/**
 	 * Loads postings for a specific token from a given file reader. 
-	 * The file descriptor has to be right after the token.
 	 * @param reader
 	 * @param loadPositions
 	 * @return
 	 * @throws IOException
 	 */
 	public static TokenPostings load(IndexReader reader, boolean loadPositions) throws IOException {
-		int length = reader.readInt();
-		return TokenPostings.load(reader, length, loadPositions);
-	}
-	
-	/**
-	 * Loads postings for a specific token from a given file reader. 
-	 * The file descriptor has to be right after the length of the postings.
-	 * @param reader
-	 * @param length
-	 * @param loadPositions
-	 * @return
-	 * @throws IOException
-	 */
-	public static TokenPostings load(IndexReader reader, int length, boolean loadPositions) throws IOException {
+		// Get skipping area length
+		int length = reader.getSkippingAreaLength();
+		long endPosition = reader.getFilePointer() + length;
+		
 		// Read total occurrences count
 		int totalOccurrencesCount = reader.readInt();
 		
 		// Load postings
 		int lastDocumentId = 0;
-		long endPosition = reader.getFilePointer() + length;
 		Map<Integer, PositionMap> postings = new HashMap<Integer, PositionMap>();
 		while(reader.getFilePointer() < endPosition) {
 			// Read document id
@@ -282,6 +269,9 @@ public class TokenPostings {
 	 * @throws IOException
 	 */
 	public void save(IndexWriter writer) throws IOException {
+		// Start skipping area
+		writer.startSkippingArea();
+		
 		// Write total occurrences count
 		writer.writeInt(this.getTotalOccurencesCount());
 		
@@ -302,5 +292,8 @@ public class TokenPostings {
 			// Write positions
 			positionMap.save(writer);
 		}
+		
+		// End skipping area
+		writer.endSkippingArea();
 	}
 }

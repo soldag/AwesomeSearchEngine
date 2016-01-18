@@ -86,6 +86,7 @@ public class EagerPositionMap implements PositionMap {
 	 * @throws IOException
 	 */
 	public static EagerPositionMap load(IndexReader indexReader) throws IOException {
+		// Read numbers of positions per content type
 		Map<ContentType, Integer> positionCounts = new HashMap<ContentType, Integer>();
 		for(ContentType contentType: ContentType.orderedValues()) {
 			int count = indexReader.readInt();
@@ -101,21 +102,21 @@ public class EagerPositionMap implements PositionMap {
 	 * @throws IOException
 	 */
 	public static EagerPositionMap load(IndexReader indexReader, Map<ContentType, Integer> positionCounts) throws IOException {
-		indexReader.getSkippingAreaLenght();
+		// Skip skipping area length
+		indexReader.getSkippingAreaLength();
 		
+		// Read single positions
 		EagerPositionMap positionMap = new EagerPositionMap();
 		for(ContentType contentType: ContentType.orderedValues()) {
 			int lastPosition = 0;
-			Integer count = positionCounts.get(contentType);
-			if(count != null) {
-				for(int i = 0; i < count; i++) {
-					int position = indexReader.readInt();
-					if(indexReader.isCompressed()) {
-						position += lastPosition;
-						lastPosition = position;
-					}
-					positionMap.put(contentType, position);
+			int count = positionCounts.get(contentType);
+			for(int i = 0; i < count; i++) {
+				int position = indexReader.readInt();
+				if(indexReader.isCompressed()) {
+					position += lastPosition;
+					lastPosition = position;
 				}
+				positionMap.put(contentType, position);
 			}
 		}
 		
@@ -128,7 +129,7 @@ public class EagerPositionMap implements PositionMap {
 		for(ContentType contentType: ContentType.orderedValues()) {
 			int count = 0;
 			if(this.containsContentType(contentType)) {
-				count = this.size();
+				count = this.size(contentType);
 			}
 			indexWriter.writeInt(count);
 		}

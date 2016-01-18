@@ -58,13 +58,11 @@ public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 		
 		// Write postings
 		TokenPostings postings = this.invertedIndex.ofToken(key);
-		indexWriter.startSkippingArea();
 		postings.save(indexWriter);
-		indexWriter.endSkippingArea();
 	}
 	
 	@Override
-	public long size() {
+	public int size() {
 		return this.invertedIndex.totalTokenOccurencesCount();
 	}
 	

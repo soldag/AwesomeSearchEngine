@@ -34,7 +34,7 @@ public abstract class GenericIndexMerger<K extends Comparable<K>, V> {
 			// Open temporary index files
 			List<K> firstKeys = new ArrayList<K>(temporaryIndexFiles.size());
 			List<IndexReader> sourceFiles = new ArrayList<IndexReader>(temporaryIndexFiles.size());
-			long totalSize = 0;
+			int totalSize = 0;
 			for(File temporaryIndexFile: temporaryIndexFiles) {
 				IndexReader tempFile = FileReaderWriterFactory.getInstance().getBufferedIndexReader(temporaryIndexFile, this.isCompressed);
 				sourceFiles.add(tempFile);
@@ -43,7 +43,7 @@ public abstract class GenericIndexMerger<K extends Comparable<K>, V> {
 			}
 			
 			// Write total positions count
-			destinationFile.writeLong(totalSize);
+			destinationFile.writeInt(totalSize);
 			
 			K lastKey = null;
 			V lastValue = null;
@@ -103,9 +103,7 @@ public abstract class GenericIndexMerger<K extends Comparable<K>, V> {
 		
 		// Write to destination file
 		this.writeKey(key, indexWriter);
-		indexWriter.startSkippingArea();
 		this.writeValue(value, indexWriter);
-		indexWriter.endSkippingArea();
 	}
 	
 	protected abstract K readKey(IndexReader indexReader) throws IOException;

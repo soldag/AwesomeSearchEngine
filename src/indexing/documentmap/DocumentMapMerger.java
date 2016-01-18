@@ -30,7 +30,7 @@ public class DocumentMapMerger extends GenericIndexMerger<Integer, PatentDocumen
 
 	@Override
 	protected PatentDocument readValue(Integer documentId, IndexReader indexReader) throws IOException {
-		indexReader.getSkippingAreaLenght();
+		indexReader.getSkippingAreaLength();
 		return PatentDocument.load(documentId, indexReader);
 	}
 

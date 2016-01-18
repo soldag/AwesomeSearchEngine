@@ -60,17 +60,16 @@ public class InvertedIndexReader implements AutoCloseable {
 		while(true) {
 			try {
 				String readToken = this.indexFile.readString();
-				int postingsLength = this.indexFile.readInt();
 				
 				if(prefixSearch) {
 					if(readToken.startsWith(token)) {
-						TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength, loadPositions);
+						TokenPostings readPostings = TokenPostings.load(this.indexFile, loadPositions);
 						postings.putAll(readToken, readPostings);
 						continue;
 					}
 				}			
 				else if(readToken.equals(token)) {
-					TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength, loadPositions);
+					TokenPostings readPostings = TokenPostings.load(this.indexFile, loadPositions);
 					postings.putAll(readToken, readPostings);
 					break;
 				}
@@ -79,7 +78,7 @@ public class InvertedIndexReader implements AutoCloseable {
 					break;
 				}
 				
-				this.indexFile.seek(this.indexFile.getFilePointer() + postingsLength);
+				this.indexFile.skipSkippingArea();
 			}
 			catch(EOFException e) {
 				break;

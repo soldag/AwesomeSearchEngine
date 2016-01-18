@@ -63,7 +63,7 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 		// Open index file
 		try (IndexWriter indexWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(indexFile, this.compress)) {
 			// Write size
-			indexWriter.writeLong(this.size());
+			indexWriter.writeInt(this.size());
 			
 			// Write values for each index entry
 			List<T> sortedKeys = this.keys().stream().sorted().collect(Collectors.toList());
@@ -103,7 +103,7 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 	 * Gets the size of the index.
 	 * @return
 	 */
-	public abstract long size();
+	public abstract int size();
 	
 	/**
 	 * Gets the number of entries in the index.
