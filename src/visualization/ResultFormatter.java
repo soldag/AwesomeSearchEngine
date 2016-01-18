@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import documents.PatentContentDocument;
 import documents.PatentDocument;
@@ -16,13 +18,18 @@ import textprocessing.TextPreprocessor;
 public class ResultFormatter {
 	
 	/**
+	 * Contains the pattern template for matching query tokens case-insensitive.
+	 */
+	private static final String QUERY_TOKEN_PATTERN = "(?i)\\b%s\\b";
+	
+	/**
 	 * Contains necessary services.
 	 */
 	private PatentContentLookup patentContentLookup;
 	private final TextPreprocessor textPreprocessor;
 	private SnippetGenerator snippetGenerator;
 	
-	
+
 	/**
 	 * Creates a new ResultFormatter instance.
 	 * @param patentContentLookup
@@ -94,8 +101,12 @@ public class ResultFormatter {
 		
 		// Highlight query tokens in title
 		for(int position: queryTokenPositions) {
-			String token = tokenizedTitle.get(position);
-			title = title.replaceAll("\\b" + token + "\\b", ResultStyle.ANSI_COLOR_GREEN + token + ResultStyle.ANSI_COLOR_RESET);
+			Pattern queryTokenPattern = Pattern.compile(String.format(QUERY_TOKEN_PATTERN, tokenizedTitle.get(position)));
+			Matcher matcher = queryTokenPattern.matcher(title);
+			while(matcher.find()) {
+				String token = matcher.group();
+				title = title.replaceAll(token, ResultStyle.ANSI_COLOR_GREEN + token + ResultStyle.ANSI_COLOR_RESET);
+			}
 		}
 		
 		// Format whole title bold
