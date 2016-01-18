@@ -49,10 +49,11 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @param token
 	 * @param startOffset
 	 * @param prefixSearch
+	 * @param loadPositions
 	 * @return List of postings
 	 * @throws IOException
 	 */
-	public PostingTable getPostings(String token, int startOffset, boolean prefixSearch) throws IOException {
+	public PostingTable getPostings(String token, int startOffset, boolean prefixSearch, boolean loadPositions) throws IOException {
 		PostingTable postings = new PostingTable();
 		
 		this.indexFile.seek(startOffset);
@@ -63,13 +64,13 @@ public class InvertedIndexReader implements AutoCloseable {
 				
 				if(prefixSearch) {
 					if(readToken.startsWith(token)) {
-						TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength);
+						TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength, loadPositions);
 						postings.putAll(readToken, readPostings);
 						continue;
 					}
 				}			
 				else if(readToken.equals(token)) {
-					TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength);
+					TokenPostings readPostings = TokenPostings.load(this.indexFile, postingsLength, loadPositions);
 					postings.putAll(readToken, readPostings);
 					break;
 				}

@@ -1,20 +1,27 @@
 package querying;
 
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.tuple.Pair;
 
 import com.google.common.collect.ImmutableTable;
 
 import documents.PatentDocument;
 import postings.ContentType;
 import postings.DocumentPostings;
-import postings.PositionMap;
 import postings.PostingTable;
+import postings.positions.PositionMap;
 import querying.results.PrfQueryResult;
 import querying.results.QueryResult;
 import utilities.MapValueComparator;
@@ -66,16 +73,13 @@ public class DocumentRanker {
 													.collect(Collectors.toList());
 		
 		// Creates ranked posting table
-		ImmutableTable.Builder<String, Integer, PositionMap> postingTableBuilder = new ImmutableTable.Builder<String, Integer, PositionMap>();
-		rankedDocuments
-				.forEach(document -> resultPostings.ofDocument(document).tokenSet().stream()
-						.forEach(token -> postingTableBuilder.put(token, document.getId(), resultPostings.ofDocument(document).ofToken(token))));
+		PostingTable postingTable = new PostingTable();
+		for(PatentDocument document: rankedDocuments) {
+			DocumentPostings documentPostings = resultPostings.ofDocument(document);
+			postingTable.putAll(document, documentPostings);
+		}
 		
-		// Create new document map limited to ranked documents
-		Map<Integer, PatentDocument> documents = rankedDocuments.stream()
-														.collect(Collectors.toMap(document -> document.getId(), Function.identity()));
-		
-		return new QueryResult(new PostingTable(postingTableBuilder.build(), documents), result.getSpellingCorrections());
+		return new QueryResult(postingTable, result.getSpellingCorrections());
 	}
 	
 	/**
@@ -127,8 +131,9 @@ public class DocumentRanker {
 	 * @return
 	 */
 	private int countTokenOccurrences(String token, DocumentPostings documentPostings, ContentType contentType) {
-		if(documentPostings.containsToken(token) && documentPostings.ofToken(token).containsContentType(contentType)) {
-			return documentPostings.ofToken(token).ofContentType(contentType).length;
+		PositionMap positionMap = documentPostings.ofToken(token);
+		if(positionMap != null) {
+			return positionMap.size(contentType);
 		}
 		
 		return 0;
@@ -159,7 +164,7 @@ public class DocumentRanker {
 	 * @return
 	 */
 	private int getCollectionFrequency(String token, QueryResult result) {
-		return result.getPostings().ofToken(token).positions().stream().mapToInt(x -> x.size()).sum();
+		return result.getPostings().ofToken(token).getTotalOccurencesCount();
 	}
 	
 	/**

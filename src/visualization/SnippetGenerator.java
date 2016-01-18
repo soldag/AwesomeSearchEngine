@@ -19,7 +19,7 @@ import documents.PatentDocument;
 import parsing.PatentContentLookup;
 import postings.ContentType;
 import postings.DocumentPostings;
-import postings.PositionMap;
+import postings.positions.PositionMap;
 import querying.results.PrfQueryResult;
 import querying.results.QueryResult;
 import textprocessing.TextPreprocessor;

@@ -21,8 +21,9 @@ import io.FileReaderWriterFactory;
 import io.index.IndexReader;
 import postings.ContentType;
 import postings.DocumentPostings;
-import postings.PositionMap;
 import postings.PostingTable;
+import postings.positions.EagerPositionMap;
+import postings.positions.PositionMap;
 import querying.results.QueryResult;
 import querying.queries.BooleanQuery;
 import querying.queries.KeywordQuery;
@@ -174,7 +175,7 @@ public class QueryProcessor {
 		QueryResult result;
 		switch(query.getType()) {
 			case BooleanQuery.TYPE:
-				result = this.search((BooleanQuery)query);
+				result = this.search((BooleanQuery)query, resultLimit);
 				break;
 				
 			case PhraseQuery.TYPE:
@@ -233,23 +234,37 @@ public class QueryProcessor {
 	/**
 	 * Evaluates the given boolean query. 
 	 * @param query
+	 * @param resultLimit
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult search(BooleanQuery query) throws IOException {
+	private QueryResult search(BooleanQuery query, int resultLimit) throws IOException {
+		QueryResult result;
 		switch(query.getOperator()) {		
 			case Or:
-				return QueryResult.disjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				result = QueryResult.disjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				break;
 				
 			case And:
-				return QueryResult.conjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				result = QueryResult.conjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				break;
 				
 			case Not:
-				return QueryResult.relativeComplement(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				result = QueryResult.relativeComplement(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				break;
 				
 			default:
 				return new QueryResult();
 		}
+		
+		// Limit resulting documents
+		int[] documentIds = result.getPostings().documentIdSet().stream().limit(resultLimit).mapToInt(documentId -> documentId.intValue()).toArray();
+		PostingTable postingTable = new PostingTable();
+		for(int documentId: documentIds) {
+			postingTable.putAll(documentId, result.getPostings().ofDocument(documentId));			
+		}
+		
+		return new QueryResult(postingTable, result.getSpellingCorrections());
 	}
 	
 	
@@ -289,7 +304,10 @@ public class QueryProcessor {
 														.toArray();
 								
 								if(this.areSuccessive(lastPositions, currentPositions)) {
-									newTokenPostings.put(currentToken, documentId, contentType, currentPositions);
+									PositionMap currentPositionMap = new EagerPositionMap();
+									positionMap.put(contentType, currentPositions);
+									
+									newTokenPostings.put(currentToken, documentId, currentPositionMap);
 								}
 							}
 						}
@@ -397,7 +415,7 @@ public class QueryProcessor {
 			
 			// Get postings
 			int startOffset = this.indexSeekList.get(token);
-			PostingTable postings = this.indexReader.getPostings(token, startOffset, prefixSearch);
+			PostingTable postings = this.indexReader.getPostings(token, startOffset, prefixSearch, false);
 			
 			// Spelling correction
 			if(!prefixSearch && postings.isEmpty()) {

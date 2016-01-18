@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
+import postings.positions.PositionMap;
+
 public class DocumentPostings {
 	
 	/**
@@ -14,10 +16,10 @@ public class DocumentPostings {
 	
 	/**
 	 * Creates a new DocumentPostings instance.
-	 * @param positions
+	 * @param postings
 	 */
-	public DocumentPostings(Map<String, PositionMap> positions) {
-		this.postings = positions;
+	public DocumentPostings(Map<String, PositionMap> postings) {
+		this.postings = postings;
 	}
 		
 	
@@ -72,6 +74,15 @@ public class DocumentPostings {
 	 */
 	public void put(String token, PositionMap positions) {
 		this.postings.put(token, positions);
+	}
+	
+	
+	/**
+	 * Remove postings of the given token.
+	 * @param token
+	 */
+	public void remove(String token) {
+		this.postings.remove(token);
 	}
 	
 	

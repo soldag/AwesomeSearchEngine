@@ -10,8 +10,16 @@ import java.util.stream.Collectors;
 import documents.PatentDocument;
 import io.index.IndexReader;
 import io.index.IndexWriter;
+import postings.positions.EagerPositionMap;
+import postings.positions.LazyPositionMap;
+import postings.positions.PositionMap;
 
 public class TokenPostings {
+	
+	/**
+	 * Contains the number of occurrences of the token in the whole collection.
+	 */
+	private int totalOccurencesCount = 0;
 
 	/**
 	 * Contains the postings for a specific token.
@@ -25,21 +33,45 @@ public class TokenPostings {
 	
 	
 	/**
-	 * Creates a new, empty TokenPostings instance.
-	 */
-	public TokenPostings() {
-		this.postings = new HashMap<Integer, PositionMap>();
-		this.documents = new HashMap<Integer, PatentDocument>();
-	}	
-	
-	/**
 	 * Creates a new TokenPostings instance.
 	 * @param postings
 	 * @param documents
 	 */
-	public TokenPostings(Map<Integer, PositionMap> postings, Map<Integer, PatentDocument> documents) {
+	public TokenPostings(Map<Integer, PositionMap> postings, Map<Integer, PatentDocument> documents) {		
+		this(postings, countTotalOccurrences(postings.values()), documents);
+	}
+
+	
+	/**
+	 * Creates a new TokenPostings instance.
+	 * @param postings
+	 * @param totalOccurrencesCount
+	 */
+	public TokenPostings(Map<Integer, PositionMap> postings, int totalOccurrencesCount) {
+		this(postings, totalOccurrencesCount, new HashMap<Integer, PatentDocument>());
+	}
+	
+	/**
+	 * Creates a new TokenPostings instance.
+	 * @param postings
+	 * @param totalOccurrencesCount
+	 * @param documents
+	 */
+	public TokenPostings(Map<Integer, PositionMap> postings, int totalOccurrencesCount, Map<Integer, PatentDocument> documents) {
 		this.postings = postings;
+		this.totalOccurencesCount = totalOccurrencesCount;
 		this.documents = documents;
+	}
+	
+	/**
+	 * Counts the number of total occurrences of a collection of position maps.
+	 * @param positionMaps
+	 * @return
+	 */
+	private static int countTotalOccurrences(Collection<PositionMap> positionMaps) {
+		return positionMaps.stream()
+				.mapToInt(positionMap -> positionMap.size())
+				.sum();
 	}
 	
 	
@@ -60,7 +92,7 @@ public class TokenPostings {
 				.filter(documentId -> this.documents.containsKey(documentId))
 				.map(documentId -> this.documents.get(documentId))
 				.collect(Collectors.toSet());
-	}	
+	}
 	
 	/**
 	 * Returns all positions of the postings.
@@ -76,6 +108,15 @@ public class TokenPostings {
 	 */
 	public Set<Map.Entry<Integer, PositionMap>> entrySet() {
 		return this.postings.entrySet();
+	}
+	
+	
+	public boolean containsDocument(int documentId) {
+		return this.postings.containsKey(documentId);
+	}
+	
+	public boolean containsDocument(PatentDocument document) {
+		return this.containsDocument(document.getId());
 	}
 	
 	
@@ -143,13 +184,36 @@ public class TokenPostings {
 	
 	
 	/**
+	 * Remove postings of the given document.
+	 * @param documentId
+	 */
+	public void remove(int documentId) {
+		this.postings.remove(documentId);
+	}
+	
+	/**
+	 * Remove postings of the given document.
+	 * @param document
+	 */
+	public void remove(PatentDocument document) {
+		this.remove(document.getId());
+	}
+	
+	
+	/**
 	 * Gets the number of all occurrences of the tokens.
 	 * @return
 	 */
-	public long totalOccurencesCount() {
-		return this.positions().stream()
-					.mapToLong(positions -> positions.size())
-					.sum();
+	public int getTotalOccurencesCount() {
+		return this.totalOccurencesCount;
+	}
+	
+	/**
+	 * Gets the number of documents mapped to the current token.
+	 * @return
+	 */
+	public int size() {
+		return this.postings.size();
 	}
 	
 	
@@ -163,27 +227,32 @@ public class TokenPostings {
 	 * Loads postings for a specific token from a given file reader. 
 	 * The file descriptor has to be right after the token.
 	 * @param reader
+	 * @param loadPositions
 	 * @return
 	 * @throws IOException
 	 */
-	public static TokenPostings load(IndexReader reader) throws IOException {
+	public static TokenPostings load(IndexReader reader, boolean loadPositions) throws IOException {
 		int length = reader.readInt();
-		return TokenPostings.load(reader, length);
+		return TokenPostings.load(reader, length, loadPositions);
 	}
 	
 	/**
 	 * Loads postings for a specific token from a given file reader. 
-	 * The file descriptor has to be right afterthe length of the postings.
+	 * The file descriptor has to be right after the length of the postings.
 	 * @param reader
 	 * @param length
+	 * @param loadPositions
 	 * @return
 	 * @throws IOException
 	 */
-	public static TokenPostings load(IndexReader reader, int length) throws IOException {
-		TokenPostings postings = new TokenPostings();
+	public static TokenPostings load(IndexReader reader, int length, boolean loadPositions) throws IOException {
+		// Read total occurrences count
+		int totalOccurrencesCount = reader.readInt();
 		
+		// Load postings
 		int lastDocumentId = 0;
 		long endPosition = reader.getFilePointer() + length;
+		Map<Integer, PositionMap> postings = new HashMap<Integer, PositionMap>();
 		while(reader.getFilePointer() < endPosition) {
 			// Read document id
 			int documentId = reader.readInt();
@@ -193,12 +262,18 @@ public class TokenPostings {
 			}
 			
 			// Read positions grouped by content type
-			PositionMap positionMap = PositionMap.load(reader);
+			PositionMap positionMap; 
+			if(loadPositions) {
+				positionMap = EagerPositionMap.load(reader);
+			}
+			else {
+				positionMap = LazyPositionMap.load(reader);
+			}
 			
 			postings.put(documentId, positionMap);
 		}
 		
-		return postings;
+		return new TokenPostings(postings, totalOccurrencesCount);
 	}
 	
 	/**
@@ -207,6 +282,10 @@ public class TokenPostings {
 	 * @throws IOException
 	 */
 	public void save(IndexWriter writer) throws IOException {
+		// Write total occurrences count
+		writer.writeInt(this.getTotalOccurencesCount());
+		
+		// Write postings
 		int lastDocumentId = 0;
 		int[] sortedDocumentIds = this.documentIdSet().stream().mapToInt(x -> x.intValue()).sorted().toArray();
 		for(int documentId: sortedDocumentIds) {

@@ -129,8 +129,9 @@ public class PatentDocument {
 			throw new IllegalStateException("Document was not tokenized, yet.");
 		}
 		
-		if(this.tokenCounts.containsKey(contentType)) {
-			return this.tokenCounts.get(contentType);
+		Integer count = this.tokenCounts.get(contentType);
+		if(count != null) {
+			return count;
 		}
 		
 		return 0;

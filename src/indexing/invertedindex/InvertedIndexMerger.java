@@ -33,7 +33,7 @@ public class InvertedIndexMerger extends GenericIndexMerger<String, TokenPosting
 
 	@Override
 	protected TokenPostings readValue(String token, IndexReader indexReader) throws IOException {
-		return TokenPostings.load(indexReader);
+		return TokenPostings.load(indexReader, true);
 	}
 
 
