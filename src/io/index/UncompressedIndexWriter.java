@@ -1,6 +1,8 @@
 package io.index;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 import org.apache.commons.io.output.ByteArrayOutputStream;
 
@@ -23,14 +25,9 @@ public class UncompressedIndexWriter implements IndexWriter, AutoCloseable {
 	private FileWriter fileWriter;
 	
 	/**
-	 * Determines, whether a skipping area is active.
+	 * Contains the skipping area stack.
 	 */
-	private boolean skippingAreaActive = false;
-	
-	/**
-	 * Contains a buffer for write operations in a skipping area.
-	 */
-	private ByteArrayOutputStream skippingAreaBuffer = new ByteArrayOutputStream();
+	private Deque<ByteArrayOutputStream> skippingAreaStack = new ArrayDeque<ByteArrayOutputStream>();
 	
 
 	/**
@@ -44,20 +41,20 @@ public class UncompressedIndexWriter implements IndexWriter, AutoCloseable {
 	
 	@Override
 	public void write(byte[] bytes) throws IOException {
-		if(this.skippingAreaActive) {
-			this.skippingAreaBuffer.write(bytes);
+		if(this.skippingAreaStack.isEmpty()) {
+			this.fileWriter.write(bytes);
 		}
 		else {
-			this.fileWriter.write(bytes);
+			this.skippingAreaStack.peekFirst().write(bytes);
 		}
 	}
 	
 	public void writeByte(byte value) throws IOException {
-		if(this.skippingAreaActive) {
-			this.skippingAreaBuffer.write(value);
+		if(this.skippingAreaStack.isEmpty()) {
+			this.fileWriter.writeByte(value);
 		}
 		else {
-			this.fileWriter.writeByte(value);
+			this.skippingAreaStack.peekFirst().write(value);
 		}
 	}
 
@@ -89,25 +86,20 @@ public class UncompressedIndexWriter implements IndexWriter, AutoCloseable {
 
 	@Override
 	public void startSkippingArea() throws IOException {
-		this.skippingAreaActive = true;
+		this.skippingAreaStack.push(new ByteArrayOutputStream());
 	}
 
 	@Override
 	public void endSkippingArea() throws IOException {
-		if(!this.skippingAreaActive) {
+		if(this.skippingAreaStack.isEmpty()) {
 			throw new IllegalStateException("A skipping area has to be started first before ending it.");
 		}
 		
-		// Write buffered bytes
-		this.skippingAreaActive = false;
 		this.flushSkippingArea();
-		
-		// Reset skipping area
-		this.skippingAreaBuffer.reset();
 	}
 	
 	private void flushSkippingArea() throws IOException {
-		byte[] buffer = this.skippingAreaBuffer.toByteArray();
+		byte[] buffer = this.skippingAreaStack.removeFirst().toByteArray();
 		this.writeInt(buffer.length);
 		this.write(buffer);
 	}
@@ -135,7 +127,7 @@ public class UncompressedIndexWriter implements IndexWriter, AutoCloseable {
 
 	@Override
 	public void close() throws IOException {
-		if(this.skippingAreaActive) {
+		if(!this.skippingAreaStack.isEmpty()) {
 			this.flushSkippingArea();
 		}
 		
