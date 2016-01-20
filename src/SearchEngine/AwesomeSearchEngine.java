@@ -23,10 +23,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import org.apache.commons.io.FilenameUtils;
 
@@ -60,7 +56,6 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private SnippetGenerator snippetGenerator;
 	private ResultFormatter resultFormatter;
 	private NdcgCalculator ncdgCalculator;
-	private WebFile webFile;
 	
 	/**
 	 * Contain necessary directory paths.
@@ -210,18 +205,6 @@ public class AwesomeSearchEngine extends SearchEngine {
 		return ncdgCalculator;
 	}
     
-    /**
-     * Returns the current web file.
-     * @return
-     */
-    private WebFile getWebFile() {
-    	if(this.webFile == null) {
-    		this.webFile = new WebFile();
-    	}
-    	
-    	return this.webFile;
-    }
-    
 
     @Override
     public void index() {
@@ -247,10 +230,8 @@ public class AwesomeSearchEngine extends SearchEngine {
     public ArrayList<String> search(String query, int topK) {
     	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
 	    	try {
-	    		QueryResult result = this.queryProcessor.search(query, topK);
-	    		Map<Integer, Double> ncdgValues = this.computeNdcg(query, result);
-	    		
-	    		return this.getResultFormatter().format(result, ncdgValues);
+	    		QueryResult result = this.queryProcessor.search(query, topK);	    		
+	    		return this.getResultFormatter().format(result);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -264,8 +245,8 @@ public class AwesomeSearchEngine extends SearchEngine {
 
 
 	@Override
-	public Double computeNdcg(ArrayList<String> goldRanking, ArrayList<String> ranking, int p) {
-		return this.getNcdgCalculator().calculate(goldRanking, ranking, p);
+	public Double computeNdcg(ArrayList<String> goldRanking, ArrayList<String> results, int p) {
+		return this.getNcdgCalculator().calculate(goldRanking, results, p);
 	}
 	
     
@@ -304,29 +285,5 @@ public class AwesomeSearchEngine extends SearchEngine {
 		}
         
         return true;
-    }
-    
-    /**
-     * Calculates the NCDG values for a given query and its result.
-     * @param query
-     * @param result
-     * @return
-     */
-    private Map<Integer, Double> computeNdcg(String query, QueryResult result) {
-    	// Get gold ranking from google
-    	List<String> goldRanking = this.getWebFile().getGoogleRanking(query);
-    	
-    	// Extract document ids from awesome ranking
-    	List<Integer> documentIds = new ArrayList<Integer>(result.getPostings().documentIdSet());
-    	List<String> awesomeRanking = documentIds.stream()
-    										.map(documentId -> documentId.toString())
-    										.collect(Collectors.toList());
-    	
-    	// Calculate NDCG values
-    	return IntStream.range(0, documentIds.size())
-    			.boxed()
-    			.collect(Collectors.toMap(
-	    					i -> documentIds.get(i), 
-	    					i -> this.getNcdgCalculator().calculate(goldRanking, awesomeRanking, i + 1)));
     }
 }
