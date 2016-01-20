@@ -204,11 +204,9 @@ public class QueryProcessor {
 			}
 		}
 		
-		// Load documents of result
-		result.getPostings().loadDocuments(this::getDocument);
-		
 		// Weight resulting documents, if specified so
-		if(weightDocuments && query.getType() != BooleanQuery.TYPE) {
+		if(weightDocuments) {
+			result.getPostings().loadDocuments(this::getDocument);
 			result = this.documentRanker.weightResult(result, resultLimit, this.indexReader.getTotalTokenCount());
 		}
 		
@@ -257,14 +255,7 @@ public class QueryProcessor {
 				return new QueryResult();
 		}
 		
-		// Limit resulting documents
-		int[] documentIds = result.getPostings().documentIdSet().stream().limit(resultLimit).mapToInt(documentId -> documentId.intValue()).toArray();
-		PostingTable postingTable = new PostingTable();
-		for(int documentId: documentIds) {
-			postingTable.putAll(documentId, result.getPostings().ofDocument(documentId));			
-		}
-		
-		return new QueryResult(postingTable, result.getSpellingCorrections());
+		return result;
 	}
 	
 	
