@@ -221,10 +221,10 @@ public class PatentDocument {
 		if(!bodyOnly) {
 			// Write document id
 			writer.writeInt(this.getId());
-			
-			// Start skipping area for properties of the document
-			writer.startSkippingArea();
 		}
+		
+		// Start skipping area for properties of the document
+		writer.startSkippingArea();
 		
 		// Write file id
 		writer.writeInt(this.getFileId());
@@ -239,9 +239,7 @@ public class PatentDocument {
 			writer.writeInt(this.getTokensCount(contentType));
 		}
 		
-		if(!bodyOnly) {
-			// End skipping area for properties of the document
-			writer.endSkippingArea();
-		}
+		// End skipping area for properties of the document
+		writer.endSkippingArea();
 	}
 }

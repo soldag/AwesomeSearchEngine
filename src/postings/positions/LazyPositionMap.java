@@ -15,7 +15,7 @@ public class LazyPositionMap implements PositionMap {
 	
 	private IndexReader indexReader;
 	
-	private int offset;
+	private long offset;
 	
 	private Map<ContentType, Integer> positionCounts;
 	
@@ -28,7 +28,7 @@ public class LazyPositionMap implements PositionMap {
 	 * @param offset
 	 * @param positionCounts
 	 */
-	private LazyPositionMap(IndexReader indexReader, int offset, Map<ContentType, Integer> positionCounts) {
+	private LazyPositionMap(IndexReader indexReader, long offset, Map<ContentType, Integer> positionCounts) {
 		this.indexReader = indexReader;
 		this.offset = offset;
 		this.positionCounts = positionCounts;
@@ -129,7 +129,7 @@ public class LazyPositionMap implements PositionMap {
 		}
 		
 		// Get offset
-		int offset = (int)indexReader.getFilePointer();
+		long offset = indexReader.getFilePointer();
 		
 		// Skip positions
 		indexReader.skipSkippingArea();
