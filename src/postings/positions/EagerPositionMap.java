@@ -1,6 +1,7 @@
 package postings.positions;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -69,7 +70,12 @@ public class EagerPositionMap implements PositionMap {
 
 	@Override
 	public int size(ContentType contentType) {
-		return this.ofContentType(contentType).length;
+		Collection<Integer> positions = this.positions.get(contentType);
+		if(positions != null) {
+			return positions.size();
+		}
+		
+		return 0;
 	}
 	
 	

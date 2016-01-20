@@ -414,7 +414,7 @@ public class QueryProcessor {
 			}
 			
 			// Get postings
-			int startOffset = this.indexSeekList.get(token);
+			long startOffset = this.indexSeekList.get(token);
 			PostingTable postings = this.indexReader.getPostings(token, startOffset, prefixSearch, false);
 			
 			// Spelling correction
@@ -497,7 +497,7 @@ public class QueryProcessor {
 	 * @return
 	 */
 	private PatentDocument getDocument(int documentId) {
-		int startOffset = this.documentMapSeekList.get(documentId);
+		long startOffset = this.documentMapSeekList.get(documentId);
 		try {
 			return this.documentMapReader.getDocument(documentId, startOffset);
 		} catch (IOException e) {

@@ -53,7 +53,7 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @return List of postings
 	 * @throws IOException
 	 */
-	public PostingTable getPostings(String token, int startOffset, boolean prefixSearch, boolean loadPositions) throws IOException {
+	public PostingTable getPostings(String token, long startOffset, boolean prefixSearch, boolean loadPositions) throws IOException {
 		PostingTable postings = new PostingTable();
 		
 		this.indexFile.seek(startOffset);

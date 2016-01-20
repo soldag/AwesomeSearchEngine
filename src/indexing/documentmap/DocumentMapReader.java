@@ -47,7 +47,7 @@ public class DocumentMapReader implements AutoCloseable {
 	 * @return PatentDocument
 	 * @throws IOException
 	 */
-	public PatentDocument getDocument(int documentId, int startOffset) throws IOException {
+	public PatentDocument getDocument(int documentId, long startOffset) throws IOException {
 		this.documentMapFile.seek(startOffset);
 		while(true) {
 			try {

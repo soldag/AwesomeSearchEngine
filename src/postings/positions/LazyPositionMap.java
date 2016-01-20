@@ -86,8 +86,7 @@ public class LazyPositionMap implements PositionMap {
 	}
 
 	@Override
-	public int size(ContentType contentType) {
-		
+	public int size(ContentType contentType) {		
 		Integer count = this.positionCounts.get(contentType);
 		if(count != null) {
 			return count;

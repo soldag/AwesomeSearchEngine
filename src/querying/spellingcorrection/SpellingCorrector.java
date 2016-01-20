@@ -52,7 +52,7 @@ public class SpellingCorrector {
 	public String correctToken(String misspelledToken) throws IOException {		
 		// Get candidates for corrected tokens, that start with the same character as the misspelled one
 		String startCharacter = misspelledToken.substring(0,1);
-		int startOffset = this.indexSeekList.get(startCharacter);
+		long startOffset = this.indexSeekList.get(startCharacter);
 		PostingTable postings = this.indexReader.getPostings(startCharacter, startOffset, true, false);
 
 		// Get the candidate with the lowest edit distance

@@ -23,7 +23,7 @@ public abstract class GenericSeekList<K extends Comparable<K>> {
 	/**
 	 * Contains the actual seek list in memory.
 	 */
-	private TreeMap<K, Integer> seekList = new TreeMap<K, Integer>();
+	private TreeMap<K, Long> seekList = new TreeMap<K, Long>();
 	
 	
 	/**
@@ -48,8 +48,8 @@ public abstract class GenericSeekList<K extends Comparable<K>> {
 	 * @param key
 	 * @return
 	 */
-	public int get(K key) {
-		Map.Entry<K, Integer> entry = this.seekList.floorEntry(key);
+	public long get(K key) {
+		Map.Entry<K, Long> entry = this.seekList.floorEntry(key);
 		if(entry != null) {
 			return entry.getValue();
 		}
@@ -62,7 +62,7 @@ public abstract class GenericSeekList<K extends Comparable<K>> {
 	 * @param key
 	 * @param value
 	 */
-	public void put(K key, int value) {
+	public void put(K key, long value) {
 		if(this.totalEntriesCount % this.skipNumber == 0) {
 			this.seekList.put(key, value);
 		}
@@ -86,7 +86,7 @@ public abstract class GenericSeekList<K extends Comparable<K>> {
 		
 		while(reader.getFilePointer() < reader.length()) {
 			K key = this.readKey(reader);
-			int offset = reader.readInt();
+			long offset = reader.readLong();
 			
 			this.seekList.put(key, offset);
 		}
@@ -96,9 +96,9 @@ public abstract class GenericSeekList<K extends Comparable<K>> {
 	 * Saves the seek list to a specified IndexWriter.
 	 */
 	public void save(IndexWriter writer) throws IOException {
-		for(Map.Entry<K, Integer> entry: this.seekList.entrySet()) {
+		for(Map.Entry<K, Long> entry: this.seekList.entrySet()) {
 			this.writeKey(entry.getKey(), writer);
-			writer.writeInt(entry.getValue());
+			writer.writeLong(entry.getValue());
 		}
 	}
 

@@ -70,7 +70,7 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 			for(T key: sortedKeys) {				
 				// Add seek list entry
 				if(createSeekList) {
-					this.seekList.put(key, (int)indexWriter.getFilePointer());
+					this.seekList.put(key, indexWriter.getFilePointer());
 				}
 				
 				// Write entry

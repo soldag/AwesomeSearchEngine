@@ -99,7 +99,7 @@ public abstract class GenericIndexMerger<K extends Comparable<K>, V> {
 	
 	private void write(IndexWriter indexWriter, K key, V value, GenericSeekList<K> seekList) throws UnsupportedEncodingException, IOException {
 		// Add token to seek list
-		seekList.put(key, (int)indexWriter.getFilePointer());
+		seekList.put(key, indexWriter.getFilePointer());
 		
 		// Write to destination file
 		this.writeKey(key, indexWriter);
