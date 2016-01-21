@@ -8,7 +8,7 @@ import java.util.stream.Collectors;
 
 import postings.PostingTable;
 
-public class QueryResult {
+public class UnrankedQueryResult {
 	
 	/**
 	 * Contains the found postings per token.
@@ -24,7 +24,7 @@ public class QueryResult {
 	/**
 	 * Creates a new QueryResult instance.
 	 */
-	public QueryResult() {
+	public UnrankedQueryResult() {
 		this(new PostingTable());
 	}
 	
@@ -32,7 +32,7 @@ public class QueryResult {
 	 * Creates a new QueryResult instance.
 	 * @param tokenPostings
 	 */
-	public QueryResult(PostingTable tokenPostings) {
+	public UnrankedQueryResult(PostingTable tokenPostings) {
 		this(tokenPostings, new HashMap<String, String>());
 	}
 	
@@ -41,7 +41,7 @@ public class QueryResult {
 	 * @param tokenPostings
 	 * @param spellingCorrections
 	 */
-	public QueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections) {
+	public UnrankedQueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections) {
 		this.tokenPostings = tokenPostings;
 		
 		// Assure, that spelling corrections only include tokens that are part of the posting table
@@ -74,7 +74,7 @@ public class QueryResult {
 	 * @param results
 	 * @return
 	 */
-	public static QueryResult disjunct(QueryResult...results) {
+	public static UnrankedQueryResult disjunct(UnrankedQueryResult...results) {
 		// Disjunct postings
 		PostingTable[] tokenPostings = Arrays.stream(results)
 											.map(x -> x.getPostings())
@@ -84,7 +84,7 @@ public class QueryResult {
 		// Disjunct spelling correction
 		Map<String, String> spellingCorrections = disjunctSpellingCorrections(results);
 		
-		return new QueryResult(disjunctedTokenPostings, spellingCorrections);
+		return new UnrankedQueryResult(disjunctedTokenPostings, spellingCorrections);
 	}
 	
 	/**
@@ -92,13 +92,13 @@ public class QueryResult {
 	 * @param results
 	 * @return
 	 */
-	public static QueryResult conjunct(QueryResult...results) {
+	public static UnrankedQueryResult conjunct(UnrankedQueryResult...results) {
 		PostingTable[] tokenPostings = Arrays.stream(results)
 											.map(x -> x.getPostings())
 											.toArray(PostingTable[]::new);
 		PostingTable disjunctedTokenPostings = PostingTable.conjunct(tokenPostings);
 		
-		return new QueryResult(disjunctedTokenPostings, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(disjunctedTokenPostings, disjunctSpellingCorrections(results));
 	}
 	
 	/**
@@ -106,11 +106,11 @@ public class QueryResult {
 	 * @param results
 	 * @return
 	 */
-	public static QueryResult relativeComplement(QueryResult...results) {
+	public static UnrankedQueryResult relativeComplement(UnrankedQueryResult...results) {
 		PostingTable[] tokenPostings = Arrays.stream(results).map(x -> x.getPostings()).toArray(PostingTable[]::new);
 		PostingTable conjunctedTokenPostings = PostingTable.relativeComplement(tokenPostings);
 		
-		return new QueryResult(conjunctedTokenPostings, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(conjunctedTokenPostings, disjunctSpellingCorrections(results));
 	}
 	
 	/**
@@ -118,7 +118,7 @@ public class QueryResult {
 	 * @param results
 	 * @return
 	 */
-	private static Map<String, String> disjunctSpellingCorrections(QueryResult...results) {
+	private static Map<String, String> disjunctSpellingCorrections(UnrankedQueryResult...results) {
 		return Arrays.stream(results)
 				.flatMap(result -> result.getSpellingCorrections().entrySet().stream())
 				.collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));

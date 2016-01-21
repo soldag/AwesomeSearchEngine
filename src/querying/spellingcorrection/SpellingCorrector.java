@@ -3,7 +3,6 @@ package querying.spellingcorrection;
 import java.io.IOException;
 
 import indexing.invertedindex.InvertedIndexReader;
-import indexing.invertedindex.InvertedIndexSeekList;
 import postings.PostingTable;
 
 public class SpellingCorrector {
@@ -24,22 +23,19 @@ public class SpellingCorrector {
 	private DamerauLevenshteinCalculator damerauLevenshtein;
 
 	/**
-	 * Contain index readers.
+	 * Contains the inverted index readers.
 	 */
 	private InvertedIndexReader indexReader;
-	private InvertedIndexSeekList indexSeekList;
 	
 	
 	/**
 	 * Creates a new SpellingCorrector instance.
 	 * @param damerauLevenshtein
 	 * @param indexReader
-	 * @param seekList
 	 */
-	public SpellingCorrector(DamerauLevenshteinCalculator damerauLevenshtein, InvertedIndexReader indexReader, InvertedIndexSeekList seekList) {
+	public SpellingCorrector(DamerauLevenshteinCalculator damerauLevenshtein, InvertedIndexReader indexReader) {
 		this.damerauLevenshtein = damerauLevenshtein;
 		this.indexReader = indexReader;
-		this.indexSeekList = seekList;
 	}
 
 	
@@ -52,8 +48,7 @@ public class SpellingCorrector {
 	public String correctToken(String misspelledToken) throws IOException {		
 		// Get candidates for corrected tokens, that start with the same character as the misspelled one
 		String startCharacter = misspelledToken.substring(0,1);
-		long startOffset = this.indexSeekList.get(startCharacter);
-		PostingTable postings = this.indexReader.getPostings(startCharacter, startOffset, true, false);
+		PostingTable postings = this.indexReader.getPostings(startCharacter, true, false);
 
 		// Get the candidate with the lowest edit distance
 		int minimumDistance = Integer.MAX_VALUE;

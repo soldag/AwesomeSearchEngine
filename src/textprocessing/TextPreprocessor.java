@@ -22,6 +22,12 @@ public class TextPreprocessor {
 	private CharArraySet stopWords = CharArraySet.EMPTY_SET;
 	
 	/**
+	 * Contain patent analyzer instances.
+	 */
+	private PatentAnalyzer defaultAnalyzer;
+	private PatentAnalyzer preservingAnalyzer;
+	
+	/**
 	 * Contains a porter stemmer instance.
 	 */
 	private PorterStemmer stemmer;
@@ -31,6 +37,8 @@ public class TextPreprocessor {
 	 * Creates a new TextPreprocessor instance.
 	 */
 	public TextPreprocessor() {
+		this.defaultAnalyzer = new PatentAnalyzer();
+		this.preservingAnalyzer = new PatentAnalyzer(true);
 		this.stemmer = new PorterStemmer();
 	}
 	
@@ -71,8 +79,13 @@ public class TextPreprocessor {
 	 * @throws IOException
 	 */
 	public List<String> tokenize(String text, boolean preserveWildcards) throws IOException {
+		// Get analyzer instance
+		PatentAnalyzer analyzer = this.defaultAnalyzer;
+		if(preserveWildcards) {
+			analyzer = this.preservingAnalyzer;
+		}
+		
 		try(
-				PatentAnalyzer analyzer = new PatentAnalyzer(preserveWildcards);
 				TokenStream tokenStream = analyzer.tokenStream(null, new StringReader(text));
 			) {
 				List<String> tokens = new ArrayList<String>();

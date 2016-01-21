@@ -28,12 +28,15 @@ import org.apache.commons.io.FilenameUtils;
 
 import evaluation.NdcgCalculator;
 import indexing.DocumentIndexer;
+import indexing.documentmap.DocumentMapReader;
+import indexing.invertedindex.InvertedIndexReader;
 import parsing.PatentContentLookup;
 import querying.DocumentRanker;
 import querying.QueryProcessor;
 import querying.queries.QueryParser;
-import querying.results.QueryResult;
+import querying.results.RankedQueryResult;
 import querying.spellingcorrection.DamerauLevenshteinCalculator;
+import querying.spellingcorrection.SpellingCorrector;
 import textprocessing.TextPreprocessor;
 import visualization.ResultFormatter;
 import visualization.SnippetGenerator;
@@ -52,15 +55,28 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private DocumentIndexer documentIndexer;
 	private QueryParser queryParser;
 	private QueryProcessor queryProcessor;
+	private DamerauLevenshteinCalculator levenshteinCalculator;
+	private SpellingCorrector spellingCorrector;
 	private PatentContentLookup patentContentLookup;
 	private SnippetGenerator snippetGenerator;
 	private ResultFormatter resultFormatter;
 	private NdcgCalculator ncdgCalculator;
 	
 	/**
+	 * Contain the index reader services
+	 */
+	private InvertedIndexReader invertedIndexReader;
+	private DocumentMapReader documentMapReader;
+	
+	/**
+	 * Determines, whether the index has already been read into memory.
+	 */
+	private boolean isLoaded = false;
+	
+	/**
 	 * Contain necessary directory paths.
 	 */
-	private final Path teamDirectoryPath = Paths.get("/Volumes/Extern/index/team") /*Paths.get(teamDirectory)*/; //TODO testing
+	private final Path teamDirectoryPath = Paths.get(teamDirectory);
 	private final Path dataDirectoryPath = Paths.get(dataDirectory);
 	
 	/**
@@ -126,23 +142,18 @@ public class AwesomeSearchEngine extends SearchEngine {
     
     /**
      * Returns the current query processor.
-     * @param isCompressed
      * @return
      */
-    private QueryProcessor getQueryProcessor(boolean isCompressed) {
-    	if(this.queryProcessor == null || this.queryProcessor.isCompressed() != isCompressed) {
+    private QueryProcessor getQueryProcessor() {
+    	if(this.queryProcessor == null) {
     		try {
 				this.queryProcessor = new QueryProcessor(
+					this.invertedIndexReader,
 					this.getQueryParser(),
-					this.getTextPreprocessor(), 
-					new DamerauLevenshteinCalculator(1, 1, 1, 1),
-					new DocumentRanker(),
-					this.getSnippetGenerator(),
-					this.documentMapFile, 
-					this.documentMapSeekListFile, 
-					this.indexFile, 
-					this.indexSeekListFile,
-					isCompressed);
+					this.getTextPreprocessor(),
+					this.getSpellingCorrector(),
+					new DocumentRanker(this.documentMapReader),
+					this.getSnippetGenerator());
 			} catch (FileNotFoundException e) {
 				System.err.println(e.getMessage());
 				System.exit(1);
@@ -150,6 +161,32 @@ public class AwesomeSearchEngine extends SearchEngine {
     	}
     	
     	return this.queryProcessor;
+    }
+    
+    /**
+     * Returns the current levenshtein calculator.
+     * @return
+     */
+    private DamerauLevenshteinCalculator getLevenshteinCalculator() {
+    	if(this.levenshteinCalculator == null) {
+    		this.levenshteinCalculator = new DamerauLevenshteinCalculator(1, 1, 1, 1);
+    	}
+    	
+    	return this.levenshteinCalculator;
+    }
+    
+    /**
+     * Returns the current spelling corrector.
+     * @return
+     */
+    private SpellingCorrector getSpellingCorrector() { 	
+    	if(this.spellingCorrector == null) {
+    		this.spellingCorrector = new SpellingCorrector(
+    				this.getLevenshteinCalculator(), 
+    				this.invertedIndexReader);
+    	}
+    	
+    	return this.spellingCorrector;
     }
     
     /**
@@ -228,9 +265,9 @@ public class AwesomeSearchEngine extends SearchEngine {
     
     @Override
     public ArrayList<String> search(String query, int topK) {
-    	if(queryProcessor != null && this.queryProcessor.isReady()) {    	
+    	if(this.isLoaded) {    	
 	    	try {
-	    		QueryResult result = this.queryProcessor.search(query, topK);	    		
+	    		RankedQueryResult result = this.getQueryProcessor().search(query, topK);	    		
 	    		return this.getResultFormatter().format(result);
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -278,11 +315,17 @@ public class AwesomeSearchEngine extends SearchEngine {
      */
     private boolean loadIndex(boolean compress) { 	
     	try {
-			this.getQueryProcessor(compress).load();
+    		this.documentMapReader = new DocumentMapReader(this.documentMapFile, this.documentMapSeekListFile, compress);
+    		this.invertedIndexReader = new InvertedIndexReader(this.indexFile, this.indexSeekListFile, compress);
+    		this.spellingCorrector = new SpellingCorrector(this.getLevenshteinCalculator(), this.invertedIndexReader);
 		} catch (IOException e) {
 			e.printStackTrace();
+			this.isLoaded = false;
 			return false;
 		}
+    	    	
+    	this.isLoaded = true;
+    	this.queryProcessor = null;
         
         return true;
     }

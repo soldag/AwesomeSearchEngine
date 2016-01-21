@@ -4,23 +4,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import documents.PatentContentDocument;
 import documents.PatentDocument;
 import parsing.PatentContentLookup;
 import postings.ContentType;
-import querying.results.QueryResult;
+import querying.results.RankedQueryResult;
+import querying.results.UnrankedQueryResult;
 import textprocessing.TextPreprocessor;
 
 public class ResultFormatter {
-	
-	/**
-	 * Contains the pattern template for matching query tokens case-insensitive.
-	 */
-	private static final String QUERY_TOKEN_PATTERN = "(?i)\\b%s\\b";
 	
 	/**
 	 * Contains necessary services.
@@ -29,7 +22,7 @@ public class ResultFormatter {
 	private final TextPreprocessor textPreprocessor;
 	private SnippetGenerator snippetGenerator;
 	
-
+	
 	/**
 	 * Creates a new ResultFormatter instance.
 	 * @param patentContentLookup
@@ -44,15 +37,14 @@ public class ResultFormatter {
 	
 
 	/**
-	 * Formats the given result and corresponding NCDG values for outputting on console. Resulting lists contains formatted string for each document in the result.
+	 * Formats the given result for outputting on console. Resulting lists contains formatted string for each document in the result.
 	 * @param result
-	 * @param ncdgValues
 	 * @return
 	 * @throws IOException
 	 */
-	public ArrayList<String> format(QueryResult result, Map<Integer, Double> ncdgValues) throws IOException {
+	public ArrayList<String> format(RankedQueryResult result) throws IOException {
 		ArrayList<String> formattedResults = new ArrayList<String>();
-		for(PatentDocument document: result.getPostings().documentSet()) {
+		for(PatentDocument document: result.getRankedDocuments()) {
 			// Load contents of document
 			PatentContentDocument contentDocument = this.patentContentLookup.loadContent(document);
 			
@@ -64,11 +56,9 @@ public class ResultFormatter {
 			// Format properties
 			StringBuilder resultBuilder = new StringBuilder();
 			resultBuilder.append(id);
-			resultBuilder.append("\t");
+			resultBuilder.append(" ");
 			resultBuilder.append(this.formatTitle(title, document, result));
-			resultBuilder.append("\t");
-			resultBuilder.append(ncdgValues.get(id));
-			resultBuilder.append("\n");
+			resultBuilder.append(System.getProperty("line.separator"));
 			resultBuilder.append(snippet.toFormattedString());
 			
 			formattedResults.add(resultBuilder.toString());
@@ -84,7 +74,7 @@ public class ResultFormatter {
 	 * @param result
 	 * @return
 	 */
-	private String formatTitle(String title, PatentDocument document, QueryResult result) {
+	private String formatTitle(String title, PatentDocument document, UnrankedQueryResult result) {
 		// Tokenize title
 		List<String> tokenizedTitle;
 		try {
@@ -94,19 +84,15 @@ public class ResultFormatter {
 		}
 		
 		// Get positions of query tokens in title
-		int[] queryTokenPositions = result.getPostings().ofDocument(document).positions().stream()
+		int[] queryTokenPositions = result.getPostings().ofDocument(document.getId()).positions().stream()
 												.filter(positionMap -> positionMap.containsContentType(ContentType.Title))
 												.flatMapToInt(positionMap -> Arrays.stream(positionMap.ofContentType(ContentType.Title)))
 												.toArray();
 		
 		// Highlight query tokens in title
 		for(int position: queryTokenPositions) {
-			Pattern queryTokenPattern = Pattern.compile(String.format(QUERY_TOKEN_PATTERN, tokenizedTitle.get(position)));
-			Matcher matcher = queryTokenPattern.matcher(title);
-			while(matcher.find()) {
-				String token = matcher.group();
-				title = title.replaceAll(token, ResultStyle.ANSI_COLOR_GREEN + token + ResultStyle.ANSI_COLOR_RESET);
-			}
+			String token = tokenizedTitle.get(position);
+			title = title.replaceAll("\\b" + token + "\\b", ResultStyle.ANSI_COLOR_GREEN + token + ResultStyle.ANSI_COLOR_RESET);
 		}
 		
 		// Format whole title bold

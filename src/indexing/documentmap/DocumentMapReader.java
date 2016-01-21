@@ -16,6 +16,11 @@ public class DocumentMapReader implements AutoCloseable {
 	private IndexReader documentMapFile;
 	
 	/**
+	 * Contains the corresponding seek list.
+	 */
+	private DocumentMapSeekList seekList;
+	
+	/**
 	 * Contains the number of all documents stored in the index.
 	 */
 	private int totalDocumentsCount = 0;
@@ -24,11 +29,15 @@ public class DocumentMapReader implements AutoCloseable {
 	/**
 	 * Creates a new DocumentMapReader instance.
 	 * @param documentMapFile
+	 * @param documentMapSeekListFile
 	 * @throws IOException
 	 */
-	public DocumentMapReader(File documentMapFile, boolean isCompressed) throws IOException {
+	public DocumentMapReader(File documentMapFile, File documentMapSeekListFile, boolean isCompressed) throws IOException {
 		this.documentMapFile = FileReaderWriterFactory.getInstance().getMemoryMappedIndexReader(documentMapFile, isCompressed);
 		this.totalDocumentsCount = this.documentMapFile.readInt();
+		
+		this.seekList = new DocumentMapSeekList();
+		this.seekList.load(FileReaderWriterFactory.getInstance().getDirectIndexReader(documentMapSeekListFile, isCompressed));
 	}
 	
 	
@@ -41,13 +50,24 @@ public class DocumentMapReader implements AutoCloseable {
 	}	
 	
 	/**
+	 * Gets a document from map by specifying its id
+	 * @param documentId
+	 * @return PatentDocument
+	 * @throws IOException
+	 */
+	public PatentDocument getDocument(int documentId) throws IOException {
+		long offset = this.seekList.get(documentId);
+		return this.getDocument(documentId, offset);
+	}
+	
+	/**
 	 * Gets a document from map by specifying its id and a start offset in the map file.
 	 * @param documentId
 	 * @param startOffset
 	 * @return PatentDocument
 	 * @throws IOException
 	 */
-	public PatentDocument getDocument(int documentId, long startOffset) throws IOException {
+	private PatentDocument getDocument(int documentId, long startOffset) throws IOException {
 		this.documentMapFile.seek(startOffset);
 		while(true) {
 			try {

@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import documents.PatentDocument;
 import io.index.IndexReader;
@@ -26,21 +25,14 @@ public class TokenPostings {
 	 */
 	private final Map<Integer, PositionMap> postings;
 	
-	/**
-	 * Contains a lookup map for PatentDocument instances.
-	 */
-	private final Map<Integer, PatentDocument> documents;
-	
 	
 	/**
 	 * Creates a new TokenPostings instance.
 	 * @param postings
-	 * @param documents
 	 */
-	public TokenPostings(Map<Integer, PositionMap> postings, Map<Integer, PatentDocument> documents) {		
-		this(postings, countTotalOccurrences(postings.values()), documents);
+	public TokenPostings(Map<Integer, PositionMap> postings) {		
+		this(postings, countTotalOccurrences(postings.values()));
 	}
-
 	
 	/**
 	 * Creates a new TokenPostings instance.
@@ -48,20 +40,10 @@ public class TokenPostings {
 	 * @param totalOccurrencesCount
 	 */
 	public TokenPostings(Map<Integer, PositionMap> postings, int totalOccurrencesCount) {
-		this(postings, totalOccurrencesCount, new HashMap<Integer, PatentDocument>());
-	}
-	
-	/**
-	 * Creates a new TokenPostings instance.
-	 * @param postings
-	 * @param totalOccurrencesCount
-	 * @param documents
-	 */
-	public TokenPostings(Map<Integer, PositionMap> postings, int totalOccurrencesCount, Map<Integer, PatentDocument> documents) {
 		this.postings = postings;
 		this.totalOccurencesCount = totalOccurrencesCount;
-		this.documents = documents;
 	}
+	
 	
 	/**
 	 * Counts the number of total occurrences of a collection of position maps.
@@ -81,17 +63,6 @@ public class TokenPostings {
 	 */
 	public Set<Integer> documentIdSet() {
 		return this.postings.keySet();
-	}
-	
-	/**
-	 * Gets the set of all document contained in the postings.
-	 * @return
-	 */
-	public Set<PatentDocument> documentSet() {
-		return this.documentIdSet().stream()
-				.filter(documentId -> this.documents.containsKey(documentId))
-				.map(documentId -> this.documents.get(documentId))
-				.collect(Collectors.toSet());
 	}
 	
 	/**
@@ -160,7 +131,6 @@ public class TokenPostings {
 	 */
 	public void put(PatentDocument document, PositionMap positions) {
 		this.put(document.getId(), positions);
-		this.putDocument(document);
 	}
 	
 	/**
@@ -169,17 +139,6 @@ public class TokenPostings {
 	 */
 	public void putAll(TokenPostings postings) {
 		this.postings.putAll(postings.postings);
-		this.documents.putAll(postings.documents);
-	}
-	
-	/**
-	 * Adds a document to the internal mapping.
-	 * @param document
-	 */
-	private void putDocument(PatentDocument document) {
-		if(!this.documents.containsKey(document.getId())) {
-			this.documents.put(document.getId(), document);
-		}
 	}
 	
 	

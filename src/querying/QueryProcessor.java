@@ -1,6 +1,5 @@
 package querying;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -12,19 +11,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import com.google.common.collect.Sets;
 
-import documents.PatentDocument;
-import indexing.documentmap.DocumentMapReader;
-import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexReader;
-import indexing.invertedindex.InvertedIndexSeekList;
-import io.FileReaderWriterFactory;
-import io.index.IndexReader;
 import postings.ContentType;
 import postings.DocumentPostings;
 import postings.PostingTable;
 import postings.positions.EagerPositionMap;
 import postings.positions.PositionMap;
-import querying.results.QueryResult;
+import querying.results.UnrankedQueryResult;
 import querying.queries.BooleanQuery;
 import querying.queries.KeywordQuery;
 import querying.queries.MixedQuery;
@@ -33,7 +26,7 @@ import querying.queries.PrfQuery;
 import querying.queries.Query;
 import querying.queries.QueryParser;
 import querying.results.PrfQueryResult;
-import querying.spellingcorrection.DamerauLevenshteinCalculator;
+import querying.results.RankedQueryResult;
 import querying.spellingcorrection.SpellingCorrector;
 import textprocessing.TextPreprocessor;
 import utilities.MapValueComparator;
@@ -52,102 +45,35 @@ public class QueryProcessor {
 	private QueryParser queryParser;
 	private TextPreprocessor textPreprocessor;
 	private DocumentRanker documentRanker;
-	private DamerauLevenshteinCalculator damerauLevenshtein;
 	private SpellingCorrector spellingCorrector;
 	private SnippetGenerator snippetGenerator;
 	
 	/**
-	 * Contain necessary index files and reader services.
+	 * Contains necessary inverted index reader service.
 	 */
-	private File documentMapFile;
-	private DocumentMapReader documentMapReader;
-	private File documentMapSeekListFile;
-	private DocumentMapSeekList documentMapSeekList;
-
-	private File indexFile;
-	private InvertedIndexReader indexReader;
-	private File indexSeekListFile;
-	private InvertedIndexSeekList indexSeekList;
-	
-	/**
-	 * Determines, whether the index is compressed, or not.
-	 */
-	private boolean isCompressed;
-	
-	/**
-	 * Determines, whether the index has been loaded and the instance is ready for querying.
-	 */
-	private boolean isReady = false;
+	private InvertedIndexReader invertedIndexReader;
 	
 	/**
 	 * Creates a new QueryProcessor instance.
+	 * @param invertedIndexReader
+	 * @param documentMapReader
 	 * @param queryParser
 	 * @param textProcessor
-	 * @param damerauLevenshtein
+	 * @param spellingCorrector
 	 * @param documentRanker
-	 * @param documentMapFile
-	 * @param documentMapSeekListFile
-	 * @param indexFile
-	 * @param indexSeekListFile
-	 * @param isCompressed
+	 * @param snippetGenerator
 	 * @throws FileNotFoundException
 	 */
-	public QueryProcessor(QueryParser queryParser, TextPreprocessor textProcessor, DamerauLevenshteinCalculator damerauLevenshtein, DocumentRanker documentRanker, 
-			SnippetGenerator snippetGenerator, File documentMapFile, File documentMapSeekListFile, File indexFile, File indexSeekListFile, boolean isCompressed) throws FileNotFoundException {
+	public QueryProcessor(InvertedIndexReader invertedIndexReader, QueryParser queryParser, TextPreprocessor textProcessor, 
+			SpellingCorrector spellingCorrector, DocumentRanker documentRanker, SnippetGenerator snippetGenerator) throws FileNotFoundException {
 		this.queryParser = queryParser;
 		this.textPreprocessor = textProcessor;
-		this.damerauLevenshtein = damerauLevenshtein;
 		this.documentRanker = documentRanker;
+		this.spellingCorrector = spellingCorrector;
 		this.snippetGenerator = snippetGenerator;
-		
-		this.documentMapFile = documentMapFile;
-		this.documentMapSeekListFile = documentMapSeekListFile;
-		this.documentMapSeekList = new DocumentMapSeekList();
-		
-		this.indexFile = indexFile;
-		this.indexSeekListFile = indexSeekListFile;
-		this.indexSeekList = new InvertedIndexSeekList();		
-		this.isCompressed = isCompressed;
+		this.invertedIndexReader = invertedIndexReader;
 	}
 	
-	
-	/**
-	 * Gets a boolean, that determines, whether the index is compressed, or not.
-	 * @return
-	 */
-	public boolean isCompressed() {
-		return this.isCompressed;
-	}
-
-	
-	/**
-	 * Gets a boolean, that determines, whether the index has been loaded and the instance is ready for querying.
-	 * @return
-	 */
-	public boolean isReady() {
-		return this.isReady;
-	}
-	
-	
-	/**
-	 * Loads the seek lists from disk to memory in order to perform queries.
-	 * @throws IOException
-	 */
-	public void load() throws IOException {
-		this.documentMapReader = new DocumentMapReader(documentMapFile, this.isCompressed);
-		try(IndexReader seekListReader = FileReaderWriterFactory.getInstance().getDirectIndexReader(this.documentMapSeekListFile, this.isCompressed)) {
-			this.documentMapSeekList.load(seekListReader);
-		}
-		
-		this.indexReader = new InvertedIndexReader(this.indexFile, this.isCompressed);
-		try(IndexReader seekListReader = FileReaderWriterFactory.getInstance().getDirectIndexReader(this.indexSeekListFile, this.isCompressed)) {
-			this.indexSeekList.load(seekListReader);
-		}
-
-		this.spellingCorrector = new SpellingCorrector(this.damerauLevenshtein, this.indexReader, this.indexSeekList);
-		
-		this.isReady = true;
-	}
 	
 	/**
 	 * Searches for a given query string in the document collection.
@@ -157,22 +83,45 @@ public class QueryProcessor {
 	 * @return
 	 * @throws IOException
 	 */
-	public QueryResult search(String queryString, int resultLimit) throws IOException {
+	public RankedQueryResult search(String queryString, int resultLimit) throws IOException {
 		Query query = this.queryParser.parse(queryString);
-		return this.search(query, resultLimit, true);
+		return this.search(query, resultLimit);
 	}
 	
 	/**
-	 * Searches for a given query in the document collection.
+	 * Searches for a given query in the document collection and weights resulting documents.
 	 * @param query
 	 * @param resultLimit Number of documents, that should be present at most in the result. If this value is less than 0, all relevant documents are returned. 
-	 * @param weightDocuments Determines, whether the result should be weighted or not. 
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult search(Query query, int resultLimit, boolean weightDocuments) throws IOException {
+	private RankedQueryResult search(Query query, int resultLimit) throws IOException {
+		UnrankedQueryResult unrankedResult = this.searchUnweighted(query, resultLimit);
+		RankedQueryResult result = this.documentRanker.weightResult(unrankedResult, resultLimit, this.invertedIndexReader.getTotalTokenCount());
+		
+		// If enabled, extend query using pseudo relevance feedback (only supported for keyword queries)
+		if(query instanceof PrfQuery) {
+			PrfQuery prfQuery = (PrfQuery)query;
+			if(prfQuery.getPrf() > 0) {
+				PrfQuery extendedQuery = this.extendPrfQuery(prfQuery, result);
+				unrankedResult = PrfQueryResult.fromResults(this.searchUnweighted(extendedQuery, resultLimit), result);
+				result = this.documentRanker.weightResult(unrankedResult, resultLimit, this.invertedIndexReader.getTotalTokenCount());
+			}
+		}
+		
+		return result;
+	}
+	
+	/**
+	 * Searches for a given query in the document collection without weighting resulting documents.
+	 * @param query
+	 * @param resultLimit
+	 * @return
+	 * @throws IOException
+	 */
+	private UnrankedQueryResult searchUnweighted(Query query, int resultLimit) throws IOException {
 		// Search for query depending on its type
-		QueryResult result;
+		UnrankedQueryResult result;
 		switch(query.getType()) {
 			case BooleanQuery.TYPE:
 				result = this.search((BooleanQuery)query, resultLimit);
@@ -191,23 +140,8 @@ public class QueryProcessor {
 				break;
 				
 			default: 
-				result = new QueryResult();
+				result = new UnrankedQueryResult();
 				break;
-		}
-		
-		// If enabled, extend query using pseudo relevance feedback (only supported for keyword queries)
-		if(query instanceof PrfQuery) {
-			PrfQuery prfQuery = (PrfQuery)query;
-			if(prfQuery.getPrf() > 0) {
-				PrfQuery extendedQuery = this.extendPrfQuery(prfQuery, result);
-				result = PrfQueryResult.fromResults(this.search(extendedQuery, resultLimit, false), result);
-			}
-		}
-		
-		// Weight resulting documents, if specified so
-		if(weightDocuments) {
-			result.getPostings().loadDocuments(this::getDocument);
-			result = this.documentRanker.weightResult(result, resultLimit, this.indexReader.getTotalTokenCount());
 		}
 		
 		return result;
@@ -219,10 +153,10 @@ public class QueryProcessor {
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult[] searchAllUnweighted(Query... queries) throws IOException {
-		QueryResult[] results = new QueryResult[queries.length];
+	private UnrankedQueryResult[] searchAllUnweighted(Query... queries) throws IOException {
+		UnrankedQueryResult[] results = new UnrankedQueryResult[queries.length];
 		for(int i = 0; i < queries.length; i++) {
-			results[i] = this.search(queries[i], -1, false);
+			results[i] = this.searchUnweighted(queries[i], -1);
 		}
 		
 		return results;
@@ -236,23 +170,23 @@ public class QueryProcessor {
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult search(BooleanQuery query, int resultLimit) throws IOException {
-		QueryResult result;
+	private UnrankedQueryResult search(BooleanQuery query, int resultLimit) throws IOException {
+		UnrankedQueryResult result;
 		switch(query.getOperator()) {		
 			case Or:
-				result = QueryResult.disjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				result = UnrankedQueryResult.disjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
 				break;
 				
 			case And:
-				result = QueryResult.conjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				result = UnrankedQueryResult.conjunct(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
 				break;
 				
 			case Not:
-				result = QueryResult.relativeComplement(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
+				result = UnrankedQueryResult.relativeComplement(this.searchAllUnweighted(query.getLeftQuery(), query.getRightQuery()));
 				break;
 				
 			default:
-				return new QueryResult();
+				return new UnrankedQueryResult();
 		}
 		
 		return result;
@@ -265,14 +199,14 @@ public class QueryProcessor {
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult search(PhraseQuery query) throws IOException {
+	private UnrankedQueryResult search(PhraseQuery query) throws IOException {
 		PostingTable resultTokenPostings = null;
 		PostingTable lastTokenPostings = null;
 		Map<String, String> spellingCorrections = null;
 		
 		for(String token: query.getQueryTokens()) {
 			// Search for token
-			QueryResult result = this.searchToken(token);
+			UnrankedQueryResult result = this.searchToken(token);
 			
 			if(resultTokenPostings == null) {
 				// Add all postings of first token
@@ -315,7 +249,7 @@ public class QueryProcessor {
 				resultTokenPostings.putAll(newTokenPostings);
 				if(resultTokenPostings.isEmpty()) {
 					// If no phrases were found, return empty result
-					return new QueryResult();
+					return new UnrankedQueryResult();
 				}
 				
 				// Add spelling corrections
@@ -328,10 +262,10 @@ public class QueryProcessor {
 		
 		// If no phrases were found, return empty result
 		if(resultTokenPostings == null) {
-			return new QueryResult();
+			return new UnrankedQueryResult();
 		}
 		
-		return new QueryResult(resultTokenPostings, spellingCorrections);
+		return new UnrankedQueryResult(resultTokenPostings, spellingCorrections);
 	}
 	
 	/**
@@ -353,9 +287,9 @@ public class QueryProcessor {
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult search(MixedQuery query) throws IOException {
+	private UnrankedQueryResult search(MixedQuery query) throws IOException {
 		Query[] queries = query.getQueries();
-		return QueryResult.disjunct(this.searchAllUnweighted(queries));
+		return UnrankedQueryResult.disjunct(this.searchAllUnweighted(queries));
 	}
 	
 	
@@ -365,15 +299,15 @@ public class QueryProcessor {
 	 * @return
 	 * @throws IOException
 	 */
-	private QueryResult search(KeywordQuery query) throws IOException {
+	private UnrankedQueryResult search(KeywordQuery query) throws IOException {
 		// Search for tokens
 		List<String> queryTokens = query.getQueryTokens();
-		QueryResult[] results = new QueryResult[queryTokens.size()];
+		UnrankedQueryResult[] results = new UnrankedQueryResult[queryTokens.size()];
 		for(int i = 0; i < queryTokens.size(); i++) {
 			results[i] = this.searchToken(queryTokens.get(i));
 		}
 		
-		return QueryResult.disjunct(results);
+		return UnrankedQueryResult.disjunct(results);
 	}
 	
 	
@@ -382,7 +316,7 @@ public class QueryProcessor {
 	 * @param token
 	 * @return 
 	 */
-	private QueryResult searchToken(String token) {
+	private UnrankedQueryResult searchToken(String token) {
 		return this.searchToken(token, null);
 	}
 	
@@ -393,7 +327,7 @@ public class QueryProcessor {
 	 * @param misspelledToken
 	 * @return 
 	 */
-	private QueryResult searchToken(String token, String misspelledToken) {
+	private UnrankedQueryResult searchToken(String token, String misspelledToken) {
 		try {
 			// Stem token or remove wildcard character (if prefix search)
 			boolean prefixSearch = token.endsWith("*");
@@ -405,8 +339,7 @@ public class QueryProcessor {
 			}
 			
 			// Get postings
-			long startOffset = this.indexSeekList.get(token);
-			PostingTable postings = this.indexReader.getPostings(token, startOffset, prefixSearch, false);
+			PostingTable postings = this.invertedIndexReader.getPostings(token, prefixSearch, false);
 			
 			// Spelling correction
 			if(!prefixSearch && postings.isEmpty()) {
@@ -421,14 +354,14 @@ public class QueryProcessor {
 				Map<String, String> spellingCorrections = new HashMap<String, String>();
 				spellingCorrections.put(token, misspelledToken);
 				
-				return new QueryResult(postings, spellingCorrections);				
+				return new UnrankedQueryResult(postings, spellingCorrections);				
 			}
 			
-			return new QueryResult(postings);
+			return new UnrankedQueryResult(postings);
 			
 		}
 		catch(IOException e) {
-			return new QueryResult();
+			return new UnrankedQueryResult();
 		}
 	}
 	
@@ -440,9 +373,8 @@ public class QueryProcessor {
 	 * @return
 	 * @throws IOException
 	 */
-	private PrfQuery extendPrfQuery(final PrfQuery query, QueryResult originalResult) throws IOException {
-		originalResult.getPostings().loadDocuments(this::getDocument);
-		List<String> additionalTokens = originalResult.getPostings().documentSet().stream()
+	private PrfQuery extendPrfQuery(final PrfQuery query, RankedQueryResult originalResult) throws IOException {
+		List<String> additionalTokens = originalResult.getRankedDocuments().stream()
 										.limit(query.getPrf())
 										.map(document -> this.snippetGenerator.generate(document, originalResult))
 										.flatMap(x -> this.getMostFrequentTokens(x.toString(), PRF_MOST_FREQUENT_TOKENS).stream())
@@ -479,20 +411,5 @@ public class QueryProcessor {
 				.distinct()
 				.limit(limit)
 				.collect(Collectors.toList());
-	}
-	
-	
-	/**
-	 * Retrieves the PatentDocument from document map by specifying its id.
-	 * @param documentId
-	 * @return
-	 */
-	private PatentDocument getDocument(int documentId) {
-		long startOffset = this.documentMapSeekList.get(documentId);
-		try {
-			return this.documentMapReader.getDocument(documentId, startOffset);
-		} catch (IOException e) {
-			return null;
-		}
 	}
 }

@@ -18,6 +18,11 @@ public class InvertedIndexReader implements AutoCloseable {
 	private IndexReader indexFile;
 	
 	/**
+	 * Contains the corresponding seek list.
+	 */
+	private InvertedIndexSeekList seekList;
+	
+	/**
 	 * Contains the number of all tokens occurrences in the index.
 	 */
 	private int totalTokenCount = 0;
@@ -26,12 +31,16 @@ public class InvertedIndexReader implements AutoCloseable {
 	/**
 	 * Creates a new InvertedIndexReader instance.
 	 * @param indexFile
+	 * @param seekListFile
 	 * @param isCompressed
 	 * @throws IOException
 	 */
-	public InvertedIndexReader(File indexFile, boolean isCompressed) throws IOException {
-		this.indexFile = FileReaderWriterFactory.getInstance().getDirectIndexReader(indexFile, isCompressed);		
+	public InvertedIndexReader(File indexFile, File seekListFile, boolean isCompressed) throws IOException {
+		this.indexFile = FileReaderWriterFactory.getInstance().getDirectIndexReader(indexFile, isCompressed);
 		this.totalTokenCount = this.indexFile.readInt();
+		
+		this.seekList = new InvertedIndexSeekList();
+		this.seekList.load(FileReaderWriterFactory.getInstance().getDirectIndexReader(seekListFile, isCompressed));
 	}
 	
 	
@@ -42,6 +51,20 @@ public class InvertedIndexReader implements AutoCloseable {
 	public int getTotalTokenCount() {
 		return this.totalTokenCount;
 	}
+	
+	/**
+	 * Gets a map of postings per token from inverted index.
+	 * Additionally, prefix search can be enabled. In this case, all tokens, that start with the given token, are also taken into account.
+	 * @param token
+	 * @param prefixSearch
+	 * @param loadPositions
+	 * @return Table of postings
+	 * @throws IOException
+	 */
+	public PostingTable getPostings(String token, boolean prefixSearch, boolean loadPositions) throws IOException {
+		long offset = this.seekList.get(token);
+		return this.getPostings(token, offset, prefixSearch, loadPositions);
+	}
 
 	/**
 	 * Gets a map of postings per token from inverted index by specifying a start offset in the index file. 
@@ -50,10 +73,10 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @param startOffset
 	 * @param prefixSearch
 	 * @param loadPositions
-	 * @return List of postings
+	 * @return Table of postings
 	 * @throws IOException
 	 */
-	public PostingTable getPostings(String token, long startOffset, boolean prefixSearch, boolean loadPositions) throws IOException {
+	private PostingTable getPostings(String token, long startOffset, boolean prefixSearch, boolean loadPositions) throws IOException {
 		PostingTable postings = new PostingTable();
 		
 		this.indexFile.seek(startOffset);

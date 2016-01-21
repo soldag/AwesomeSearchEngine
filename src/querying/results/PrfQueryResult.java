@@ -4,12 +4,12 @@ import java.util.Map;
 
 import postings.PostingTable;
 
-public class PrfQueryResult extends QueryResult {
+public class PrfQueryResult extends UnrankedQueryResult {
 
 	/**
 	 * Contains the original result of the query before expanding the search tokens.
 	 */
-	private QueryResult originalQueryResult;
+	private UnrankedQueryResult originalQueryResult;
 	
 	
 	/**
@@ -18,7 +18,7 @@ public class PrfQueryResult extends QueryResult {
 	 * @param spellingCorrections
 	 * @param originalResult
 	 */
-	public PrfQueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections, QueryResult originalResult) {
+	public PrfQueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections, UnrankedQueryResult originalResult) {
 		super(tokenPostings, spellingCorrections);
 		
 		this.originalQueryResult = originalResult;
@@ -30,7 +30,7 @@ public class PrfQueryResult extends QueryResult {
 	 * @param originalResult
 	 * @return
 	 */
-	public static PrfQueryResult fromResults(QueryResult prfResult, QueryResult originalResult) {
+	public static PrfQueryResult fromResults(UnrankedQueryResult prfResult, UnrankedQueryResult originalResult) {
 		return new PrfQueryResult(prfResult.getPostings(), prfResult.getSpellingCorrections(), originalResult);
 	}
 	
@@ -39,7 +39,7 @@ public class PrfQueryResult extends QueryResult {
 	 * Gets the original result of the query expanding the search tokens.
 	 * @return
 	 */
-	public QueryResult getOriginalResult() {
+	public UnrankedQueryResult getOriginalResult() {
 		return this.originalQueryResult;
 	}
 }

@@ -21,7 +21,7 @@ import postings.ContentType;
 import postings.DocumentPostings;
 import postings.positions.PositionMap;
 import querying.results.PrfQueryResult;
-import querying.results.QueryResult;
+import querying.results.UnrankedQueryResult;
 import textprocessing.TextPreprocessor;
 
 public class SnippetGenerator {
@@ -60,7 +60,7 @@ public class SnippetGenerator {
 	 * @param result
 	 * @return
 	 */
-	public Snippet generate(PatentDocument document, QueryResult result) {
+	public Snippet generate(PatentDocument document, UnrankedQueryResult result) {
 		// Get contents of given document
 		PatentContentDocument contentDocument;
 		try {
@@ -78,7 +78,7 @@ public class SnippetGenerator {
 	 * @param result
 	 * @return
 	 */
-	public Snippet generate(PatentContentDocument document, QueryResult result) {
+	public Snippet generate(PatentContentDocument document, UnrankedQueryResult result) {
 		// If prf is enabled, use original result for snippet generation.
 		if(result instanceof PrfQueryResult) {
 			result = ((PrfQueryResult)result).getOriginalResult();
@@ -94,7 +94,7 @@ public class SnippetGenerator {
 			tokenizedAbstract = this.textPreprocessor.tokenize(abstractText);
 			abstractSentences = this.splitIntoSentences(abstractText);
 
-			mappedQueryTokens = this.mapQueryTokens(abstractSentences, result.getPostings().ofDocument(document));
+			mappedQueryTokens = this.mapQueryTokens(abstractSentences, result.getPostings().ofDocument(document.getId()));
 		} catch (IOException e) {
 			return new Snippet();
 		}

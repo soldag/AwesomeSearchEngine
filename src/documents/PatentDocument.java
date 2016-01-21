@@ -156,6 +156,11 @@ public class PatentDocument {
 	}
 	
 	@Override
+	public int hashCode() {
+		return this.getId();
+	}
+	
+	@Override
 	public String toString() {
 		return Integer.toString(this.getId());
 	}

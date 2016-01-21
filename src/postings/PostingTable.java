@@ -6,25 +6,16 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-
-import com.google.common.collect.Sets;
 
 import documents.PatentDocument;
 import postings.positions.EagerPositionMap;
 import postings.positions.PositionMap;
-import utilities.ImmutableSetCollector;
 
 public class PostingTable {
 	
 	private final Map<String, TokenPostings> tokenPostings;
 	
 	private final Map<Integer, DocumentPostings> documentPostings;
-	
-	/**
-	 * Contains a lookup map for PatentDocument instances.
-	 */
-	private final Map<Integer, PatentDocument> documents;
 	
 	
 	/**
@@ -33,18 +24,16 @@ public class PostingTable {
 	public PostingTable() {
 		this.tokenPostings = new HashMap<String, TokenPostings>();
 		this.documentPostings = new LinkedHashMap<Integer, DocumentPostings>();
-		this.documents = new HashMap<Integer, PatentDocument>();
 	}
 	
 	/**
 	 * Creates a new PostingTable instance.
 	 * @param postingTable
-	 * @param documents
+	 * @param documentPostings
 	 */
-	public PostingTable(Map<String, TokenPostings> tokenPostings, Map<Integer, DocumentPostings> documentPostings, Map<Integer, PatentDocument> documents) {
+	public PostingTable(Map<String, TokenPostings> tokenPostings, Map<Integer, DocumentPostings> documentPostings) {
 		this.tokenPostings = tokenPostings;
 		this.documentPostings = documentPostings;
-		this.documents = documents;
 	}
 	
 	
@@ -62,17 +51,6 @@ public class PostingTable {
 	 */
 	public Set<Integer> documentIdSet() {
 		return this.documentPostings.keySet();
-	}
-	
-	/**
-	 * Gets the set of all documents contained in this table.
-	 * @return
-	 */
-	public Set<PatentDocument> documentSet() {
-		return this.documentIdSet().stream()
-				.filter(documentId -> this.documents.containsKey(documentId))
-				.map(documentId -> this.documents.get(documentId))
-				.collect(ImmutableSetCollector.toImmutableSet());
 	}
 	
 	
@@ -94,15 +72,6 @@ public class PostingTable {
 		return this.documentPostings.get(documentId);
 	}
 	
-	/**
-	 * Returns all postings of a specified document.
-	 * @param document
-	 * @return
-	 */
-	public DocumentPostings ofDocument(PatentDocument document) {
-		return this.ofDocument(document.getId());
-	}
-	
 	
 	/**
 	 * Determines, whether there is at least one posting for the given token.
@@ -120,15 +89,6 @@ public class PostingTable {
 	 */
 	public boolean containsDocument(int documentId) {
 		return this.documentPostings.containsKey(documentId);
-	}
-	
-	/**
-	 * Determines, whether there is at least one posting of the given document.
-	 * @param document
-	 * @return
-	 */
-	public boolean containsDocument(PatentDocument document) {
-		return this.containsDocument(document.getId());
 	}
 	
 	/**
@@ -195,11 +155,11 @@ public class PostingTable {
 				this.ofToken(token).put(documentId, positions);
 			}
 			else if(this.containsDocument(documentId)) {
-				this.tokenPostings.put(token, new TokenPostings(tokenPostings, this.documents));
+				this.tokenPostings.put(token, new TokenPostings(tokenPostings));
 				this.ofDocument(documentId).put(token, positions);
 			}
 			else {
-				this.tokenPostings.put(token, new TokenPostings(tokenPostings, this.documents));
+				this.tokenPostings.put(token, new TokenPostings(tokenPostings));
 				this.documentPostings.put(documentId, new DocumentPostings(documentPostings));
 			}
 		}
@@ -244,7 +204,7 @@ public class PostingTable {
 			else {
 				Map<Integer, PositionMap> tokenPostings = new HashMap<Integer, PositionMap>();
 				tokenPostings.put(documentId, positions);
-				this.tokenPostings.put(token, new TokenPostings(tokenPostings, this.documents));
+				this.tokenPostings.put(token, new TokenPostings(tokenPostings));
 			}
 		}
 	}
@@ -256,7 +216,6 @@ public class PostingTable {
 	 */
 	public void putAll(PatentDocument document, DocumentPostings postings) {
 		this.putAll(document.getId(), postings);
-		this.putDocument(document);
 	}
 	
 	/**
@@ -264,10 +223,9 @@ public class PostingTable {
 	 * @param postingTable
 	 */
 	public void putAll(PostingTable postingTable) {
-		this.tokenPostings.putAll(postingTable.tokenPostings);
-		this.documentPostings.putAll(postingTable.documentPostings);
-		
-		this.documents.putAll(postingTable.documents);
+		for(Map.Entry<String, TokenPostings> entry: postingTable.tokenPostings.entrySet()) {
+			this.putAll(entry.getKey(), entry.getValue());
+		}
 	}
 	
 	
@@ -305,8 +263,6 @@ public class PostingTable {
 	public void remove(String token, int documentId) {
 		this.ofToken(token).remove(documentId);
 		this.ofDocument(documentId).remove(token);
-		
-		this.documents.remove(documentId);
 	}
 	
 	/**
@@ -353,7 +309,6 @@ public class PostingTable {
 	public void clear() {
 		this.tokenPostings.clear();
 		this.documentPostings.clear();
-		this.documents.clear();
 	}
 	
 	@Override
@@ -361,26 +316,6 @@ public class PostingTable {
 		return this.tokenPostings.toString();
 	}
 	
-	
-	/**
-	 * Loads all documents contained in the posting table using the given loading function.
-	 * @param lookupFunction
-	 */
-	public void loadDocuments(Function<Integer, PatentDocument> lookupFunction) {
-		Set<Integer> documentIds = Sets.difference(this.documentIdSet(), this.documents.keySet());
-		for(int documentId: documentIds) {
-			PatentDocument document = lookupFunction.apply(documentId);
-			this.putDocument(document);
-		}
-	}
-	
-	/**
-	 * Adds a document to the internal mapping.
-	 * @param document
-	 */
-	private void putDocument(PatentDocument document) {
-		this.documents.putIfAbsent(document.getId(), document);
-	}
 	
 	/**
 	 * Disjuncts multiple PostingTable instances.
@@ -415,12 +350,6 @@ public class PostingTable {
 				.flatMap(postingTable -> postingTable.documentPostings.entrySet().stream())
 				.filter(entry -> documentIds.contains(entry.getKey()))
 				.forEach(entry -> result.putAll(entry.getKey(), entry.getValue()));
-
-		// Conjunct document maps and filter out abandoned ones.
-		Arrays.stream(postingTables)
-				.flatMap(x -> x.documents.values().stream())
-				.filter(x -> result.containsDocument(x))
-				.forEach(x -> result.putDocument(x));
 		
 		return result;
 	}
@@ -444,12 +373,6 @@ public class PostingTable {
 				.flatMap(postingTable -> postingTable.documentPostings.entrySet().stream())
 				.filter(entry -> documentIds.contains(entry.getKey()))
 				.forEach(entry -> result.putAll(entry.getKey(), entry.getValue()));
-		
-		// Conjunct document maps and filter out abandoned ones.
-		Arrays.stream(postingTables)
-				.flatMap(x -> x.documents.values().stream())
-				.filter(x -> result.containsDocument(x))
-				.forEach(x -> result.putDocument(x));
 		
 		return result;
 	}
