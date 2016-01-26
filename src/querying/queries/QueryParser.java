@@ -13,6 +13,7 @@ public class QueryParser {
 	 * Contain the group names in used in patterns for matching the queries.
 	 */
 	private static final String PRF_GROUP = "prf";
+	private static final String DOCUMENT_ID_GROUP = "document";
 	private static final String PHRASE_GROUP = "phrase";
 	private static final String BOOL_LEFT_GROUP = "left";
 	private static final String BOOL_RIGHT_GROUP = "right";
@@ -30,6 +31,7 @@ public class QueryParser {
 	 * Contain patterns for matching queries the different types and identify its components.
 	 */
 	private static final Pattern PHRASE_QUERY_PATTERN = Pattern.compile(PHRASE_PATTERN + "( " + PRF_PATTERN + ")?");
+	private static final Pattern LINK_TO_QUERY_PATTERN = Pattern.compile("LinkTo:(?<" + DOCUMENT_ID_GROUP + ">\\d+)");
 	private static final Pattern BOOLEAN_QUERY_PATTERN = Pattern.compile("(?<" + BOOL_LEFT_GROUP + ">.+) (?<" + BOOL_OPERATOR_GROUP + ">" + BOOLEAN_OPERATORS_PATTERN + ") (?<" + BOOL_RIGHT_GROUP + ">.+)");
 	private static final Pattern[] MIXED_QUERY_PATTERNS = new Pattern[] {
 		Pattern.compile(PHRASE_PATTERN + " (?!" + BOOLEAN_OPERATORS_PATTERN + ")(?<" + KEYWORDS_GROUP + ">.+)(?= #|$)" + "( " + PRF_PATTERN + ")?"),
@@ -70,6 +72,12 @@ public class QueryParser {
 			return this.parsePhraseQuery(matcher);
 		}
 		
+		// Check, if query is a link to query
+		matcher = LINK_TO_QUERY_PATTERN.matcher(query);
+		if(matcher.matches()) {
+			return this.parseLinkToQuery(matcher);
+		}
+		
 		// Check, if query is a mixed query (phrase + keywords)
 		for(Pattern pattern: MIXED_QUERY_PATTERNS) {
 			matcher = pattern.matcher(query);
@@ -81,8 +89,8 @@ public class QueryParser {
 		// Default case: keyword query
 		return this.parseKeywordQuery(query);
 	}
-	
-	
+
+
 	/**
 	 * Parses a given string as boolean query.
 	 * @param matcher
@@ -124,6 +132,17 @@ public class QueryParser {
 		List<String> phrase = this.tokenize(matcher.group(PHRASE_GROUP));
 	
 		return new PhraseQuery(phrase, prf);
+	}
+	
+	
+	/**
+	 * Parses a given string as link to query.
+	 * @param matcher
+	 * @return
+	 */
+	private Query parseLinkToQuery(Matcher matcher) {
+		int documentId = Integer.parseInt(matcher.group(DOCUMENT_ID_GROUP));
+		return new LinkToQuery(documentId);
 	}
 	
 	

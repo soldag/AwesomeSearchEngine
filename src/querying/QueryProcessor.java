@@ -9,8 +9,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
+import indexing.citations.CitationIndexReader;
 import indexing.invertedindex.InvertedIndexReader;
 import postings.ContentType;
 import postings.DocumentPostings;
@@ -20,11 +24,13 @@ import postings.positions.PositionMap;
 import querying.results.UnrankedQueryResult;
 import querying.queries.BooleanQuery;
 import querying.queries.KeywordQuery;
+import querying.queries.LinkToQuery;
 import querying.queries.MixedQuery;
 import querying.queries.PhraseQuery;
 import querying.queries.PrfQuery;
 import querying.queries.Query;
 import querying.queries.QueryParser;
+import querying.ranking.DocumentRanker;
 import querying.results.PrfQueryResult;
 import querying.results.RankedQueryResult;
 import querying.spellingcorrection.SpellingCorrector;
@@ -49,9 +55,10 @@ public class QueryProcessor {
 	private SnippetGenerator snippetGenerator;
 	
 	/**
-	 * Contains necessary inverted index reader service.
+	 * Contains necessary index reader services.
 	 */
 	private InvertedIndexReader invertedIndexReader;
+	private CitationIndexReader citationIndexReader;
 	
 	/**
 	 * Creates a new QueryProcessor instance.
@@ -62,9 +69,10 @@ public class QueryProcessor {
 	 * @param spellingCorrector
 	 * @param documentRanker
 	 * @param snippetGenerator
+	 * @param citationIndexReader
 	 * @throws FileNotFoundException
 	 */
-	public QueryProcessor(InvertedIndexReader invertedIndexReader, QueryParser queryParser, TextPreprocessor textProcessor, 
+	public QueryProcessor(InvertedIndexReader invertedIndexReader, CitationIndexReader citationIndexReader, QueryParser queryParser, TextPreprocessor textProcessor, 
 			SpellingCorrector spellingCorrector, DocumentRanker documentRanker, SnippetGenerator snippetGenerator) throws FileNotFoundException {
 		this.queryParser = queryParser;
 		this.textPreprocessor = textProcessor;
@@ -72,6 +80,7 @@ public class QueryProcessor {
 		this.spellingCorrector = spellingCorrector;
 		this.snippetGenerator = snippetGenerator;
 		this.invertedIndexReader = invertedIndexReader;
+		this.citationIndexReader = citationIndexReader;
 	}
 	
 	
@@ -129,6 +138,10 @@ public class QueryProcessor {
 				
 			case PhraseQuery.TYPE:
 				result = this.search((PhraseQuery)query);
+				break;
+				
+			case LinkToQuery.TYPE:
+				result = this.search((LinkToQuery)query);
 				break;
 				
 			case MixedQuery.TYPE:
@@ -278,6 +291,25 @@ public class QueryProcessor {
 		return Arrays.stream(positions1)
 					.anyMatch(pos1 -> Arrays.stream(positions2)
 								.anyMatch(pos2 -> pos2 == pos1 + 1));
+	}
+	
+	
+	/**
+	 * Evaluates the given link to query.
+	 * @param query
+	 * @return
+	 * @throws IOException
+	 */
+	private UnrankedQueryResult search(LinkToQuery query) throws IOException {
+		int queryDocumentId = query.getDocumentId();
+		Set<Integer> linkingDocumentIds = this.citationIndexReader.getLinkingDocuments(queryDocumentId);
+		
+		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
+		for(int documentId: linkingDocumentIds) {
+			linkedDocuments.put(documentId, queryDocumentId);
+		}
+		
+		return new UnrankedQueryResult(linkedDocuments);
 	}
 	
 	

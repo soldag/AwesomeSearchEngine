@@ -52,6 +52,7 @@ public class InvertedIndexReader implements AutoCloseable {
 		return this.totalTokenCount;
 	}
 	
+	
 	/**
 	 * Gets a map of postings per token from inverted index.
 	 * Additionally, prefix search can be enabled. In this case, all tokens, that start with the given token, are also taken into account.
@@ -111,9 +112,8 @@ public class InvertedIndexReader implements AutoCloseable {
 		return postings;
 	}
 	
-	/**
-	 * Closes this resource, relinquishing any underlying resources.
-	 */
+
+	@Override
 	public void close() throws IOException {
 		this.indexFile.close();
 	}	

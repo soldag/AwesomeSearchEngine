@@ -10,14 +10,20 @@ public class PatentContentDocument extends PatentDocument {
 	 */	
 	private final Map<ContentType, String> contents;
 	
+	/**
+	 * Contains ids of linked documents
+	 */
+	private final int[] linkedDocumentIds;
+	
 	
 	/**
 	 * Creates a new PatentContentDocument instance.
 	 * @param document
 	 * @param contents
+	 * @param linkedDocumentIds
 	 */
-	public PatentContentDocument(PatentDocument document, Map<ContentType, String> contents) {
-		this(document.getId(), document.getFileId(), document.getOffset(), document.getLength(), contents);
+	public PatentContentDocument(PatentDocument document, Map<ContentType, String> contents, int[] linkedDocumentIds) {
+		this(document.getId(), document.getFileId(), document.getOffset(), document.getLength(), contents, linkedDocumentIds);
 	}
 	
 	/**
@@ -27,11 +33,13 @@ public class PatentContentDocument extends PatentDocument {
 	 * @param offset
 	 * @param length
 	 * @param contents
+	 * @param linkedDocumentIds
 	 */
-	public PatentContentDocument(int documentId, int fileId, int offset, int length, Map<ContentType, String> contents) {
+	public PatentContentDocument(int documentId, int fileId, int offset, int length, Map<ContentType, String> contents, int[] linkedDocumentIds) {
 		super(documentId, fileId, offset, length);
 		
 		this.contents = contents;
+		this.linkedDocumentIds = linkedDocumentIds;
 	}
 	
 	
@@ -57,11 +65,18 @@ public class PatentContentDocument extends PatentDocument {
 	}
 	
 	/**
+	 * Gets ids of linked documents.
+	 * @return
+	 */
+	public int[] getLinkedDocumentIds() {
+		return this.linkedDocumentIds;
+	}
+	
+	/**
 	 * Returns a clone of the current PatentDocument without content to save memory consumption.
 	 * @return
 	 */
 	public PatentDocument withoutContent() {
-		//Map<ContentType,>
 		return new PatentDocument(this.getId(), this.getFileId(), this.getOffset(), this.getLength(), this.getTokensCount());
 	}
 }

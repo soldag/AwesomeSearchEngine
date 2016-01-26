@@ -9,6 +9,7 @@ import documents.PatentContentDocument;
 import documents.PatentDocument;
 import parsing.PatentContentLookup;
 import postings.ContentType;
+import postings.DocumentPostings;
 import querying.results.RankedQueryResult;
 import querying.results.UnrankedQueryResult;
 import textprocessing.TextPreprocessor;
@@ -84,15 +85,18 @@ public class ResultFormatter {
 		}
 		
 		// Get positions of query tokens in title
-		int[] queryTokenPositions = result.getPostings().ofDocument(document.getId()).positions().stream()
-												.filter(positionMap -> positionMap.containsContentType(ContentType.Title))
-												.flatMapToInt(positionMap -> Arrays.stream(positionMap.ofContentType(ContentType.Title)))
-												.toArray();
-		
-		// Highlight query tokens in title
-		for(int position: queryTokenPositions) {
-			String token = tokenizedTitle.get(position);
-			title = title.replaceAll("\\b" + token + "\\b", ResultStyle.ANSI_COLOR_GREEN + token + ResultStyle.ANSI_COLOR_RESET);
+		DocumentPostings postings = result.getPostings().ofDocument(document.getId());
+		if(postings != null) {
+			int[] queryTokenPositions = postings.positions().stream()
+													.filter(positionMap -> positionMap.containsContentType(ContentType.Title))
+													.flatMapToInt(positionMap -> Arrays.stream(positionMap.ofContentType(ContentType.Title)))
+													.toArray();
+			
+			// Highlight query tokens in title
+			for(int position: queryTokenPositions) {
+				String token = tokenizedTitle.get(position);
+				title = title.replaceAll("\\b" + token + "\\b", ResultStyle.ANSI_COLOR_GREEN + token + ResultStyle.ANSI_COLOR_RESET);
+			}
 		}
 		
 		// Format whole title bold

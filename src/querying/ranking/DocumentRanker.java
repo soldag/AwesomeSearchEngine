@@ -1,13 +1,19 @@
-package querying;
+package querying.ranking;
 
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import documents.PatentDocument;
 import indexing.documentmap.DocumentMapReader;
@@ -31,6 +37,12 @@ public class DocumentRanker {
 	 * Contains a factor for weights of tokens, that are not part of the original query (when using prf)
 	 */
 	private static final double NON_QUERY_TOKEN_FACTOR = 0.25;
+	
+	/**
+	 * Contains factors for the weights of tokens and linked documents.
+	 */
+	private static final double TOKEN_WEIGHT_FACTOR = 0.5;	
+	private static final double LINKED_DOCUMENTS_WEIGHT_FACTOR = 0.5;
 	
 	/**
 	 * Contains the document map reader service.
@@ -78,6 +90,7 @@ public class DocumentRanker {
 				}
 			}
 		}
+		rankingDocumentIds = Sets.union(rankingDocumentIds, result.getLinkedDocuments().keySet());
 		
 		// Determine collection frequencies of query tokens
 		Map<String, Integer> collectionFrequencies = resultPostings.tokenSet().stream()
@@ -88,6 +101,7 @@ public class DocumentRanker {
 		// Calculate weights for each document
 		Map<PatentDocument, Double> weights = rankingDocumentIds.stream()
 													.map(this::loadDocument)
+													.filter(Objects::nonNull)
 													.collect(Collectors.toMap(
 															Function.identity(), 
 															document -> this.weightDocument(document, result, collectionFrequencies, collectionTokenCount)));
@@ -99,14 +113,23 @@ public class DocumentRanker {
 													.map(e -> e.getKey())
 													.collect(Collectors.toList());
 		
-		// Creates ranked posting table
+		// Create ranked posting table and linked documents map
 		PostingTable postingTable = new PostingTable();
+		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
 		for(PatentDocument document: rankedDocuments) {
+			// Postings
 			DocumentPostings documentPostings = resultPostings.ofDocument(document.getId());
-			postingTable.putAll(document, documentPostings);
+			if(documentPostings != null) {
+				postingTable.putAll(document, documentPostings);
+			}
+			
+			// Linked documents
+			Collection<Integer> documentIds = result.getLinkedDocuments().get(document.getId());
+			linkedDocuments.putAll(document.getId(), documentIds);
 		}
 		
-		return new RankedQueryResult(postingTable, result.getSpellingCorrections(), rankedDocuments);
+		
+		return new RankedQueryResult(postingTable, linkedDocuments, result.getSpellingCorrections(), rankedDocuments);
 	}
 	
 	/**
@@ -142,10 +165,20 @@ public class DocumentRanker {
 	 * @return
 	 */	
 	private double weightDocument(PatentDocument document, UnrankedQueryResult result, Map<String, Integer> collectionFrequencies, int collectionTokenCount) {
-		return Arrays.stream(ContentType.values())
-				.mapToDouble(contentType -> contentType.getWeightingFactor() * 
-											this.weightDocument(document, contentType, result,collectionFrequencies, collectionTokenCount))
-				.sum();
+		// Calculate weight of tokens
+		double tokenWeight = Arrays.stream(ContentType.values())
+								.mapToDouble(contentType -> contentType.getWeightingFactor() * 
+															this.weightDocumentByTokens(document, contentType, result,collectionFrequencies, collectionTokenCount))
+								.sum();
+		
+
+		// Calculate weight of linked documents
+		int maxCitationCount = result.getLinkedDocuments().asMap().values().stream()
+										.mapToInt(documentIds -> documentIds.size())
+										.max().orElse(0);
+		double linkedDocumentsWeight = this.weightDocumentByCitations(document, result, maxCitationCount);
+		
+		return TOKEN_WEIGHT_FACTOR * tokenWeight + LINKED_DOCUMENTS_WEIGHT_FACTOR * linkedDocumentsWeight;
 	}
 	
 	/**
@@ -157,7 +190,7 @@ public class DocumentRanker {
 	 * @param collectionTokenCount
 	 * @return
 	 */	
-	private double weightDocument(PatentDocument document, ContentType contentType, UnrankedQueryResult result, Map<String, Integer> collectionFrequencies, int collectionTokenCount) {
+	private double weightDocumentByTokens(PatentDocument document, ContentType contentType, UnrankedQueryResult result, Map<String, Integer> collectionFrequencies, int collectionTokenCount) {
 		DocumentPostings documentPostings = result.getPostings().ofDocument(document.getId());
 		return result.getPostings().tokenSet().stream()
 						.mapToDouble(token -> this.getPrfFactor(token, result) * 
@@ -213,5 +246,16 @@ public class DocumentRanker {
 	 */
 	private double queryLikelihood(double tokenDocumentFrequency, double documentsLength, double tokenCollectionFrequency, double collectionLength) {
 		return (1 - QL_LAMBDA) * (tokenDocumentFrequency / documentsLength) + QL_LAMBDA * (tokenCollectionFrequency / collectionLength);
+	}
+	
+	/**
+	 * Calculates the weights depending on the number of linked documents (in case of an LinkTo-query).
+	 * @param document
+	 * @param result
+	 * @return
+	 */
+	private double weightDocumentByCitations(PatentDocument document, UnrankedQueryResult result, int maxCitationCount) {
+		int citationsCount = result.getLinkedDocuments().get(document.getId()).size();
+		return (double)citationsCount / (double)maxCitationCount;
 	}
 }

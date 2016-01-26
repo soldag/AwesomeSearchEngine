@@ -28,12 +28,13 @@ import org.apache.commons.io.FilenameUtils;
 
 import evaluation.NdcgCalculator;
 import indexing.DocumentIndexer;
+import indexing.citations.CitationIndexReader;
 import indexing.documentmap.DocumentMapReader;
 import indexing.invertedindex.InvertedIndexReader;
 import parsing.PatentContentLookup;
-import querying.DocumentRanker;
 import querying.QueryProcessor;
 import querying.queries.QueryParser;
+import querying.ranking.DocumentRanker;
 import querying.results.RankedQueryResult;
 import querying.spellingcorrection.DamerauLevenshteinCalculator;
 import querying.spellingcorrection.SpellingCorrector;
@@ -67,6 +68,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 	 */
 	private InvertedIndexReader invertedIndexReader;
 	private DocumentMapReader documentMapReader;
+	private CitationIndexReader citationIndexReader;
 	
 	/**
 	 * Determines, whether the index has already been read into memory.
@@ -82,10 +84,12 @@ public class AwesomeSearchEngine extends SearchEngine {
 	/**
 	 *  Contain the necessary index files.
 	 */
-	private final File indexFile = this.teamDirectoryPath.resolve("index.bin").toFile();
-	private final File indexSeekListFile = this.teamDirectoryPath.resolve("index_seek_list.bin").toFile();
+	private final File indexFile = this.teamDirectoryPath.resolve("inverted_index.bin").toFile();
+	private final File indexSeekListFile = this.teamDirectoryPath.resolve("inverted_index_seek_list.bin").toFile();
 	private final File documentMapFile = this.teamDirectoryPath.resolve("document_map.bin").toFile();
 	private final File documentMapSeekListFile = this.teamDirectoryPath.resolve("document_map_seek_list.bin").toFile();
+	private final File citationIndexFile = this.teamDirectoryPath.resolve("citation_index.bin").toFile();
+	private final File citationIndexSeekListFile = this.teamDirectoryPath.resolve("citation_index_seek_list.bin").toFile();
 	private final File stopWordsFile = this.teamDirectoryPath.resolve("stop_words.txt").toFile();
 	
 	/**
@@ -126,6 +130,8 @@ public class AwesomeSearchEngine extends SearchEngine {
     						this.indexSeekListFile, 
     						this.documentMapFile, 
     						this.documentMapSeekListFile, 
+    						this.citationIndexFile,
+    						this.citationIndexSeekListFile,
     						compress);
     	}
     	
@@ -149,6 +155,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     		try {
 				this.queryProcessor = new QueryProcessor(
 					this.invertedIndexReader,
+					this.citationIndexReader,
 					this.getQueryParser(),
 					this.getTextPreprocessor(),
 					this.getSpellingCorrector(),
@@ -316,6 +323,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     private boolean loadIndex(boolean compress) { 	
     	try {
     		this.documentMapReader = new DocumentMapReader(this.documentMapFile, this.documentMapSeekListFile, compress);
+    		this.citationIndexReader = new CitationIndexReader(this.citationIndexFile, this.citationIndexSeekListFile, compress);
     		this.invertedIndexReader = new InvertedIndexReader(this.indexFile, this.indexSeekListFile, compress);
     		this.spellingCorrector = new SpellingCorrector(this.getLevenshteinCalculator(), this.invertedIndexReader);
 		} catch (IOException e) {

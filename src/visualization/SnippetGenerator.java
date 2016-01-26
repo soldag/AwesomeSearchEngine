@@ -80,7 +80,7 @@ public class SnippetGenerator {
 	 */
 	public Snippet generate(PatentContentDocument document, UnrankedQueryResult result) {
 		// If prf is enabled, use original result for snippet generation.
-		if(result instanceof PrfQueryResult) {
+		if(result instanceof PrfQueryResult) { //TODO: RankedQueryResult
 			result = ((PrfQueryResult)result).getOriginalResult();
 		}
 		
@@ -150,27 +150,30 @@ public class SnippetGenerator {
 	 * @throws IOException
 	 */
 	private Table<Integer, String, List<Integer>> mapQueryTokens(String[] sentences, DocumentPostings postings) throws IOException {		
-		// Get sentence start offsets
-		int[] startOffsets = this.getStartTokenOffsets(sentences);
-		
-		// Build mapping table
 		Table<Integer, String, List<Integer>> table = HashBasedTable.<Integer, String, List<Integer>>create();
-		for(Map.Entry<String, PositionMap> entry: postings.entrySet()) {
-			String token = entry.getKey();
-			PositionMap positions = entry.getValue();
+		
+		if(postings != null) {
+			// Get sentence start offsets
+			int[] startOffsets = this.getStartTokenOffsets(sentences);
 			
-			// If current query token is contained in the abstract of the document, map positions to corresponding sentences
-			if(positions.containsContentType(ContentType.Abstract)) {
-				for(int position: positions.ofContentType(ContentType.Abstract)) {
-					// Find the corresponding sentence id for the position
-					for(int i = 0; i < startOffsets.length; i++) {
-						if(i == startOffsets.length - 1 || position < startOffsets[i + 1]) {
-							if(!table.contains(i, token)) {
-								table.put(i, token, new ArrayList<Integer>());								
+			// Build mapping table
+			for(Map.Entry<String, PositionMap> entry: postings.entrySet()) {
+				String token = entry.getKey();
+				PositionMap positions = entry.getValue();
+				
+				// If current query token is contained in the abstract of the document, map positions to corresponding sentences
+				if(positions.containsContentType(ContentType.Abstract)) {
+					for(int position: positions.ofContentType(ContentType.Abstract)) {
+						// Find the corresponding sentence id for the position
+						for(int i = 0; i < startOffsets.length; i++) {
+							if(i == startOffsets.length - 1 || position < startOffsets[i + 1]) {
+								if(!table.contains(i, token)) {
+									table.put(i, token, new ArrayList<Integer>());								
+								}
+								table.get(i, token).add(position);
+								
+								break;
 							}
-							table.get(i, token).add(position);
-							
-							break;
 						}
 					}
 				}
