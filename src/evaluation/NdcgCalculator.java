@@ -1,8 +1,6 @@
 package evaluation;
 
 import java.util.ArrayList;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
 
@@ -11,7 +9,7 @@ public class NdcgCalculator {
 	/**
 	 * Contains a pattern matching the document id in within a formatted result entry of a document.
 	 */
-	private static final Pattern DOCUMENT_ID_PATTERN = Pattern.compile("0(?<id>\\d+) ");	
+	private static final int DOCUMENT_ID_LENGTH = 7;
 	
 	
 	/**
@@ -22,44 +20,32 @@ public class NdcgCalculator {
 	 * @return
 	 */
 	public double calculate(ArrayList<String> goldRanking, ArrayList<String> results, int rank) {
-		// Get document id of patent at the specified position of our ranking
-		String documentId = this.extractDocumentId(results.get(rank - 1));
-		
-		// Get rank of the same patent in the gold ranking
-		int goldRank = goldRanking.indexOf(documentId);
-		if(goldRank < 0) {
-			return 0d;
-		}
+		// Calculate relevance gains for actual and gold ranking
+		double[] goldGains = IntStream.rangeClosed(1, goldRanking.size())
+								.mapToDouble(this::calculateGain)
+								.toArray();
+		double[] actualGains = results.stream()
+								.map(result -> result.substring(0, DOCUMENT_ID_LENGTH))
+								.mapToInt(documentId -> goldRanking.indexOf(documentId) + 1)
+								.mapToDouble(this::calculateGain)
+								.toArray();
 		
 		// Calculate DCG values
-		double actualDCG = this.calculateDCG(rank);
-		double goldDCG = this.calculateDCG(goldRank);
+		double actualDCG = this.calculateDCG(actualGains, rank);
+		double goldDCG = this.calculateDCG(goldGains, rank);
 		
 		return actualDCG / goldDCG;
 	}
 	
 	/**
-	 * Extracts the document id of a given patent result (including document id, title and snippet)
-	 * @param result
-	 * @return
-	 */
-	private String extractDocumentId(String result) {
-		Matcher matcher = DOCUMENT_ID_PATTERN.matcher(result);
-		if(matcher.find()) {
-			return matcher.group("id");
-		}
-		
-		return null;
-	}
-	
-	/**
 	 * Calculate discounted cumulative gain for a given rank.
+	 * @param gains
 	 * @param rank
 	 * @return
 	 */
-	private double calculateDCG(int rank) {
-		return this.calculateGain(1) + IntStream.rangeClosed(2, rank)
-										.mapToDouble(i -> this.calculateGain(i) / (Math.log(i) / Math.log(2)))
+	private double calculateDCG(double[] gains, int rank) {
+		return gains[0] + IntStream.rangeClosed(2, rank)
+										.mapToDouble(i -> gains[i - 1] / (Math.log(i) / Math.log(2)))
 										.sum();
 	}
 
@@ -69,6 +55,9 @@ public class NdcgCalculator {
 	 * @return
 	 */
 	private double calculateGain(int rank) {
+		if(rank <= 0) {
+			return 0;
+		}
 		return 1 + Math.floor(10 * Math.pow(0.5, 0.1d * rank));
 	}
 }

@@ -175,7 +175,7 @@ public class WebFile {
         int safeNumber = 100;  // to get enough US utility patents and exclude others
         try {
             // issue the query
-            String queryTerms = query.replaceAll(" ", "+");
+            String queryTerms = query.replaceAll(" ", "+").replace("NOT ", "-");
             String queryUrl = "https://www.google.com/search?hl=en&q=" + queryTerms + "&tbm=pts&num=" + safeNumber + "&tbs=ptso:us,ptss:g,ptst:u";
             String page = "";
             openWebFile(queryUrl);
