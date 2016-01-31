@@ -1,39 +1,26 @@
 package postings;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-import documents.PatentDocument;
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
+
 import postings.positions.EagerPositionMap;
 import postings.positions.PositionMap;
 
 public class PostingTable {
 	
-	private final Map<String, TokenPostings> tokenPostings;
-	
-	private final Map<Integer, DocumentPostings> documentPostings;
+	private final Table<String, Integer, PositionMap> table;
 	
 	
 	/**
 	 * Creates a new, empty PostingTable instance.
 	 */
 	public PostingTable() {
-		this.tokenPostings = new HashMap<String, TokenPostings>();
-		this.documentPostings = new LinkedHashMap<Integer, DocumentPostings>();
-	}
-	
-	/**
-	 * Creates a new PostingTable instance.
-	 * @param postingTable
-	 * @param documentPostings
-	 */
-	public PostingTable(Map<String, TokenPostings> tokenPostings, Map<Integer, DocumentPostings> documentPostings) {
-		this.tokenPostings = tokenPostings;
-		this.documentPostings = documentPostings;
+		this.table = HashBasedTable.<String, Integer, PositionMap>create();
 	}
 	
 	
@@ -42,7 +29,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public Set<String> tokenSet() {
-		return this.tokenPostings.keySet();
+		return this.table.rowKeySet();
 	}
 	
 	/**
@@ -50,7 +37,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public Set<Integer> documentIdSet() {
-		return this.documentPostings.keySet();
+		return this.table.columnKeySet();
 	}
 	
 	
@@ -60,7 +47,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public TokenPostings ofToken(String token) {
-		return this.tokenPostings.get(token);
+		return new TokenPostings(this.table.row(token));
 	}
 	
 	/**
@@ -69,7 +56,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public DocumentPostings ofDocument(int documentId) {
-		return this.documentPostings.get(documentId);
+		return new DocumentPostings(this.table.column(documentId));
 	}
 	
 	
@@ -79,7 +66,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public boolean containsToken(String token) {
-		return this.tokenPostings.containsKey(token);
+		return this.table.containsRow(token);
 	}
 	
 	/**
@@ -88,7 +75,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public boolean containsDocument(int documentId) {
-		return this.documentPostings.containsKey(documentId);
+		return this.table.containsColumn(documentId);
 	}
 	
 	/**
@@ -98,22 +85,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public boolean contains(String token, int documentId) {
-		TokenPostings tokenPostings = this.tokenPostings.get(token);
-		if(tokenPostings != null) {
-			return tokenPostings.containsDocument(documentId);
-		}
-		
-		return false;
-	}
-	
-	/**
-	 * Determines, whether there is at least one posting of the given document for the specified token.
-	 * @param token
-	 * @param document
-	 * @return
-	 */
-	public boolean contains(String token, PatentDocument document) {
-		return this.contains(token, document.getId());
+		return this.table.contains(token, documentId);
 	}
 
 	
@@ -139,29 +111,10 @@ public class PostingTable {
 	 */
 	public void put(String token, int documentId, PositionMap positions) {
 		if(this.contains(token, documentId)) {
-			this.ofToken(token).ofDocument(documentId).putAll(positions);
+			this.table.get(token, documentId).putAll(positions);
 		}
 		else {
-			// Create token postings
-			Map<Integer, PositionMap> tokenPostings = new HashMap<Integer, PositionMap>();
-			tokenPostings.put(documentId, positions);
-			
-			// Create document postings
-			Map<String, PositionMap> documentPostings = new HashMap<String, PositionMap>();
-			documentPostings.put(token, positions);
-			
-			if(this.containsToken(token)) {
-				this.documentPostings.put(documentId, new DocumentPostings(documentPostings));
-				this.ofToken(token).put(documentId, positions);
-			}
-			else if(this.containsDocument(documentId)) {
-				this.tokenPostings.put(token, new TokenPostings(tokenPostings));
-				this.ofDocument(documentId).put(token, positions);
-			}
-			else {
-				this.tokenPostings.put(token, new TokenPostings(tokenPostings));
-				this.documentPostings.put(documentId, new DocumentPostings(documentPostings));
-			}
+			this.table.put(token, documentId, positions);
 		}
 	}
 	
@@ -171,19 +124,10 @@ public class PostingTable {
 	 * @param postings
 	 */
 	public void putAll(String token, TokenPostings postings) {
-		this.tokenPostings.put(token, postings);
-		
 		for(Map.Entry<Integer, PositionMap> entry: postings.entrySet()) {
 			int documentId = entry.getKey();
 			PositionMap positions = entry.getValue();
-			if(this.documentPostings.containsKey(documentId)) {
-				this.ofDocument(documentId).put(token, positions);
-			}
-			else {
-				Map<String, PositionMap> documentPostings = new HashMap<String, PositionMap>();
-				documentPostings.put(token, positions);
-				this.documentPostings.put(documentId, new DocumentPostings(documentPostings));
-			}
+			this.table.put(token, documentId, positions);
 		}
 	}
 	
@@ -193,29 +137,11 @@ public class PostingTable {
 	 * @param postings
 	 */
 	public void putAll(int documentId, DocumentPostings postings) {
-		this.documentPostings.put(documentId, postings);
-		
 		for(Map.Entry<String, PositionMap> entry: postings.entrySet()) {
 			String token = entry.getKey();
 			PositionMap positions = entry.getValue();
-			if(this.tokenPostings.containsKey(token)) {
-				this.ofToken(token).put(documentId, positions);
-			}
-			else {
-				Map<Integer, PositionMap> tokenPostings = new HashMap<Integer, PositionMap>();
-				tokenPostings.put(documentId, positions);
-				this.tokenPostings.put(token, new TokenPostings(tokenPostings));
-			}
+			this.table.put(token, documentId, positions);
 		}
-	}
-	
-	/**
-	 * Adds postings for a specific document.
-	 * @param document
-	 * @param postings
-	 */
-	public void putAll(PatentDocument document, DocumentPostings postings) {
-		this.putAll(document.getId(), postings);
 	}
 	
 	/**
@@ -223,9 +149,7 @@ public class PostingTable {
 	 * @param postingTable
 	 */
 	public void putAll(PostingTable postingTable) {
-		for(Map.Entry<String, TokenPostings> entry: postingTable.tokenPostings.entrySet()) {
-			this.putAll(entry.getKey(), entry.getValue());
-		}
+		this.table.putAll(postingTable.table);
 	}
 	
 	
@@ -234,8 +158,7 @@ public class PostingTable {
 	 * @param token
 	 */
 	public void remove(String token) {
-		this.ofToken(token).documentIdSet().stream()
-				.forEach(documentId -> this.remove(token, documentId));
+		this.table.row(token).clear();
 	}
 	
 	/**
@@ -243,16 +166,7 @@ public class PostingTable {
 	 * @param documentId
 	 */
 	public void remove(int documentId) {
-		this.documentPostings.remove(documentId);
-		this.tokenPostings.values().stream().forEach(tokenPosting -> tokenPosting.remove(documentId));
-	}
-	
-	/**
-	 * Removes all postings associated with the given document.
-	 * @param document
-	 */
-	public void remove(PatentDocument document) {
-		this.remove(document.getId());
+		this.table.column(documentId).clear();
 	}
 	
 	/**
@@ -261,17 +175,7 @@ public class PostingTable {
 	 * @param documentId
 	 */
 	public void remove(String token, int documentId) {
-		this.ofToken(token).remove(documentId);
-		this.ofDocument(documentId).remove(token);
-	}
-	
-	/**
-	 * Removes all postings associated with the given token and document.
-	 * @param token
-	 * @param document
-	 */
-	public void remove(String token, PatentDocument document) {
-		this.remove(token, document.getId());
+		this.table.remove(token, documentId);
 	}
 	
 	
@@ -280,7 +184,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public boolean isEmpty() {
-		return this.tokenPostings.isEmpty() && this.documentPostings.isEmpty();
+		return this.table.isEmpty();
 	}
 	
 	/**
@@ -288,9 +192,7 @@ public class PostingTable {
 	 * @return
 	 */
 	public int size() {
-		return this.tokenPostings.values().stream()
-					.mapToInt(tokenPostings -> tokenPostings.size())
-					.sum();
+		return this.table.size();
 	}
 	
 	/**
@@ -298,22 +200,21 @@ public class PostingTable {
 	 * @return
 	 */
 	public int totalTokenOccurencesCount() {
-		return this.tokenPostings.values().stream()
-					.mapToInt(tokenPostings -> tokenPostings.getTotalOccurencesCount())
-					.sum();
+		return this.table.values().stream()
+				.mapToInt(positionMap -> positionMap.size())
+				.sum();
 	}
 	
 	/**
 	 * Deletes all postings from this table.
 	 */
 	public void clear() {
-		this.tokenPostings.clear();
-		this.documentPostings.clear();
+		this.table.clear();
 	}
 	
 	@Override
 	public String toString() {
-		return this.tokenPostings.toString();
+		return this.table.toString();
 	}
 	
 	
@@ -347,9 +248,9 @@ public class PostingTable {
 
 		// Add all posting with one of the conjuncted document ids to result
 		Arrays.stream(postingTables)
-				.flatMap(postingTable -> postingTable.documentPostings.entrySet().stream())
-				.filter(entry -> documentIds.contains(entry.getKey()))
-				.forEach(entry -> result.putAll(entry.getKey(), entry.getValue()));
+				.flatMap(postingTable -> postingTable.table.cellSet().stream())
+				.filter(cell -> documentIds.contains(cell.getColumnKey()))
+				.forEach(cell -> result.put(cell.getRowKey(), cell.getColumnKey(), cell.getValue()));
 		
 		return result;
 	}
@@ -370,9 +271,9 @@ public class PostingTable {
 
 		// Add all posting with one of the filtered document ids to result
 		Arrays.stream(postingTables)
-				.flatMap(postingTable -> postingTable.documentPostings.entrySet().stream())
-				.filter(entry -> documentIds.contains(entry.getKey()))
-				.forEach(entry -> result.putAll(entry.getKey(), entry.getValue()));
+		.flatMap(postingTable -> postingTable.table.cellSet().stream())
+		.filter(cell -> documentIds.contains(cell.getColumnKey()))
+		.forEach(cell -> result.put(cell.getRowKey(), cell.getColumnKey(), cell.getValue()));
 		
 		return result;
 	}
