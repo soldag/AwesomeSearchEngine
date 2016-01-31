@@ -12,22 +12,27 @@ import com.google.common.collect.Multimap;
 
 import postings.PostingTable;
 
-public class UnrankedQueryResult {
+public class UnrankedQueryResult implements QueryResult {
 	
 	/**
 	 * Contains the found postings per token.
 	 */
-	protected final PostingTable tokenPostings;
+	private final PostingTable tokenPostings;
 	
 	/**
 	 * Contains a map, that contains for each requested document id a list of ids of documents, which cite the first one. 
 	 */
-	protected final Multimap<Integer, Integer> linkedDocuments;
+	private final Multimap<Integer, Integer> linkedDocuments;
 	
 	/**
 	 * Contains the map of spelling corrections. Key is the original token, value the corrected one.
 	 */
-	protected final Map<String, String> spellingCorrections;
+	private final Map<String, String> spellingCorrections;
+	
+	/**
+	 * Contains the corresponding original result (i.e. when prf is enabled), if present.
+	 */
+	private final QueryResult originalQueryResult;
 
 	
 	/**
@@ -64,13 +69,26 @@ public class UnrankedQueryResult {
 	
 	/**
 	 * Creates a new QueryResult instance.
-	 * @param tokenPostings
+	 * @param postingTable
 	 * @param linkedDocuments
 	 * @param spellingCorrections
 	 */
-	public UnrankedQueryResult(PostingTable tokenPostings, Multimap<Integer, Integer> linkedDocuments, Map<String, String> spellingCorrections) {
-		this.tokenPostings = tokenPostings;
+	public UnrankedQueryResult(PostingTable postingTable, Multimap<Integer, Integer> linkedDocuments, Map<String, String> spellingCorrections) {
+		this(postingTable, linkedDocuments, spellingCorrections, null);
+	}
+	
+	/**
+	 * Creates a new QueryResult instance with original result.
+	 * @param postingTable
+	 * @param linkedDocuments
+	 * @param spellingCorrections
+	 * @param originalQueryResult
+	 */
+	public UnrankedQueryResult(PostingTable postingTable, Multimap<Integer, Integer> linkedDocuments, 
+			Map<String, String> spellingCorrections, QueryResult originalQueryResult) {
+		this.tokenPostings = postingTable;
 		this.linkedDocuments = linkedDocuments;
+		this.originalQueryResult = originalQueryResult;
 		
 		// Assure, that spelling corrections only include tokens that are part of the posting table
 		Set<String> existingTokens = this.tokenPostings.tokenSet();
@@ -79,29 +97,41 @@ public class UnrankedQueryResult {
 				.collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
 	}
 	
-	
 	/**
-	 * Gets the matching postings.
+	 * Creates a new UnrankedQueryResult instance based on the given results.
+	 * @param result
+	 * @param originalResult
 	 * @return
 	 */
+	public static UnrankedQueryResult fromResults(QueryResult result, QueryResult originalResult) {
+		return new UnrankedQueryResult(result.getPostings(), result.getLinkedDocuments(), result.getSpellingCorrections(), originalResult);
+	}
+	
+	
+	@Override
 	public PostingTable getPostings() {
 		return tokenPostings;
 	}
-	
-	/**
-	 * Gets a map, that contains for each requested document id a list of ids of documents, which cite the first one. 
-	 * @return
-	 */
+
+	@Override
 	public Multimap<Integer, Integer> getLinkedDocuments() {
 		return this.linkedDocuments;
 	}
 
-	/**
-	 * Gets the map of spelling corrections. Key is the original token, value the corrected one.
-	 * @return
-	 */
+	@Override
 	public Map<String, String> getSpellingCorrections() {
 		return spellingCorrections;
+	}
+
+
+	@Override
+	public boolean hasOriginalResult() {
+		return this.originalQueryResult != null;
+	}
+
+	@Override
+	public QueryResult getOriginalResult() {
+		return this.originalQueryResult;
 	}
 	
 

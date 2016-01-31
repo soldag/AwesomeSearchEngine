@@ -13,7 +13,7 @@ public class RankedQueryResult extends UnrankedQueryResult {
 	/**
 	 * Contains the ordered list of ranked documents.
 	 */
-	protected final List<PatentDocument> rankedDocuments;
+	private final List<PatentDocument> rankedDocuments;
 	
 	
 	/**

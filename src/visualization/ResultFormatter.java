@@ -10,8 +10,8 @@ import documents.PatentDocument;
 import parsing.PatentContentLookup;
 import postings.ContentType;
 import postings.DocumentPostings;
+import querying.results.QueryResult;
 import querying.results.RankedQueryResult;
-import querying.results.UnrankedQueryResult;
 import textprocessing.TextPreprocessor;
 
 public class ResultFormatter {
@@ -75,7 +75,7 @@ public class ResultFormatter {
 	 * @param result
 	 * @return
 	 */
-	private String formatTitle(String title, PatentDocument document, UnrankedQueryResult result) {
+	private String formatTitle(String title, PatentDocument document, QueryResult result) {
 		// Tokenize title
 		List<String> tokenizedTitle;
 		try {

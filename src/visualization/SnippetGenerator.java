@@ -20,8 +20,7 @@ import parsing.PatentContentLookup;
 import postings.ContentType;
 import postings.DocumentPostings;
 import postings.positions.PositionMap;
-import querying.results.PrfQueryResult;
-import querying.results.UnrankedQueryResult;
+import querying.results.QueryResult;
 import textprocessing.TextPreprocessor;
 
 public class SnippetGenerator {
@@ -60,7 +59,7 @@ public class SnippetGenerator {
 	 * @param result
 	 * @return
 	 */
-	public Snippet generate(PatentDocument document, UnrankedQueryResult result) {
+	public Snippet generate(PatentDocument document, QueryResult result) {
 		// Get contents of given document
 		PatentContentDocument contentDocument;
 		try {
@@ -78,10 +77,10 @@ public class SnippetGenerator {
 	 * @param result
 	 * @return
 	 */
-	public Snippet generate(PatentContentDocument document, UnrankedQueryResult result) {
+	public Snippet generate(PatentContentDocument document, QueryResult result) {
 		// If prf is enabled, use original result for snippet generation.
-		if(result instanceof PrfQueryResult) { //TODO: RankedQueryResult
-			result = ((PrfQueryResult)result).getOriginalResult();
+		if(result.hasOriginalResult()) {
+			result = result.getOriginalResult();
 		}
 		
 		// Get abstract text split into each tokens and sentences

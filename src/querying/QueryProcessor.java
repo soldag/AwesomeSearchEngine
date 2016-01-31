@@ -31,7 +31,7 @@ import querying.queries.PrfQuery;
 import querying.queries.Query;
 import querying.queries.QueryParser;
 import querying.ranking.DocumentRanker;
-import querying.results.PrfQueryResult;
+import querying.results.QueryResult;
 import querying.results.RankedQueryResult;
 import querying.spellingcorrection.SpellingCorrector;
 import textprocessing.TextPreprocessor;
@@ -105,7 +105,9 @@ public class QueryProcessor {
 	 * @throws IOException
 	 */
 	private RankedQueryResult search(Query query, int resultLimit) throws IOException {
-		UnrankedQueryResult unrankedResult = this.searchUnweighted(query, resultLimit);
+		QueryResult unrankedResult = this.searchUnweighted(query, resultLimit);
+		
+		// Rank result depending on query type
 		RankedQueryResult result;
 		if(query.getType() == BooleanQuery.TYPE || query.getType() == LinkToQuery.TYPE) {
 			result = this.documentRanker.limitResult(unrankedResult, resultLimit);
@@ -119,7 +121,7 @@ public class QueryProcessor {
 			PrfQuery prfQuery = (PrfQuery)query;
 			if(prfQuery.getPrf() > 0) {
 				PrfQuery extendedQuery = this.extendPrfQuery(prfQuery, result);
-				unrankedResult = PrfQueryResult.fromResults(this.searchUnweighted(extendedQuery, resultLimit), result);
+				unrankedResult = UnrankedQueryResult.fromResults(this.searchUnweighted(extendedQuery, resultLimit), result);
 				result = this.documentRanker.weightResult(unrankedResult, resultLimit, this.invertedIndexReader.getTotalTokenCount());
 			}
 		}
