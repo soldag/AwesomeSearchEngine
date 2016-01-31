@@ -41,6 +41,11 @@ public class PatentDocument {
 	 */
 	private Map<ContentType, Integer> tokenCounts;
 	
+	/**
+	 * Contains the page rank of the document.
+	 */
+	private double pageRank;
+	
 	
 	/**
 	 * Creates a new PatentDocument instance.
@@ -62,13 +67,26 @@ public class PatentDocument {
 	 * @param tokensCounts
 	 */
 	public PatentDocument(int id, int fileId, int offset, int length, Map<ContentType, Integer> tokenCounts) {
+		this(id, fileId, offset, length, tokenCounts, -1);
+	}
+	
+	/**
+	 * Creates a new PatentDocument instance.
+	 * @param id
+	 * @param fileId
+	 * @param offset
+	 * @param length
+	 * @param tokenCounts
+	 * @param pageRank
+	 */
+	public PatentDocument(int id, int fileId, int offset, int length, Map<ContentType, Integer> tokenCounts, double pageRank) {
 		this.id = id;
 		this.fileId = fileId;
 		this.offset = offset;
 		this.length = length;
 		this.tokenCounts = tokenCounts;
+		this.pageRank = pageRank;
 	}
-	
 	
 	/**
 	 * Gets the id of the document.
@@ -145,6 +163,25 @@ public class PatentDocument {
 		this.tokenCounts = tokenCounts;
 	}
 	
+	/**
+	 * Gets the page rank of the the document.
+	 * @return
+	 */
+	public double getPageRank() {
+		return this.pageRank;
+	}
+	
+	
+	/**
+	 * Sets the page rank of the the document.
+	 * @param pageRank
+	 * @return
+	 */
+	public void setPageRank(double pageRank) {
+		this.pageRank = pageRank;
+	}
+	
+	
 	@Override
 	public boolean equals(Object obj) {
 		if(obj instanceof PatentDocument) {
@@ -204,7 +241,10 @@ public class PatentDocument {
 			tokenCounts.put(contentType, tokenCount);
 		}
 		
-		return new PatentDocument(id, fileId, offset, length, tokenCounts);
+		// Read page rank
+		double pageRank = reader.readDouble();
+		
+		return new PatentDocument(id, fileId, offset, length, tokenCounts, pageRank);
 	}
 	
 	/**
@@ -243,6 +283,9 @@ public class PatentDocument {
 			// Write token count
 			writer.writeInt(this.getTokensCount(contentType));
 		}
+		
+		// Write page rank
+		writer.writeDouble(this.getPageRank());
 		
 		// End skipping area for properties of the document
 		writer.endSkippingArea();

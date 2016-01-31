@@ -74,6 +74,19 @@ public class UncompressedIndexReader implements IndexReader, AutoCloseable {
 	}
 
 	@Override
+	public float readFloat() throws IOException {
+		int bits = this.readInt();
+		return Float.intBitsToFloat(bits);
+	}
+
+
+	@Override
+	public double readDouble() throws IOException {
+		long bits = this.readLong();
+		return Double.longBitsToDouble(bits);
+	}
+
+	@Override
 	public String readString() throws IOException {
 		int length = this.readInt();
 		byte[] bytes = new byte[length];

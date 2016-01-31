@@ -8,17 +8,20 @@ import java.util.Map;
 import javax.xml.stream.XMLStreamException;
 
 import documents.PatentContentDocument;
+import documents.PatentDocument;
+import gnu.trove.list.TIntList;
+import gnu.trove.list.array.TIntArrayList;
+import gnu.trove.procedure.TIntProcedure;
 import indexing.citations.CitationIndexConstructor;
-import indexing.citations.CitationIndexMerger;
 import indexing.citations.CitationIndexSeekList;
 import indexing.documentmap.DocumentMapConstructor;
-import indexing.documentmap.DocumentMapMerger;
 import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexConstructor;
 import indexing.invertedindex.InvertedIndexMerger;
 import indexing.invertedindex.InvertedIndexSeekList;
 import parsing.PatentDocumentParser;
 import postings.ContentType;
+import querying.ranking.PageRankCalculator;
 import textprocessing.TextPreprocessor;
 
 import java.io.File;
@@ -30,24 +33,23 @@ public class DocumentIndexer {
 	/**
 	 * Determines the memory limit. If this limit is exceeded, memory index has to be written to file.
 	 */
-	private static final int MEMORY_LIMIT = 1000000000;
+	private static final int MEMORY_LIMIT = 2000000000;
 	
 	/**
 	 * Contains the prefix for temporary index files.
 	 */
 	private static final String TEMP_INVERTED_INDEX_PREFIX = "awse_index_%d";
-	private static final String TEMP_DOCUMENT_MAP_PREFIX = "awse_document_map_%d";
-	private static final String TEMP_CITATION_INDEX_PREFIX = "awse_document_map_%d";
 	
 	/**
-	 * Contains text preprocessor instance.
+	 * Contains necessary services.
 	 */
 	private TextPreprocessor textPreprocessor;
+	private PageRankCalculator pageRankCalculator;
 		
 	/**
 	 * Contain the constructors for the inverted index and document map.
 	 */
-	private InvertedIndexConstructor indexConstructor;
+	private InvertedIndexConstructor invertedIndexConstructor;
 	private DocumentMapConstructor documentMapConstructor;
 	private CitationIndexConstructor citationIndexConstructor;
 	
@@ -66,16 +68,21 @@ public class DocumentIndexer {
 	 */
 	private boolean compress;
 	
+	
+	/**
+	 * Contains for each patent the ids of documents, that it cites.
+	 */
+	private Map<PatentDocument, TIntList> linkedDocuments = new HashMap<PatentDocument, TIntList>();
+	
 	/**
 	 * Contains all created temporary index files.
 	 */
 	private List<File> tempInvertedIndexFiles = new ArrayList<File>();
-	private List<File> tempDocumentMapFiles = new ArrayList<File>();
-	private List<File> tempCitationIndexFiles = new ArrayList<File>();
 	
 	/**
 	 * Creates a new DocumentIndexer instance.
 	 * @param textProcessor
+	 * @param pageRankCalculator
 	 * @param indexFile
 	 * @param seekListFile
 	 * @param documentMapFile
@@ -84,9 +91,10 @@ public class DocumentIndexer {
 	 * @param citationIndexSeekListFile
 	 * @param compress
 	 */
-	public DocumentIndexer(TextPreprocessor textProcessor, File indexFile, File seekListFile, File documentMapFile, 
-			File documentMapSeekListFile, File citationIndexFile, File citationIndexSeekListFile, boolean compress) {
+	public DocumentIndexer(TextPreprocessor textProcessor, PageRankCalculator pageRankCalculator, File indexFile, File seekListFile, 
+			File documentMapFile, File documentMapSeekListFile, File citationIndexFile, File citationIndexSeekListFile, boolean compress) {
 		this.textPreprocessor = textProcessor;
+		this.pageRankCalculator = pageRankCalculator;
 		
 		this.indexFile = indexFile;
 		this.indexSeekListFile = seekListFile;
@@ -96,7 +104,7 @@ public class DocumentIndexer {
 		this.citationIndexSeekListFile = citationIndexSeekListFile;
 		this.compress = compress;
 		
-		this.indexConstructor = new InvertedIndexConstructor(this.compress, new InvertedIndexSeekList());
+		this.invertedIndexConstructor = new InvertedIndexConstructor(this.compress, new InvertedIndexSeekList());
 		this.documentMapConstructor = new DocumentMapConstructor(this.compress, new DocumentMapSeekList());
 		this.citationIndexConstructor = new CitationIndexConstructor(compress, new CitationIndexSeekList());
 	}
@@ -124,8 +132,15 @@ public class DocumentIndexer {
 			}
 		}
 		
-		// Write constructed indexes to files
-		this.writeFinalIndexFiles();
+		// Calculate page ranks
+		List<PatentDocument> documents = this.pageRankCalculator.calculate(this.linkedDocuments);
+		
+		// Construct document map and inverse citation index
+		this.constructDocumentMap(documents);
+		this.constructCitationIndex();
+		
+		// Write constructed inverted index to file
+		this.writeFinalInvertedIndex();
 		
 		// Delete temporary files
 		this.clearTemporaryIndexes();
@@ -143,18 +158,12 @@ public class DocumentIndexer {
 			// Add all tokens from document to memory index
 			this.addTokens(document);
 			
-			// Add document to document map
-			this.documentMapConstructor.add(document.withoutContent());
+			// Add document linked document map
+			this.linkedDocuments.put(document.withoutContent(), new TIntArrayList(document.getLinkedDocumentIds()));
 			
-			// Add linked documents to citation index
-			this.addLinkedDocuments(document);
-			
-			// If size of the memory indexes is too high, write them to new temporary file and clean memory.
-			//TODO fix
-			if(this.citationIndexConstructor.size() > 1000000) {
-				System.out.println("Write temp files...");
-				this.writeTemporaryDocumentMap();
-				this.writeTemporaryCitationIndex();
+			// If memory consumption is too high, write inverted index to new temporary file and clean memory.
+			if(this.getFreeMemory() < MEMORY_LIMIT) {
+				System.out.println("Write temp file...");
 				this.writeTemporaryInvertedIndex();
 				
 				// Run garbage collector
@@ -162,6 +171,14 @@ public class DocumentIndexer {
 				System.runFinalization();
 			}
 		}
+	}
+	
+	/**
+	 * Gets the amount of free memory in bytes.
+	 * @return
+	 */
+	private long getFreeMemory() {
+		return Runtime.getRuntime().maxMemory() - (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory());
 	}
 	
 	/**
@@ -183,7 +200,7 @@ public class DocumentIndexer {
 					
 					// Add posting to memory index
 					if(!token.isEmpty()) {
-						this.indexConstructor.add(document.getId(), token, contentType, position);
+						this.invertedIndexConstructor.add(document.getId(), token, contentType, position);
 					}
 				}
 			}
@@ -194,14 +211,35 @@ public class DocumentIndexer {
 		document.setTokensCount(tokenCounts);
 	}
 	
+	
 	/**
-	 * Adds citations of the given document to the citations index.
-	 * @param document
+	 * Creates the document map from document list and stored it to file.
+	 * @throws IOException
 	 */
-	private void addLinkedDocuments(PatentContentDocument document) {
-		for(int documentId: document.getLinkedDocumentIds()) {
-			this.citationIndexConstructor.add(documentId, document.getId());
+	private void constructDocumentMap(List<PatentDocument> documents) throws IOException {
+		for(PatentDocument document: documents) {
+			this.documentMapConstructor.add(document);
 		}
+		this.documentMapConstructor.writeToFile(this.documentMapFile, this.documentMapSeekListFile);
+	}
+	
+	/**
+	 * Creates the inverse citation index from linked document map and stored it to file.
+	 * @throws IOException
+	 */
+	private void constructCitationIndex() throws IOException {
+		for(Map.Entry<PatentDocument, TIntList> entry: this.linkedDocuments.entrySet()) {
+			int documentId = entry.getKey().getId();
+			TIntList linkedDocumentIds = entry.getValue();
+			linkedDocumentIds.forEach(new TIntProcedure() {					
+				@Override
+				public boolean execute(int linkedDocumentId) {
+					citationIndexConstructor.add(linkedDocumentId, documentId);
+					return true;
+				}
+			});
+		}
+		this.citationIndexConstructor.writeToFile(this.citationIndexFile, this.citationIndexSeekListFile);
 	}
 	
 	
@@ -212,41 +250,8 @@ public class DocumentIndexer {
 	private void writeTemporaryInvertedIndex() throws IOException {
 		File invertedIndexFile = File.createTempFile(TEMP_INVERTED_INDEX_PREFIX, "");
 		this.tempInvertedIndexFiles.add(invertedIndexFile);		
-		this.indexConstructor.writeToFile(invertedIndexFile);
-		this.indexConstructor.clear();
-	}
-	
-	/**
-	 * Write document map from memory to temporary index files.
-	 * @throws IOException
-	 */
-	private void writeTemporaryDocumentMap() throws IOException {
-		File documentMapFile = File.createTempFile(TEMP_DOCUMENT_MAP_PREFIX, "");
-		this.tempDocumentMapFiles.add(documentMapFile);		
-		this.documentMapConstructor.writeToFile(documentMapFile);
-		this.documentMapConstructor.clear();
-	}
-	
-	/**
-	 * Write citation index from memory to temporary index files.
-	 * @throws IOException
-	 */
-	private void writeTemporaryCitationIndex() throws IOException {
-		File citationIndexFile = File.createTempFile(TEMP_CITATION_INDEX_PREFIX, "");
-		this.tempCitationIndexFiles.add(citationIndexFile);		
-		this.citationIndexConstructor.writeToFile(citationIndexFile);
-		this.citationIndexConstructor.clear();
-	}
-	
-	/**
-	 * Write constructed indexes to final files.
-	 * Merging of temporary files may be necessary.
-	 * @throws IOException
-	 */
-	private void writeFinalIndexFiles() throws IOException {		
-		this.writeFinalDocumentMap();
-		this.writeFinalCitationIndex();
-		this.writeFinalInvertedIndex();
+		this.invertedIndexConstructor.writeToFile(invertedIndexFile);
+		this.invertedIndexConstructor.clear();
 	}
 	
 	/**
@@ -255,57 +260,17 @@ public class DocumentIndexer {
 	 */
 	private void writeFinalInvertedIndex() throws IOException {
 		if(this.tempInvertedIndexFiles.isEmpty()) {
-			this.indexConstructor.writeToFile(this.indexFile, this.indexSeekListFile);
-			this.indexConstructor.clear();
+			this.invertedIndexConstructor.writeToFile(this.indexFile, this.indexSeekListFile);
+			this.invertedIndexConstructor.clear();
 		}
 		else {
-			if(this.indexConstructor.size() > 0) {
+			if(this.invertedIndexConstructor.size() > 0) {
 				this.writeTemporaryInvertedIndex();
 			}
 			
 			System.out.println("Merge inverted index files...");
 			InvertedIndexMerger indexMerger = new InvertedIndexMerger(this.compress);
 			indexMerger.merge(this.indexFile, this.tempInvertedIndexFiles, this.indexSeekListFile);
-		}
-	}
-	
-	/**
-	 * Write document map from memory to final index file. 
-	 * @throws IOException
-	 */
-	private void writeFinalDocumentMap() throws IOException {		
-		if(this.tempDocumentMapFiles.isEmpty()) {
-			this.documentMapConstructor.writeToFile(this.documentMapFile, this.documentMapSeekListFile);
-			this.documentMapConstructor.clear();
-		}
-		else {
-			if(this.documentMapConstructor.size() > 0) {
-				this.writeTemporaryDocumentMap();
-			}
-			
-			System.out.println("Merge document map files...");
-			DocumentMapMerger indexMerger = new DocumentMapMerger(this.compress);
-			indexMerger.merge(this.documentMapFile, this.tempDocumentMapFiles, this.documentMapSeekListFile);
-		}		
-	}
-	
-	/**
-	 * Write citation index from memory to final index file. 
-	 * @throws IOException
-	 */
-	private void writeFinalCitationIndex() throws IOException {
-		if(this.tempCitationIndexFiles.isEmpty()) {
-			this.citationIndexConstructor.writeToFile(this.citationIndexFile, this.citationIndexSeekListFile);
-			this.citationIndexConstructor.clear();
-		}
-		else {
-			if(this.citationIndexConstructor.size() > 0) {
-				this.writeTemporaryCitationIndex();
-			}
-			
-			System.out.println("Merge citation index files...");
-			CitationIndexMerger indexMerger = new CitationIndexMerger(this.compress);
-			indexMerger.merge(this.citationIndexFile, this.tempCitationIndexFiles, this.citationIndexSeekListFile);
 		}
 	}
 	
@@ -321,22 +286,6 @@ public class DocumentIndexer {
 			}
 		}
 		this.tempInvertedIndexFiles.clear();
-		
-		// Document map
-		for(File indexFile: this.tempDocumentMapFiles) {
-			if(indexFile.exists()) {
-				indexFile.delete();
-			}
-		}
-		this.tempDocumentMapFiles.clear();
-		
-		// Citation index
-		for(File indexFile: this.tempCitationIndexFiles) {
-			if(indexFile.exists()) {
-				indexFile.delete();
-			}
-		}
-		this.tempCitationIndexFiles.clear();
 	}
 	
 	/**

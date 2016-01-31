@@ -4,6 +4,7 @@ package querying.ranking;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,10 +40,10 @@ public class DocumentRanker {
 	private static final double NON_QUERY_TOKEN_FACTOR = 0.25;
 	
 	/**
-	 * Contains factors for the weights of tokens and linked documents.
+	 * Contains factors for the different weights.
 	 */
-	private static final double TOKEN_WEIGHT_FACTOR = 0.5;	
-	private static final double LINKED_DOCUMENTS_WEIGHT_FACTOR = 0.5;
+	private static final double TOKEN_WEIGHT_FACTOR = 0.6;	
+	private static final double PAGE_RANK_FACTOR = 0.4;
 	
 	/**
 	 * Contains the document map reader service.
@@ -57,22 +58,10 @@ public class DocumentRanker {
 	public DocumentRanker(DocumentMapReader documentMapReader) {
 		this.documentMapReader = documentMapReader;
 	}
+
 	
-	
-	/**
-	 * Weights a query result using query-likelihood-model. Resulting query result is limited to 'documentLimit' entries.
-	 * @param result
-	 * @param resultLimit
-	 * @param collectionTokenCount
-	 * @return
-	 */
 	public RankedQueryResult weightResult(UnrankedQueryResult result, int resultLimit, int collectionTokenCount) {
 		PostingTable resultPostings = result.getPostings();
-		
-		// If result should not be limited, set resultLimit to number of resulting documents
-		if(resultLimit < 0) {
-			resultLimit = resultPostings.documentIdSet().size();
-		}
 		
 		// Narrow range of document to the ones, which contain most of the query tokens
 		Set<Integer> rankingDocumentIds = resultPostings.documentIdSet();
@@ -113,23 +102,18 @@ public class DocumentRanker {
 													.map(e -> e.getKey())
 													.collect(Collectors.toList());
 		
-		// Create ranked posting table and linked documents map
-		PostingTable postingTable = new PostingTable();
-		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
-		for(PatentDocument document: rankedDocuments) {
-			// Postings
-			DocumentPostings documentPostings = resultPostings.ofDocument(document.getId());
-			if(documentPostings != null) {
-				postingTable.putAll(document, documentPostings);
-			}
-			
-			// Linked documents
-			Collection<Integer> documentIds = result.getLinkedDocuments().get(document.getId());
-			linkedDocuments.putAll(document.getId(), documentIds);
-		}
+		return this.buildRankedResult(result, rankedDocuments);
+	}
+	
+	public RankedQueryResult limitResult(UnrankedQueryResult result, int resultLimit) {
+		List<PatentDocument> documents = Sets.union(result.getPostings().documentIdSet(), result.getLinkedDocuments().keySet()).stream()
+												.sorted(Collections.reverseOrder())
+												.limit(resultLimit)
+												.map(this::loadDocument)
+												.filter(Objects::nonNull)
+												.collect(Collectors.toList());
 		
-		
-		return new RankedQueryResult(postingTable, linkedDocuments, result.getSpellingCorrections(), rankedDocuments);
+		return this.buildRankedResult(result, documents);
 	}
 	
 	/**
@@ -171,14 +155,7 @@ public class DocumentRanker {
 															this.weightDocumentByTokens(document, contentType, result,collectionFrequencies, collectionTokenCount))
 								.sum();
 		
-
-		// Calculate weight of linked documents
-		int maxCitationCount = result.getLinkedDocuments().asMap().values().stream()
-										.mapToInt(documentIds -> documentIds.size())
-										.max().orElse(0);
-		double linkedDocumentsWeight = this.weightDocumentByCitations(document, result, maxCitationCount);
-		
-		return TOKEN_WEIGHT_FACTOR * tokenWeight + LINKED_DOCUMENTS_WEIGHT_FACTOR * linkedDocumentsWeight;
+		return TOKEN_WEIGHT_FACTOR * tokenWeight + PAGE_RANK_FACTOR * document.getPageRank();
 	}
 	
 	/**
@@ -248,14 +225,22 @@ public class DocumentRanker {
 		return (1 - QL_LAMBDA) * (tokenDocumentFrequency / documentsLength) + QL_LAMBDA * (tokenCollectionFrequency / collectionLength);
 	}
 	
-	/**
-	 * Calculates the weights depending on the number of linked documents (in case of an LinkTo-query).
-	 * @param document
-	 * @param result
-	 * @return
-	 */
-	private double weightDocumentByCitations(PatentDocument document, UnrankedQueryResult result, int maxCitationCount) {
-		int citationsCount = result.getLinkedDocuments().get(document.getId()).size();
-		return (double)citationsCount / (double)maxCitationCount;
+	private RankedQueryResult buildRankedResult(UnrankedQueryResult result, List<PatentDocument> rankedDocuments) {
+		PostingTable postingTable = new PostingTable();
+		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
+		for(PatentDocument document: rankedDocuments) {
+			// Postings
+			DocumentPostings documentPostings = result.getPostings().ofDocument(document.getId());
+			if(documentPostings != null) {
+				postingTable.putAll(document.getId(), documentPostings);
+			}
+			
+			// Linked documents
+			Collection<Integer> documentIds = result.getLinkedDocuments().get(document.getId());
+			linkedDocuments.putAll(document.getId(), documentIds);
+		}
+		
+		
+		return new RankedQueryResult(postingTable, linkedDocuments, result.getSpellingCorrections(), rankedDocuments);
 	}
 }

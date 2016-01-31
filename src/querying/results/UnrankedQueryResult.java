@@ -136,7 +136,7 @@ public class UnrankedQueryResult {
 		PostingTable[] tokenPostings = Arrays.stream(results)
 											.map(x -> x.getPostings())
 											.toArray(PostingTable[]::new);
-		PostingTable disjunctedTokenPostings = PostingTable.conjunct(tokenPostings);
+		PostingTable conjunctedTokenPostings = PostingTable.conjunct(tokenPostings);
 		
 		// Conjunct linked documents
 		Set<Integer> documentIds = new HashSet<Integer>(results[0].getLinkedDocuments().keySet());
@@ -152,7 +152,7 @@ public class UnrankedQueryResult {
 			}
 		}
 		
-		return new UnrankedQueryResult(disjunctedTokenPostings, linkedDocuments, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(conjunctedTokenPostings, linkedDocuments, disjunctSpellingCorrections(results));
 	}
 	
 	/**

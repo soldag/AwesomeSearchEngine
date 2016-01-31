@@ -34,6 +34,18 @@ public interface IndexReader extends FileReader {
 	public long readLong() throws IOException;
 	
 	/**
+	 * Reads a float from this file
+	 * @return
+	 */
+	public float readFloat() throws IOException;
+	
+	/**
+	 * Reads a double from this file.
+	 * @return
+	 */
+	public double readDouble() throws IOException;
+	
+	/**
 	 * Reads a string from this file.
 	 * @return
 	 * @throws IOException

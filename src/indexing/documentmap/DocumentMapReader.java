@@ -50,7 +50,7 @@ public class DocumentMapReader implements AutoCloseable {
 	}	
 	
 	/**
-	 * Gets a document from map by specifying its id
+	 * Gets a document from map by specifying its id.
 	 * @param documentId
 	 * @return PatentDocument
 	 * @throws IOException

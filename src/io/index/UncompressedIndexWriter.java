@@ -75,6 +75,19 @@ public class UncompressedIndexWriter implements IndexWriter, AutoCloseable {
 		byte[] bytes = Longs.toByteArray(value);
 		this.write(bytes);
 	}
+
+	@Override
+	public void writeFloat(float value) throws IOException {
+		int bits = Float.floatToIntBits(value);
+		this.writeInt(bits);
+	}
+
+
+	@Override
+	public void writeDouble(double value) throws IOException {
+		long bits = Double.doubleToLongBits(value);
+		this.writeLong(bits);
+	}
 	
 	@Override
 	public void writeString(String string) throws IOException {

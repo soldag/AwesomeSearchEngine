@@ -106,7 +106,13 @@ public class QueryProcessor {
 	 */
 	private RankedQueryResult search(Query query, int resultLimit) throws IOException {
 		UnrankedQueryResult unrankedResult = this.searchUnweighted(query, resultLimit);
-		RankedQueryResult result = this.documentRanker.weightResult(unrankedResult, resultLimit, this.invertedIndexReader.getTotalTokenCount());
+		RankedQueryResult result;
+		if(query.getType() == BooleanQuery.TYPE || query.getType() == LinkToQuery.TYPE) {
+			result = this.documentRanker.limitResult(unrankedResult, resultLimit);
+		}
+		else {
+			result = this.documentRanker.weightResult(unrankedResult, resultLimit, this.invertedIndexReader.getTotalTokenCount());
+		}
 		
 		// If enabled, extend query using pseudo relevance feedback (only supported for keyword queries)
 		if(query instanceof PrfQuery) {

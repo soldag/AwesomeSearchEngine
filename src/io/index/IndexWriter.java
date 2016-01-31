@@ -34,6 +34,20 @@ public interface IndexWriter extends FileWriter {
 	public void writeLong(long value) throws IOException;
 	
 	/**
+	 * Writes a float to the file as a four-byte quantity, high byte first.
+	 * @param value
+	 * @throws IOException
+	 */
+	public void writeFloat(float value) throws IOException;
+	
+	/**
+	 * Writes a double to the file as a eight-byte quantity, high byte first.
+	 * @param value
+	 * @throws IOException
+	 */
+	public void writeDouble(double value) throws IOException;
+	
+	/**
 	 * Writes a string to the file.
 	 * @param string
 	 * @throws IOException

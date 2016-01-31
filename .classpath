@@ -10,5 +10,6 @@
 	<classpathentry kind="lib" path="lib/guava-18.0.jar"/>
 	<classpathentry kind="lib" path="lib/vtd-xml.jar"/>
 	<classpathentry kind="lib" path="lib/trove-3.0.3.jar"/>
+	<classpathentry kind="lib" path="lib/la4j-0.6.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

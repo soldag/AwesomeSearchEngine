@@ -35,6 +35,7 @@ import parsing.PatentContentLookup;
 import querying.QueryProcessor;
 import querying.queries.QueryParser;
 import querying.ranking.DocumentRanker;
+import querying.ranking.PageRankCalculator;
 import querying.results.RankedQueryResult;
 import querying.spellingcorrection.DamerauLevenshteinCalculator;
 import querying.spellingcorrection.SpellingCorrector;
@@ -62,6 +63,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private SnippetGenerator snippetGenerator;
 	private ResultFormatter resultFormatter;
 	private NdcgCalculator ncdgCalculator;
+	private PageRankCalculator pageRankCalculator;
 	
 	/**
 	 * Contain the index reader services
@@ -126,6 +128,7 @@ public class AwesomeSearchEngine extends SearchEngine {
     	if(this.documentIndexer == null) {
     		this.documentIndexer = new DocumentIndexer(
     						this.getTextPreprocessor(), 
+    						this.getPageRankCalculator(),
     						this.indexFile, 
     						this.indexSeekListFile, 
     						this.documentMapFile, 
@@ -246,8 +249,21 @@ public class AwesomeSearchEngine extends SearchEngine {
     		this.ncdgCalculator = new NdcgCalculator();
     	}
     	
-		return ncdgCalculator;
+		return this.ncdgCalculator;
 	}
+    
+    
+    /**
+     * Returns the current PageRank calculator
+     * @return
+     */
+    private PageRankCalculator getPageRankCalculator() {
+    	if(this.pageRankCalculator == null) {
+    		this.pageRankCalculator = new PageRankCalculator();
+    	}
+    	
+    	return this.pageRankCalculator;
+    }
     
 
     @Override
