@@ -5,8 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Multimap;
-
+import gnu.trove.list.TIntList;
 import io.index.IndexReader;
 import io.index.IndexWriter;
 import postings.ContentType;
@@ -51,7 +50,7 @@ public class LazyPositionMap implements PositionMap {
 	}
 
 	@Override
-	public Multimap<ContentType, Integer> positions() {
+	public Map<ContentType, TIntList> positions() {
 		return this.getPositionMap().positions();
 	}
 

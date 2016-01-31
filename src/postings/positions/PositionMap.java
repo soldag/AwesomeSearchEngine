@@ -1,10 +1,10 @@
 package postings.positions;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.Multimap;
-
+import gnu.trove.list.TIntList;
 import io.index.IndexWriter;
 import postings.ContentType;
 
@@ -36,7 +36,7 @@ public interface PositionMap {
 	 * Gets all positions mapped to the corresponding content type.
 	 * @return
 	 */
-	public Multimap<ContentType, Integer> positions();
+	public Map<ContentType, TIntList> positions();
 	
 	
 	/**

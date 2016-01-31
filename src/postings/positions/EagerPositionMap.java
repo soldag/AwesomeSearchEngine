@@ -1,17 +1,13 @@
 package postings.positions;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.lang3.ArrayUtils;
-
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.primitives.Ints;
-
+import gnu.trove.list.TIntList;
+import gnu.trove.list.array.TIntArrayList;
 import io.index.IndexReader;
 import io.index.IndexWriter;
 import postings.ContentType;
@@ -21,7 +17,7 @@ public class EagerPositionMap implements PositionMap {
 	/**
 	 * Contains multiple positions for different content types.
 	 */
-	private Multimap<ContentType, Integer> positions = HashMultimap.create();
+	private EnumMap<ContentType, TIntList> positions = new EnumMap<ContentType, TIntList>(ContentType.class);
 	
 	
 	@Override
@@ -37,24 +33,31 @@ public class EagerPositionMap implements PositionMap {
 	
 	
 	@Override
-	public Multimap<ContentType, Integer> positions() {
+	public EnumMap<ContentType, TIntList> positions() {
 		return this.positions;
 	}
 
 	@Override
 	public int[] ofContentType(ContentType contentType) {
-		return ArrayUtils.toPrimitive(this.positions.get(contentType).stream().sorted().toArray(Integer[]::new));
+		TIntList documentIds = this.positions.get(contentType);
+		if(documentIds != null) {
+			documentIds.sort();
+			return documentIds.toArray();
+		}
+		
+		return new int[0];
 	}
 	
 
 	@Override
 	public void put(ContentType contentType, int position) {
-		this.positions.put(contentType, position);
+		this.positions.putIfAbsent(contentType, new TIntArrayList());
+		this.positions.get(contentType).add(position);
 	}
 
 	@Override
 	public void put(ContentType contentType, int[] positions) {
-		this.positions.putAll(contentType, Ints.asList(positions));
+		this.positions.put(contentType, new TIntArrayList(positions));
 	}
 
 	@Override
@@ -70,7 +73,7 @@ public class EagerPositionMap implements PositionMap {
 
 	@Override
 	public int size(ContentType contentType) {
-		Collection<Integer> positions = this.positions.get(contentType);
+		TIntList positions = this.positions.get(contentType);
 		if(positions != null) {
 			return positions.size();
 		}
