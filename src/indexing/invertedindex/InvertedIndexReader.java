@@ -87,13 +87,13 @@ public class InvertedIndexReader implements AutoCloseable {
 				
 				if(prefixSearch) {
 					if(readToken.startsWith(token)) {
-						TokenPostings readPostings = TokenPostings.load(this.indexFile, loadPositions);
+						TokenPostings readPostings = TokenPostings.load(this.indexFile.getSkippingAreaReader(), loadPositions);
 						postings.putAll(readToken, readPostings);
 						continue;
 					}
 				}			
 				else if(readToken.equals(token)) {
-					TokenPostings readPostings = TokenPostings.load(this.indexFile, loadPositions);
+					TokenPostings readPostings = TokenPostings.load(this.indexFile.getSkippingAreaReader(), loadPositions);
 					postings.putAll(readToken, readPostings);
 					break;
 				}

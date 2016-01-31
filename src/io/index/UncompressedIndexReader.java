@@ -6,6 +6,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 
+import io.FileReaderWriterFactory;
 import io.lowlevel.FileReader;
 
 public class UncompressedIndexReader implements IndexReader, AutoCloseable {
@@ -105,6 +106,16 @@ public class UncompressedIndexReader implements IndexReader, AutoCloseable {
 	public void skipSkippingArea() throws IOException {
 		int length = this.getSkippingAreaLength();
 		this.seek(this.getFilePointer() +  length);
+	}
+	
+	@Override
+	public IndexReader getSkippingAreaReader() throws IOException {
+		// Read full skipping area
+		int length = this.getSkippingAreaLength();
+		byte[] buffer = new byte[length];
+		this.read(buffer);
+		
+		return FileReaderWriterFactory.getInstance().getByteBufferIndexReader(buffer, this.isCompressed());
 	}
 
 	

@@ -189,17 +189,13 @@ public class TokenPostings {
 	 * @throws IOException
 	 */
 	public static TokenPostings load(IndexReader reader, boolean loadPositions) throws IOException {
-		// Get skipping area length
-		int length = reader.getSkippingAreaLength();
-		long endPosition = reader.getFilePointer() + length;
-		
 		// Read total occurrences count
 		int totalOccurrencesCount = reader.readInt();
 		
 		// Load postings
 		int lastDocumentId = 0;
 		Map<Integer, PositionMap> postings = new HashMap<Integer, PositionMap>();
-		while(reader.getFilePointer() < endPosition) {
+		while(reader.getFilePointer() < reader.length()) {
 			// Read document id
 			int documentId = reader.readInt();
 			if(reader.isCompressed()) {

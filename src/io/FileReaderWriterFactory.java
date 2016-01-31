@@ -12,6 +12,7 @@ import io.index.UncompressedIndexReader;
 import io.index.UncompressedIndexWriter;
 import io.lowlevel.BufferedFileReader;
 import io.lowlevel.BufferedFileWriter;
+import io.lowlevel.ByteBufferReader;
 import io.lowlevel.DirectFileReaderWriter;
 import io.lowlevel.FileReader;
 import io.lowlevel.FileWriter;
@@ -80,6 +81,18 @@ public class FileReaderWriterFactory {
 	 */
 	public IndexReader getMemoryMappedIndexReader(File file, boolean compress) throws IOException {
 		FileReader fileReader = this.getMemoryMappedFileReader(file);
+		return this.getIndexReader(fileReader, compress);
+	}
+	
+	/**
+	 * Creates a new ByteBufferIndexReader instance.
+	 * @param buffer
+	 * @param compress
+	 * @return
+	 * @throws IOException
+	 */
+	public IndexReader getByteBufferIndexReader(byte[] buffer, boolean compress) throws IOException {
+		FileReader fileReader = this.getByteBufferReader(buffer);
 		return this.getIndexReader(fileReader, compress);
 	}
 	
@@ -209,5 +222,15 @@ public class FileReaderWriterFactory {
 	 */
 	public FileWriter getMemoryMappedFileWriter(File file) throws IOException {
 		return new MemoryMappedFileReaderWriter(file, WRITE_MODE);
+	}
+	
+	/**
+	 * Creates a new ByteBufferReader instance.
+	 * @param buffer
+	 * @return
+	 * @throws IOException
+	 */
+	public FileReader getByteBufferReader(byte[] buffer) throws IOException {
+		return new ByteBufferReader(buffer);
 	}
 }

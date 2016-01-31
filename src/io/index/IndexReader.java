@@ -62,4 +62,11 @@ public interface IndexReader extends FileReader {
 	 * Skips the starting skipping area.
 	 */
 	public void skipSkippingArea() throws IOException;
+	
+	/**
+	 * Loads the skipping area in memory and returns a reader for it.
+	 * @return
+	 * @throws IOException
+	 */
+	public IndexReader getSkippingAreaReader() throws IOException;
 }
