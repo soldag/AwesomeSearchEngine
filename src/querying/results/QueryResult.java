@@ -1,8 +1,7 @@
 package querying.results;
 
 import java.util.Map;
-
-import com.google.common.collect.Multimap;
+import java.util.Set;
 
 import postings.PostingTable;
 
@@ -15,10 +14,10 @@ public interface QueryResult {
 	public PostingTable getPostings();
 	
 	/**
-	 * Gets a map, that contains for each requested document id a list of ids of documents, which cite the first one. 
+	 * Gets a list of documents that match a LinkTo-query.
 	 * @return
 	 */
-	public Multimap<Integer, Integer> getLinkedDocuments();
+	public Set<Integer> getLinkingDocuments();
 
 	/**
 	 * Gets the map of spelling corrections. Key is the original token, value the corrected one.

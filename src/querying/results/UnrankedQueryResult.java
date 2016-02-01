@@ -7,10 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import postings.PostingTable;
@@ -23,9 +20,9 @@ public class UnrankedQueryResult implements QueryResult {
 	private final PostingTable tokenPostings;
 	
 	/**
-	 * Contains a map, that contains for each requested document id a list of ids of documents, which cite the first one. 
+	 * Contains a list of documents that match a LinkTo-query.
 	 */
-	private final Multimap<Integer, Integer> linkedDocuments;
+	private final Set<Integer> linkingDocuments;
 	
 	/**
 	 * Contains the map of spelling corrections. Key is the original token, value the corrected one.
@@ -59,38 +56,38 @@ public class UnrankedQueryResult implements QueryResult {
 	 * @param spellingCorrections
 	 */
 	public UnrankedQueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections) {
-		this(tokenPostings, HashMultimap.<Integer, Integer>create(), spellingCorrections);
+		this(tokenPostings, new HashSet<Integer>(), spellingCorrections);
 	}
 	
 	/**
 	 * Creates a new QueryResult instance exclusively for ForIn-queries..
-	 * @param linkedDocuments
+	 * @param linkingDocuments
 	 */
-	public UnrankedQueryResult(Multimap<Integer, Integer> linkedDocuments) {
-		this(new PostingTable(), linkedDocuments, new HashMap<String, String>());
+	public UnrankedQueryResult(Set<Integer> linkingDocuments) {
+		this(new PostingTable(), linkingDocuments, new HashMap<String, String>());
 	}
 	
 	/**
 	 * Creates a new QueryResult instance.
 	 * @param postingTable
-	 * @param linkedDocuments
+	 * @param linkingDocuments
 	 * @param spellingCorrections
 	 */
-	public UnrankedQueryResult(PostingTable postingTable, Multimap<Integer, Integer> linkedDocuments, Map<String, String> spellingCorrections) {
-		this(postingTable, linkedDocuments, spellingCorrections, null);
+	public UnrankedQueryResult(PostingTable postingTable, Set<Integer> linkingDocuments, Map<String, String> spellingCorrections) {
+		this(postingTable, linkingDocuments, spellingCorrections, null);
 	}
 	
 	/**
 	 * Creates a new QueryResult instance with original result.
 	 * @param postingTable
-	 * @param linkedDocuments
+	 * @param linkingDocuments
 	 * @param spellingCorrections
 	 * @param originalQueryResult
 	 */
-	public UnrankedQueryResult(PostingTable postingTable, Multimap<Integer, Integer> linkedDocuments, 
+	public UnrankedQueryResult(PostingTable postingTable, Set<Integer> linkingDocuments, 
 			Map<String, String> spellingCorrections, QueryResult originalQueryResult) {
 		this.tokenPostings = postingTable;
-		this.linkedDocuments = linkedDocuments;
+		this.linkingDocuments = linkingDocuments;
 		this.originalQueryResult = originalQueryResult;
 		
 		// Assure, that spelling corrections only include tokens that are part of the posting table
@@ -107,7 +104,7 @@ public class UnrankedQueryResult implements QueryResult {
 	 * @return
 	 */
 	public static UnrankedQueryResult fromResults(QueryResult result, QueryResult originalResult) {
-		return new UnrankedQueryResult(result.getPostings(), result.getLinkedDocuments(), result.getSpellingCorrections(), originalResult);
+		return new UnrankedQueryResult(result.getPostings(), result.getLinkingDocuments(), result.getSpellingCorrections(), originalResult);
 	}
 	
 	
@@ -117,8 +114,8 @@ public class UnrankedQueryResult implements QueryResult {
 	}
 
 	@Override
-	public Multimap<Integer, Integer> getLinkedDocuments() {
-		return this.linkedDocuments;
+	public Set<Integer> getLinkingDocuments() {
+		return this.linkingDocuments;
 	}
 
 	@Override
@@ -151,12 +148,13 @@ public class UnrankedQueryResult implements QueryResult {
 		PostingTable disjunctedTokenPostings = PostingTable.disjunct(tokenPostings);
 		
 		// Disjunct linked documents
-		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
+		Set<Integer> linkingDocuments = new HashSet<Integer>();
 		for(UnrankedQueryResult result: results) {
-			linkedDocuments.putAll(result.getLinkedDocuments());
+			linkingDocuments.addAll(result.getLinkingDocuments());
 		}
 		
-		return new UnrankedQueryResult(disjunctedTokenPostings, linkedDocuments, disjunctSpellingCorrections(results));
+		
+		return new UnrankedQueryResult(disjunctedTokenPostings, linkingDocuments, disjunctSpellingCorrections(results));
 	}
 	
 	/**
@@ -168,23 +166,20 @@ public class UnrankedQueryResult implements QueryResult {
 		// Get intersection of document ids
 		Set<Integer> documentIds = Sets.intersection(
 										intersectDocumentIds(Arrays.stream(results).map(result -> result.getPostings().documentIdSet()).collect(Collectors.toList())),
-										intersectDocumentIds(Arrays.stream(results).map(result -> result.getLinkedDocuments().keySet()).collect(Collectors.toList())));
+										intersectDocumentIds(Arrays.stream(results).map(result -> result.getLinkingDocuments()).collect(Collectors.toList())));
 		
 		// Conjunct postings
 		PostingTable[] postingTables = Arrays.stream(results).map(x -> x.getPostings()).toArray(PostingTable[]::new);
 		PostingTable conjunctedTokenPostings = PostingTable.disjunctRetained(documentIds, postingTables);
 		
 		// Conjunct linked documents
-		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
+		Set<Integer> linkingDocuments = new HashSet<Integer>();
 		for(UnrankedQueryResult result: results) {
-			for(Map.Entry<Integer, Integer> entry: result.getLinkedDocuments().entries()) {
-				if(documentIds.contains(entry.getKey())) {
-					linkedDocuments.put(entry.getKey(), entry.getValue());
-				}
-			}
+			linkingDocuments.addAll(result.getLinkingDocuments());
 		}
+		linkingDocuments.retainAll(documentIds);
 		
-		return new UnrankedQueryResult(conjunctedTokenPostings, linkedDocuments, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(conjunctedTokenPostings, linkingDocuments, disjunctSpellingCorrections(results));
 	}
 	
 	/**
@@ -194,10 +189,10 @@ public class UnrankedQueryResult implements QueryResult {
 	 */
 	public static UnrankedQueryResult relativeComplement(UnrankedQueryResult...results) {
 		// Relative complement of document ids
-		Set<Integer> documentIds = new HashSet<Integer>(Sets.union(results[0].getPostings().documentIdSet(), results[0].getLinkedDocuments().keySet()));
+		Set<Integer> documentIds = new HashSet<Integer>(Sets.union(results[0].getPostings().documentIdSet(), results[0].getLinkingDocuments()));
 		for(int i = 1; i < results.length; i++) {
 			documentIds.removeAll(results[i].getPostings().documentIdSet());
-			documentIds.removeAll(results[i].getLinkedDocuments().keySet());
+			documentIds.removeAll(results[i].getLinkingDocuments());
 		}
 		
 		// Relative complement of postings
@@ -205,16 +200,13 @@ public class UnrankedQueryResult implements QueryResult {
 		PostingTable conjunctedTokenPostings = PostingTable.disjunctRetained(documentIds, postingTables);
 		
 		// Relative complement of linked documents
-		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
+		Set<Integer> linkingDocuments = new HashSet<Integer>();
 		for(UnrankedQueryResult result: results) {
-			for(Map.Entry<Integer, Integer> entry: result.getLinkedDocuments().entries()) {
-				if(documentIds.contains(entry.getKey())) {
-					linkedDocuments.put(entry.getKey(), entry.getValue());
-				}
-			}
-		}		
+			linkingDocuments.addAll(result.getLinkingDocuments());
+		}
+		linkingDocuments.retainAll(documentIds);		
 		
-		return new UnrankedQueryResult(conjunctedTokenPostings, linkedDocuments, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(conjunctedTokenPostings, linkingDocuments, disjunctSpellingCorrections(results));
 	}
 	
 	/**

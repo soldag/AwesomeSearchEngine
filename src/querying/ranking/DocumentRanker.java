@@ -3,8 +3,8 @@ package querying.ranking;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -12,8 +12,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import documents.PatentDocument;
@@ -85,7 +83,7 @@ public class DocumentRanker {
 				}
 			}
 		}
-		rankingDocumentIds = Sets.union(rankingDocumentIds, result.getLinkedDocuments().keySet());
+		rankingDocumentIds = Sets.union(rankingDocumentIds, result.getLinkingDocuments());
 		
 		// Determine collection frequencies of query tokens
 		Map<String, Integer> collectionFrequencies = resultPostings.tokenSet().stream()
@@ -118,7 +116,7 @@ public class DocumentRanker {
 	 * @return
 	 */
 	public RankedQueryResult limitResult(QueryResult result, int resultLimit) {
-		List<PatentDocument> documents = Sets.union(result.getPostings().documentIdSet(), result.getLinkedDocuments().keySet()).stream()
+		List<PatentDocument> documents = Sets.union(result.getPostings().documentIdSet(), result.getLinkingDocuments()).stream()
 												.sorted(Collections.reverseOrder())
 												.limit(resultLimit)
 												.map(this::loadDocument)
@@ -247,7 +245,7 @@ public class DocumentRanker {
 	 */
 	private RankedQueryResult buildRankedResult(QueryResult result, List<PatentDocument> rankedDocuments) {
 		PostingTable postingTable = new PostingTable();
-		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
+		Set<Integer> linkingDocuments = new HashSet<Integer>();
 		for(PatentDocument document: rankedDocuments) {
 			// Postings
 			DocumentPostings documentPostings = result.getPostings().ofDocument(document.getId());
@@ -256,11 +254,12 @@ public class DocumentRanker {
 			}
 			
 			// Linked documents
-			Collection<Integer> documentIds = result.getLinkedDocuments().get(document.getId());
-			linkedDocuments.putAll(document.getId(), documentIds);
+			if(result.getLinkingDocuments().contains(document.getId())) {
+				linkingDocuments.add(document.getId());
+			}
 		}
 		
 		
-		return new RankedQueryResult(postingTable, linkedDocuments, result.getSpellingCorrections(), rankedDocuments);
+		return new RankedQueryResult(postingTable, linkingDocuments, result.getSpellingCorrections(), rankedDocuments);
 	}
 }

@@ -2,8 +2,7 @@ package querying.results;
 
 import java.util.List;
 import java.util.Map;
-
-import com.google.common.collect.Multimap;
+import java.util.Set;
 
 import documents.PatentDocument;
 import postings.PostingTable;
@@ -19,12 +18,12 @@ public class RankedQueryResult extends UnrankedQueryResult {
 	/**
 	 * Creates a new RankedQueryResult instance.
 	 * @param tokenPostings
-	 * @param linkedDocuments
+	 * @param linkingDocuments
 	 * @param spellingCorrections
 	 * @param rankedDocumentMap
 	 */
-	public RankedQueryResult(PostingTable tokenPostings, Multimap<Integer, Integer> linkedDocuments, Map<String, String> spellingCorrections, List<PatentDocument> rankedDocumentMap) {
-		super(tokenPostings, linkedDocuments, spellingCorrections);
+	public RankedQueryResult(PostingTable tokenPostings, Set<Integer> linkingDocuments, Map<String, String> spellingCorrections, List<PatentDocument> rankedDocumentMap) {
+		super(tokenPostings, linkingDocuments, spellingCorrections);
 		this.rankedDocuments = rankedDocumentMap;
 	}
 	

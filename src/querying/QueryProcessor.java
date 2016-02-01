@@ -10,8 +10,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import indexing.citations.CitationIndexReader;
@@ -312,12 +310,7 @@ public class QueryProcessor {
 		int queryDocumentId = query.getDocumentId();
 		Set<Integer> linkingDocumentIds = this.citationIndexReader.getLinkingDocuments(queryDocumentId);
 		
-		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
-		for(int documentId: linkingDocumentIds) {
-			linkedDocuments.put(documentId, queryDocumentId);
-		}
-		
-		return new UnrankedQueryResult(linkedDocuments);
+		return new UnrankedQueryResult(linkingDocumentIds);
 	}
 	
 	
