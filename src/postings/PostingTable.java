@@ -237,22 +237,14 @@ public class PostingTable {
 	 * @param postingTables
 	 * @return
 	 */
-	public static PostingTable conjunct(PostingTable...postingTables) {
-		PostingTable result = new PostingTable();
-		
+	public static PostingTable conjunct(PostingTable...postingTables) {	
 		// Get intersection of document ids
 		Set<Integer> documentIds = new HashSet<Integer>(postingTables[0].documentIdSet());
 		for(int i = 1; i < postingTables.length; i++) {
 			documentIds.retainAll(postingTables[i].documentIdSet());
 		}
 
-		// Add all posting with one of the conjuncted document ids to result
-		Arrays.stream(postingTables)
-				.flatMap(postingTable -> postingTable.table.cellSet().stream())
-				.filter(cell -> documentIds.contains(cell.getColumnKey()))
-				.forEach(cell -> result.put(cell.getRowKey(), cell.getColumnKey(), cell.getValue()));
-		
-		return result;
+		return PostingTable.disjunctRetained(documentIds, postingTables);
 	}
 
 	/**
@@ -260,21 +252,29 @@ public class PostingTable {
 	 * @param postingTables
 	 * @return
 	 */
-	public static PostingTable relativeComplement(PostingTable...postingTables) {
-		PostingTable result = new PostingTable();
-		
+	public static PostingTable relativeComplement(PostingTable...postingTables) {		
 		// Get complement of document ids
 		Set<Integer> documentIds = new HashSet<Integer>(postingTables[0].documentIdSet());
 		for(int i = 1; i < postingTables.length; i++) {
 			documentIds.removeAll(postingTables[i].documentIdSet());
 		}
 
-		// Add all posting with one of the filtered document ids to result
+		return PostingTable.disjunctRetained(documentIds, postingTables);
+	}
+	
+	/**
+	 * Disjuncts the given posting tables and retains only the given set of document ids.
+	 * @param documentIds
+	 * @param postingTables
+	 * @return
+	 */
+	public static PostingTable disjunctRetained(Set<Integer> documentIds, PostingTable...postingTables) {
+		PostingTable result = new PostingTable();
 		Arrays.stream(postingTables)
-		.flatMap(postingTable -> postingTable.table.cellSet().stream())
-		.filter(cell -> documentIds.contains(cell.getColumnKey()))
-		.forEach(cell -> result.put(cell.getRowKey(), cell.getColumnKey(), cell.getValue()));
-		
+				.flatMap(postingTable -> postingTable.table.cellSet().stream())
+				.filter(cell -> documentIds.contains(cell.getColumnKey()))
+				.forEach(cell -> result.put(cell.getRowKey(), cell.getColumnKey(), cell.getValue()));
+
 		return result;
 	}
 }

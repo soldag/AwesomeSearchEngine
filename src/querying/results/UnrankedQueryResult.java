@@ -3,12 +3,15 @@ package querying.results;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import postings.PostingTable;
 
@@ -162,17 +165,16 @@ public class UnrankedQueryResult implements QueryResult {
 	 * @return
 	 */
 	public static UnrankedQueryResult conjunct(UnrankedQueryResult...results) {
+		// Get intersection of document ids
+		Set<Integer> documentIds = Sets.intersection(
+										intersectDocumentIds(Arrays.stream(results).map(result -> result.getPostings().documentIdSet()).collect(Collectors.toList())),
+										intersectDocumentIds(Arrays.stream(results).map(result -> result.getLinkedDocuments().keySet()).collect(Collectors.toList())));
+		
 		// Conjunct postings
-		PostingTable[] tokenPostings = Arrays.stream(results)
-											.map(x -> x.getPostings())
-											.toArray(PostingTable[]::new);
-		PostingTable conjunctedTokenPostings = PostingTable.conjunct(tokenPostings);
+		PostingTable[] postingTables = Arrays.stream(results).map(x -> x.getPostings()).toArray(PostingTable[]::new);
+		PostingTable conjunctedTokenPostings = PostingTable.disjunctRetained(documentIds, postingTables);
 		
 		// Conjunct linked documents
-		Set<Integer> documentIds = new HashSet<Integer>(results[0].getLinkedDocuments().keySet());
-		for(int i = 1; i < results.length; i++) {
-			documentIds.retainAll(results[i].getLinkedDocuments().keySet());
-		}
 		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
 		for(UnrankedQueryResult result: results) {
 			for(Map.Entry<Integer, Integer> entry: result.getLinkedDocuments().entries()) {
@@ -191,15 +193,18 @@ public class UnrankedQueryResult implements QueryResult {
 	 * @return
 	 */
 	public static UnrankedQueryResult relativeComplement(UnrankedQueryResult...results) {
-		// Relative complement of postings
-		PostingTable[] tokenPostings = Arrays.stream(results).map(x -> x.getPostings()).toArray(PostingTable[]::new);
-		PostingTable conjunctedTokenPostings = PostingTable.relativeComplement(tokenPostings);
-		
-		// Relative complement of linked documents
-		Set<Integer> documentIds = new HashSet<Integer>(results[0].getLinkedDocuments().keySet());
+		// Relative complement of document ids
+		Set<Integer> documentIds = new HashSet<Integer>(Sets.union(results[0].getPostings().documentIdSet(), results[0].getLinkedDocuments().keySet()));
 		for(int i = 1; i < results.length; i++) {
+			documentIds.removeAll(results[i].getPostings().documentIdSet());
 			documentIds.removeAll(results[i].getLinkedDocuments().keySet());
 		}
+		
+		// Relative complement of postings
+		PostingTable[] postingTables = Arrays.stream(results).map(x -> x.getPostings()).toArray(PostingTable[]::new);
+		PostingTable conjunctedTokenPostings = PostingTable.disjunctRetained(documentIds, postingTables);
+		
+		// Relative complement of linked documents
 		Multimap<Integer, Integer> linkedDocuments = HashMultimap.<Integer, Integer>create();
 		for(UnrankedQueryResult result: results) {
 			for(Map.Entry<Integer, Integer> entry: result.getLinkedDocuments().entries()) {
@@ -209,7 +214,26 @@ public class UnrankedQueryResult implements QueryResult {
 			}
 		}		
 		
-		return new UnrankedQueryResult(conjunctedTokenPostings, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(conjunctedTokenPostings, linkedDocuments, disjunctSpellingCorrections(results));
+	}
+	
+	/**
+	 * Intersects the given sets of document ids. Empty sets are ignored.
+	 * @param documentIds
+	 * @return
+	 */
+	private static Set<Integer> intersectDocumentIds(List<Set<Integer>> documentIds) {
+		Set<Integer> intersection = documentIds.get(0);
+		for(Set<Integer> set: documentIds) {
+			if(intersection.isEmpty()) {
+				intersection = set;
+			}
+			else if(!set.isEmpty()) {
+				intersection.retainAll(set);
+			}
+		}
+		
+		return intersection;
 	}
 	
 	/**
