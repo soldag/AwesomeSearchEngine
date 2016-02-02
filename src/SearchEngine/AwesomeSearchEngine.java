@@ -29,6 +29,7 @@ import org.apache.commons.io.FilenameUtils;
 import evaluation.NdcgCalculator;
 import indexing.DocumentIndexer;
 import indexing.citations.CitationIndexReader;
+import indexing.contents.ContentsIndexReader;
 import indexing.documentmap.DocumentMapReader;
 import indexing.invertedindex.InvertedIndexReader;
 import parsing.PatentContentLookup;
@@ -70,6 +71,7 @@ public class AwesomeSearchEngine extends SearchEngine {
 	 */
 	private InvertedIndexReader invertedIndexReader;
 	private DocumentMapReader documentMapReader;
+	private ContentsIndexReader contentsIndexReader;
 	private CitationIndexReader citationIndexReader;
 	
 	/**
@@ -90,6 +92,8 @@ public class AwesomeSearchEngine extends SearchEngine {
 	private final File indexSeekListFile = this.teamDirectoryPath.resolve("inverted_index_seek_list.bin").toFile();
 	private final File documentMapFile = this.teamDirectoryPath.resolve("document_map.bin").toFile();
 	private final File documentMapSeekListFile = this.teamDirectoryPath.resolve("document_map_seek_list.bin").toFile();
+	private final File contentsIndexFile = this.teamDirectoryPath.resolve("contents_index.bin").toFile();
+	private final File contentsIndexSeekListFile = this.teamDirectoryPath.resolve("contents_index_seek_list.bin").toFile();
 	private final File citationIndexFile = this.teamDirectoryPath.resolve("citation_index.bin").toFile();
 	private final File citationIndexSeekListFile = this.teamDirectoryPath.resolve("citation_index_seek_list.bin").toFile();
 	private final File stopWordsFile = this.teamDirectoryPath.resolve("stop_words.txt").toFile();
@@ -133,6 +137,8 @@ public class AwesomeSearchEngine extends SearchEngine {
     						this.indexSeekListFile, 
     						this.documentMapFile, 
     						this.documentMapSeekListFile, 
+    						this.contentsIndexFile,
+    						this.contentsIndexSeekListFile,
     						this.citationIndexFile,
     						this.citationIndexSeekListFile,
     						compress);
@@ -205,7 +211,7 @@ public class AwesomeSearchEngine extends SearchEngine {
      */
     private PatentContentLookup getPatentContentLookup() {
     	if(this.patentContentLookup == null) {
-    		this.patentContentLookup = new PatentContentLookup(this.dataDirectoryPath);
+    		this.patentContentLookup = new PatentContentLookup(this.contentsIndexReader);
     	}
     	
     	return this.patentContentLookup;
@@ -338,9 +344,12 @@ public class AwesomeSearchEngine extends SearchEngine {
      */
     private boolean loadIndex(boolean compress) { 	
     	try {
-    		this.documentMapReader = new DocumentMapReader(this.documentMapFile, this.documentMapSeekListFile, compress);
-    		this.citationIndexReader = new CitationIndexReader(this.citationIndexFile, this.citationIndexSeekListFile, compress);
     		this.invertedIndexReader = new InvertedIndexReader(this.indexFile, this.indexSeekListFile, compress);
+    		this.documentMapReader = new DocumentMapReader(this.documentMapFile, this.documentMapSeekListFile, compress);
+    		this.contentsIndexReader = new ContentsIndexReader(this.contentsIndexFile, this.contentsIndexSeekListFile, compress);
+    		this.citationIndexReader = new CitationIndexReader(this.citationIndexFile, this.citationIndexSeekListFile, compress);
+    		
+    		this.patentContentLookup = new PatentContentLookup(this.contentsIndexReader);
     		this.spellingCorrector = new SpellingCorrector(this.getLevenshteinCalculator(), this.invertedIndexReader);
 		} catch (IOException e) {
 			e.printStackTrace();

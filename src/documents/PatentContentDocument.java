@@ -20,6 +20,15 @@ public class PatentContentDocument extends PatentDocument {
 	 * Creates a new PatentContentDocument instance.
 	 * @param document
 	 * @param contents
+	 */
+	public PatentContentDocument(PatentDocument document, Map<ContentType, String> contents) {
+		this(document, contents, null);
+	}
+	
+	/**
+	 * Creates a new PatentContentDocument instance.
+	 * @param document
+	 * @param contents
 	 * @param linkedDocumentIds
 	 */
 	public PatentContentDocument(PatentDocument document, Map<ContentType, String> contents, int[] linkedDocumentIds) {

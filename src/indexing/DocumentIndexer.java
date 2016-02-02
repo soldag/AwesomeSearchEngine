@@ -14,6 +14,9 @@ import gnu.trove.list.array.TIntArrayList;
 import gnu.trove.procedure.TIntProcedure;
 import indexing.citations.CitationIndexConstructor;
 import indexing.citations.CitationIndexSeekList;
+import indexing.contents.ContentsIndexConstuctor;
+import indexing.contents.ContentsIndexMerger;
+import indexing.contents.ContentsIndexSeekList;
 import indexing.documentmap.DocumentMapConstructor;
 import indexing.documentmap.DocumentMapSeekList;
 import indexing.invertedindex.InvertedIndexConstructor;
@@ -39,6 +42,12 @@ public class DocumentIndexer {
 	 * Contains the prefix for temporary index files.
 	 */
 	private static final String TEMP_INVERTED_INDEX_PREFIX = "awse_index_%d";
+	private static final String TEMP_CONTENTS_INDEX_PREFIX = "awse_contents_%d";
+	
+	/**
+	 * Contains the content types, that should be stored in the contents index.
+	 */
+	private static final ContentType[] CONTENT_TYPES_TO_STORE = new ContentType[] {ContentType.Title, ContentType.Abstract};
 	
 	/**
 	 * Contains necessary services.
@@ -47,10 +56,11 @@ public class DocumentIndexer {
 	private PageRankCalculator pageRankCalculator;
 		
 	/**
-	 * Contain the constructors for the inverted index and document map.
+	 * Contain the constructors for the several indexes.
 	 */
 	private InvertedIndexConstructor invertedIndexConstructor;
 	private DocumentMapConstructor documentMapConstructor;
+	private ContentsIndexConstuctor contentsIndexConstructor;
 	private CitationIndexConstructor citationIndexConstructor;
 	
 	/**
@@ -60,6 +70,8 @@ public class DocumentIndexer {
 	private File indexSeekListFile;
 	private File documentMapFile;
 	private File documentMapSeekListFile;
+	private File contentsIndexFile;
+	private File contentsIndexSeekListFile;
 	private File citationIndexFile;
 	private File citationIndexSeekListFile;
 	
@@ -78,6 +90,7 @@ public class DocumentIndexer {
 	 * Contains all created temporary index files.
 	 */
 	private List<File> tempInvertedIndexFiles = new ArrayList<File>();
+	private List<File> tempContentsIndexFiles = new ArrayList<File>();
 	
 	/**
 	 * Creates a new DocumentIndexer instance.
@@ -92,7 +105,8 @@ public class DocumentIndexer {
 	 * @param compress
 	 */
 	public DocumentIndexer(TextPreprocessor textProcessor, PageRankCalculator pageRankCalculator, File indexFile, File seekListFile, 
-			File documentMapFile, File documentMapSeekListFile, File citationIndexFile, File citationIndexSeekListFile, boolean compress) {
+			File documentMapFile, File documentMapSeekListFile, File contentsIndexFile, File contentsIndexSeekListFile, 
+			File citationIndexFile, File citationIndexSeekListFile, boolean compress) {
 		this.textPreprocessor = textProcessor;
 		this.pageRankCalculator = pageRankCalculator;
 		
@@ -100,12 +114,15 @@ public class DocumentIndexer {
 		this.indexSeekListFile = seekListFile;
 		this.documentMapSeekListFile = documentMapSeekListFile;
 		this.documentMapFile = documentMapFile;
+		this.contentsIndexFile = contentsIndexFile;
+		this.contentsIndexSeekListFile = contentsIndexSeekListFile;
 		this.citationIndexFile = citationIndexFile;
 		this.citationIndexSeekListFile = citationIndexSeekListFile;
 		this.compress = compress;
 		
 		this.invertedIndexConstructor = new InvertedIndexConstructor(this.compress, new InvertedIndexSeekList());
 		this.documentMapConstructor = new DocumentMapConstructor(this.compress, new DocumentMapSeekList());
+		this.contentsIndexConstructor = new ContentsIndexConstuctor(compress, new ContentsIndexSeekList());
 		this.citationIndexConstructor = new CitationIndexConstructor(compress, new CitationIndexSeekList());
 	}
 	
@@ -142,6 +159,9 @@ public class DocumentIndexer {
 		// Write constructed inverted index to file
 		this.writeFinalInvertedIndex();
 		
+		// Write constructed contents index to file
+		this.writeFinalContentsIndex();
+		
 		// Delete temporary files
 		this.clearTemporaryIndexes();
 	}
@@ -158,12 +178,16 @@ public class DocumentIndexer {
 			// Add all tokens from document to memory index
 			this.addTokens(document);
 			
+			// Adds contents to the index
+			this.contentsIndexConstructor.put(document, CONTENT_TYPES_TO_STORE);
+			
 			// Add document linked document map
 			this.linkedDocuments.put(document.withoutContent(), new TIntArrayList(document.getLinkedDocumentIds()));
 			
-			// If memory consumption is too high, write inverted index to new temporary file and clean memory.
+			// If memory consumption is too high, write inverted and contents index to new temporary file and clean memory.
 			if(this.getFreeMemory() < MEMORY_LIMIT) {
-				System.out.println("Write temp file...");
+				System.out.println("Write temp files...");
+				this.writeTemporaryContentsIndex();
 				this.writeTemporaryInvertedIndex();
 				
 				// Run garbage collector
@@ -255,6 +279,17 @@ public class DocumentIndexer {
 	}
 	
 	/**
+	 * Write contents index from memory to temporary index files.
+	 * @throws IOException
+	 */	
+	private void writeTemporaryContentsIndex() throws IOException {
+		File contentsIndexFile = File.createTempFile(TEMP_CONTENTS_INDEX_PREFIX, "");
+		this.tempContentsIndexFiles.add(contentsIndexFile);
+		this.contentsIndexConstructor.writeToFile(contentsIndexFile);
+		this.contentsIndexConstructor.clear();
+	}
+	
+	/**
 	 * Write inverted index from memory to final index file. 
 	 * @throws IOException
 	 */
@@ -275,6 +310,26 @@ public class DocumentIndexer {
 	}
 	
 	/**
+	 * Write contents index from memory to final index file. 
+	 * @throws IOException
+	 */
+	private void writeFinalContentsIndex() throws IOException {
+		if(this.tempContentsIndexFiles.isEmpty()) {
+			this.contentsIndexConstructor.writeToFile(this.contentsIndexFile, this.contentsIndexSeekListFile);
+			this.contentsIndexConstructor.clear();
+		}
+		else {
+			if(this.contentsIndexConstructor.size() > 0) {
+				this.writeTemporaryContentsIndex();
+			}
+			
+			System.out.println("Merge contents index files...");
+			ContentsIndexMerger indexMerger = new ContentsIndexMerger(this.compress);
+			indexMerger.merge(this.contentsIndexFile, this.tempContentsIndexFiles, this.indexSeekListFile);
+		}
+	}
+	
+	/**
 	 * Deletes all temporary index files.
 	 * @throws IOException
 	 */
@@ -286,6 +341,14 @@ public class DocumentIndexer {
 			}
 		}
 		this.tempInvertedIndexFiles.clear();
+
+		// Contents index
+		for(File indexFile: this.tempContentsIndexFiles) {
+			if(indexFile.exists()) {
+				indexFile.delete();
+			}
+		}
+		this.tempContentsIndexFiles.clear();
 	}
 	
 	/**
