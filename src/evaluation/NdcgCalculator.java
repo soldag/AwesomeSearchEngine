@@ -44,7 +44,7 @@ public class NdcgCalculator {
 	 * @return
 	 */
 	private double calculateDCG(double[] gains, int rank) {
-		return gains[0] + IntStream.rangeClosed(2, rank)
+		return gains[0] + IntStream.rangeClosed(2, Math.min(rank, gains.length))
 										.mapToDouble(i -> gains[i - 1] / (Math.log(i) / Math.log(2)))
 										.sum();
 	}
