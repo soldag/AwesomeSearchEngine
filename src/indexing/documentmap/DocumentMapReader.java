@@ -56,9 +56,9 @@ public class DocumentMapReader implements AutoCloseable {
 	 * @throws IOException
 	 */
 	public PatentDocument getDocument(int documentId) throws IOException {
-		long offset = this.seekList.get(documentId);
-		if(offset > 0) {
-			return this.getDocument(documentId, offset);
+		long startOffset = this.seekList.get(documentId);
+		if(startOffset > 0) {
+			return this.getDocument(documentId, startOffset);
 		}
 		
 		return null;
@@ -78,15 +78,12 @@ public class DocumentMapReader implements AutoCloseable {
 				// Read document id
 				int readDocumentId = this.documentMapFile.readInt();
 				
-				// Read skip pointer
-				int skipPointer = this.documentMapFile.readInt();
-				
 				if(readDocumentId == documentId) {
+					this.documentMapFile.getSkippingAreaLength();
 					return PatentDocument.load(readDocumentId, documentMapFile);
 				}
-				else {
-					this.documentMapFile.seek(this.documentMapFile.getFilePointer() + skipPointer);
-				}
+				
+				this.documentMapFile.skipSkippingArea();
 			}
 			catch(EOFException e) {
 				return null;

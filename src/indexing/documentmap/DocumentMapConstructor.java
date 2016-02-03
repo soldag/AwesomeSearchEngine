@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import documents.PatentDocument;
+import gnu.trove.map.TIntObjectMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import indexing.generic.GenericIndexConstructor;
 import io.index.IndexWriter;
@@ -16,7 +17,7 @@ public class DocumentMapConstructor extends GenericIndexConstructor<Integer> {
 	 * Contains the documents mapped to their ids.
 	 */
 	
-	private TIntObjectHashMap<PatentDocument> documentMap = new TIntObjectHashMap<PatentDocument>();
+	private TIntObjectMap<PatentDocument> documentMap = new TIntObjectHashMap<PatentDocument>();
 	
 	
 	/**
