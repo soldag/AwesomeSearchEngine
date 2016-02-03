@@ -4,6 +4,8 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 
+import gnu.trove.map.TObjectIntMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
 import postings.PostingTable;
 import postings.TokenPostings;
 
@@ -50,6 +52,37 @@ public class InvertedIndexReader implements AutoCloseable {
 	 */
 	public int getTotalTokenCount() {
 		return this.totalTokenCount;
+	}
+	
+	
+	/**
+	 * Gets a map of tokens of the index starting the the given prefix and their number of total occurrences in the corpus.
+	 * @param prefix
+	 * @return
+	 * @throws IOException
+	 */
+	public TObjectIntMap<String> getTokens(String prefix) throws IOException {
+		TObjectIntMap<String> tokens = new TObjectIntHashMap<String>();		
+		this.indexFile.seek(this.seekList.get(prefix));
+		while(true) {
+			try {
+				String token = this.indexFile.readString();
+				if(token.startsWith(prefix)) {
+					int occurrencesCount = this.indexFile.readInt();
+					tokens.put(token, occurrencesCount);
+				}				
+				else if(token.compareTo(prefix) > 0){
+					break;
+				}
+				
+				this.indexFile.skipSkippingArea();
+			}
+			catch(EOFException e) {
+				break;
+			}
+		}
+		
+		return tokens;
 	}
 	
 	

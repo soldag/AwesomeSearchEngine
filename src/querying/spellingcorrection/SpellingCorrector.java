@@ -2,20 +2,10 @@ package querying.spellingcorrection;
 
 import java.io.IOException;
 
+import gnu.trove.map.TObjectIntMap;
 import indexing.invertedindex.InvertedIndexReader;
-import postings.PostingTable;
 
 public class SpellingCorrector {
-
-	/**
-	 * Determines, how much the length of the misspelled and possibly correct token can differ.
-	 */
-	private static final int MAX_LENGTH_DIFFERENCE = 2;
-	
-	/**
-	 * Determines the limit of the edit distance. 
-	 */
-	private static final int MAX_DISTANCE = 3;
 	
 	/**
 	 * Contains a edit distance calculator.
@@ -48,45 +38,12 @@ public class SpellingCorrector {
 	public String correctToken(String misspelledToken) throws IOException {		
 		// Get candidates for corrected tokens, that start with the same character as the misspelled one
 		String startCharacter = misspelledToken.substring(0,1);
-		PostingTable postings = this.indexReader.getPostings(startCharacter, true, false);
+		TObjectIntMap<String> tokenCandidates = this.indexReader.getTokens(startCharacter);
 
 		// Get the candidate with the lowest edit distance
-		int minimumDistance = Integer.MAX_VALUE;
-		String minimumDistanceToken = null;
-		for(String token: postings.tokenSet()){
-			if (Math.abs(token.length() - misspelledToken.length()) <= MAX_LENGTH_DIFFERENCE) {
-				int distance = this.damerauLevenshtein.execute(misspelledToken, token);
-				
-				if(distance > MAX_DISTANCE) {
-					continue;
-				}
-				if(distance < minimumDistance) {
-					// New minimum
-					minimumDistance = distance;
-					minimumDistanceToken = token;
-				}
-				else if(distance == minimumDistance) {
-					// Since the edit distances are the same, take number of occurrences in the whole collection into account.
-					int minimumTokenCount = this.getCollectionFrequency(minimumDistanceToken, postings);
-					int tokenCount = this.getCollectionFrequency(token, postings);			
-					if(tokenCount > minimumTokenCount) {
-						minimumDistance = distance;
-						minimumDistanceToken = token;
-					}
-				}
-			}
-		}
+		MostSimilarTokenProcedure mostSimilarTokenProcedure = new MostSimilarTokenProcedure(this.damerauLevenshtein);
+		tokenCandidates.forEachEntry(mostSimilarTokenProcedure);
 		
-		return minimumDistanceToken;
-	}
-	
-	/**
-	 * Returns the number of occurrences in the whole collection for a given token.
-	 * @param token
-	 * @param postings
-	 * @return int
-	 */
-	private int getCollectionFrequency(String token, PostingTable postings) {
-		return postings.ofToken(token).positions().size();
+		return mostSimilarTokenProcedure.getMostSimilarToken();
 	}
 }
