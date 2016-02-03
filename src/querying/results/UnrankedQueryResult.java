@@ -164,9 +164,9 @@ public class UnrankedQueryResult implements QueryResult {
 	 */
 	public static UnrankedQueryResult conjunct(UnrankedQueryResult...results) {
 		// Get intersection of document ids
-		Set<Integer> documentIds = Sets.intersection(
+		Set<Integer> documentIds = intersectDocumentIds(Arrays.asList(
 										intersectDocumentIds(Arrays.stream(results).map(result -> result.getPostings().documentIdSet()).collect(Collectors.toList())),
-										intersectDocumentIds(Arrays.stream(results).map(result -> result.getLinkingDocuments()).collect(Collectors.toList())));
+										intersectDocumentIds(Arrays.stream(results).map(result -> result.getLinkingDocuments()).collect(Collectors.toList()))));
 		
 		// Conjunct postings
 		PostingTable[] postingTables = Arrays.stream(results).map(x -> x.getPostings()).toArray(PostingTable[]::new);
