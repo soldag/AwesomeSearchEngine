@@ -11,5 +11,6 @@
 	<classpathentry kind="lib" path="lib/vtd-xml.jar"/>
 	<classpathentry kind="lib" path="lib/trove-3.0.3.jar"/>
 	<classpathentry kind="lib" path="lib/la4j-0.6.0.jar"/>
+	<classpathentry kind="lib" path="lib/htmlunit-2.19-OSGi.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
