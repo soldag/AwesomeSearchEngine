@@ -22,6 +22,7 @@ import postings.PostingTable;
 import postings.positions.PositionMap;
 import querying.results.QueryResult;
 import querying.results.RankedQueryResult;
+import querying.results.UnrankedQueryResult;
 import utilities.MapValueComparator;
 
 public class DocumentRanker {
@@ -35,12 +36,6 @@ public class DocumentRanker {
 	 * Contains a factor for weights of tokens, that are not part of the original query (when using prf)
 	 */
 	private static final double NON_QUERY_TOKEN_FACTOR = 0.25;
-	
-	/**
-	 * Contains factors for the different weights.
-	 */
-	private static final double TOKEN_WEIGHT_FACTOR = 0.6;	
-	private static final double PAGE_RANK_FACTOR = 0.4;
 	
 	/**
 	 * Contains the document map reader service.
@@ -64,32 +59,25 @@ public class DocumentRanker {
 	 * @param collectionTokenCount
 	 * @return
 	 */
-	public RankedQueryResult weightResult(QueryResult result, int resultLimit, int collectionTokenCount) {
+	public RankedQueryResult weightResult(UnrankedQueryResult result, int resultLimit, int collectionTokenCount) {
 		PostingTable resultPostings = result.getPostings();
 		
 		// Narrow range of document to the ones, which contain most of the query tokens
 		Set<Integer> rankingDocumentIds = resultPostings.documentIdSet();
 		if(rankingDocumentIds.size() > resultLimit) {
-			int queryTokensCount = resultPostings.tokenSet().size();
-			for(int i = queryTokensCount; i > 0; i--)
+			int i = resultPostings.tokenSet().size();
+			rankingDocumentIds = new HashSet<Integer>();
+			while(rankingDocumentIds.size() < resultLimit && i > 0)
 			{
 				final int count = i;
-				Set<Integer> documents = resultPostings.documentIdSet().stream()
-													.filter(document -> resultPostings.ofDocument(document).entrySet().size() >= count)
-													.collect(Collectors.toSet());
-				if(documents.size() >= resultLimit || i == 1) {
-					rankingDocumentIds = documents;
-					break;
-				}
+				rankingDocumentIds.addAll(resultPostings.documentIdSet().stream()
+													.filter(document -> resultPostings.ofDocument(document).entrySet().stream()
+																			.filter(x -> x.getValue().size() > 0).count() == count)
+													.collect(Collectors.toSet()));
+				i--;
 			}
 		}
 		rankingDocumentIds = Sets.union(rankingDocumentIds, result.getLinkingDocuments());
-		
-		// Determine collection frequencies of query tokens
-		Map<String, Integer> collectionFrequencies = resultPostings.tokenSet().stream()
-															.collect(Collectors.toMap(
-																	Function.identity(), 
-																	token -> this.getCollectionFrequency(token, result)));
 		
 		// Calculate weights for each document
 		Map<PatentDocument, Double> weights = rankingDocumentIds.stream()
@@ -97,7 +85,7 @@ public class DocumentRanker {
 													.filter(Objects::nonNull)
 													.collect(Collectors.toMap(
 															Function.identity(), 
-															document -> this.weightDocument(document, result, collectionFrequencies, collectionTokenCount)));
+															document -> this.weightDocument(document, result, collectionTokenCount)));
 		
 		// Sort documents by weight and limit to given parameter
 		List<PatentDocument> rankedDocuments = weights.entrySet().stream()
@@ -115,7 +103,7 @@ public class DocumentRanker {
 	 * @param resultLimit
 	 * @return
 	 */
-	public RankedQueryResult limitResult(QueryResult result, int resultLimit) {
+	public RankedQueryResult limitResult(UnrankedQueryResult result, int resultLimit) {
 		List<PatentDocument> documents = Sets.union(result.getPostings().documentIdSet(), result.getLinkingDocuments()).stream()
 												.sorted(Collections.reverseOrder())
 												.limit(resultLimit)
@@ -138,16 +126,6 @@ public class DocumentRanker {
 		} catch (IOException e) {
 			return null;
 		}
-	}	
-	
-	/**
-	 * Counts the numbers of occurrences of the given token in the collection.
-	 * @param token
-	 * @param result
-	 * @return
-	 */
-	private int getCollectionFrequency(String token, QueryResult result) {
-		return result.getPostings().ofToken(token).getTotalOccurencesCount();
 	}
 	
 	/**
@@ -155,18 +133,17 @@ public class DocumentRanker {
 	 * @param document
 	 * @param tokenPostings
 	 * @param result
-	 * @param collectionFrequencies
 	 * @param collectionTokenCount
 	 * @return
 	 */	
-	private double weightDocument(PatentDocument document, QueryResult result, Map<String, Integer> collectionFrequencies, int collectionTokenCount) {
+	private double weightDocument(PatentDocument document, UnrankedQueryResult result, int collectionTokenCount) {
 		// Calculate weight of tokens
 		double tokenWeight = Arrays.stream(ContentType.values())
 								.mapToDouble(contentType -> contentType.getWeightingFactor() * 
-															this.weightDocumentByTokens(document, contentType, result,collectionFrequencies, collectionTokenCount))
-								.sum();
+															this.weightDocumentByTokens(document, contentType, result, collectionTokenCount))
+								.sum();		
 		
-		return TOKEN_WEIGHT_FACTOR * tokenWeight + PAGE_RANK_FACTOR * document.getPageRank();
+		return tokenWeight;
 	}
 	
 	/**
@@ -174,18 +151,17 @@ public class DocumentRanker {
 	 * @param document
 	 * @param tokenPostings
 	 * @param result
-	 * @param collectionFrequencies
 	 * @param collectionTokenCount
 	 * @return
 	 */	
-	private double weightDocumentByTokens(PatentDocument document, ContentType contentType, QueryResult result, Map<String, Integer> collectionFrequencies, int collectionTokenCount) {
+	private double weightDocumentByTokens(PatentDocument document, ContentType contentType, UnrankedQueryResult result, int collectionTokenCount) {
 		DocumentPostings documentPostings = result.getPostings().ofDocument(document.getId());
 		return result.getPostings().tokenSet().stream()
 						.mapToDouble(token -> this.getPrfFactor(token, result) * 
 											  this.queryLikelihood(
 												this.countTokenOccurrences(token, documentPostings, contentType), 
 												document.getTokensCount(contentType), 
-												collectionFrequencies.get(token), 
+												result.getCollectionFrequencies().get(token), 
 												collectionTokenCount))
 						.reduce(1, (x,y) -> x*y);
 	}
@@ -196,10 +172,10 @@ public class DocumentRanker {
 	 * @param result
 	 * @return
 	 */
-	private double getPrfFactor(String token, QueryResult result) {
+	private double getPrfFactor(String token, UnrankedQueryResult result) {
 		if(result.hasOriginalResult()) {
 			QueryResult prfResult = result.getOriginalResult();
-			Set<String> originalQueryTokens = prfResult.getOriginalResult().getPostings().tokenSet();
+			Set<String> originalQueryTokens = prfResult.getPostings().tokenSet();
 			if(!originalQueryTokens.contains(token)) {
 				return NON_QUERY_TOKEN_FACTOR;
 			}
@@ -233,7 +209,7 @@ public class DocumentRanker {
 	 * @return
 	 */
 	private double queryLikelihood(double tokenDocumentFrequency, double documentsLength, double tokenCollectionFrequency, double collectionLength) {
-		return (1 - QL_LAMBDA) * (tokenDocumentFrequency / documentsLength) + QL_LAMBDA * (tokenCollectionFrequency / collectionLength);
+		return Math.log1p((1 - QL_LAMBDA) * (tokenDocumentFrequency / documentsLength) + QL_LAMBDA * (tokenCollectionFrequency / collectionLength));
 	}
 	
 	

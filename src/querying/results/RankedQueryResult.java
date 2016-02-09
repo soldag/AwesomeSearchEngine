@@ -7,7 +7,22 @@ import java.util.Set;
 import documents.PatentDocument;
 import postings.PostingTable;
 
-public class RankedQueryResult extends UnrankedQueryResult {
+public class RankedQueryResult implements QueryResult {
+	
+	/**
+	 * Contains the found postings per token.
+	 */
+	private final PostingTable tokenPostings;
+	
+	/**
+	 * Contains a list of documents that match a LinkTo-query.
+	 */
+	private final Set<Integer> linkingDocuments;
+	
+	/**
+	 * Contains the map of spelling corrections. Key is the original token, value the corrected one.
+	 */
+	private final Map<String, String> spellingCorrections;
 
 	/**
 	 * Contains the ordered list of ranked documents.
@@ -23,10 +38,27 @@ public class RankedQueryResult extends UnrankedQueryResult {
 	 * @param rankedDocumentMap
 	 */
 	public RankedQueryResult(PostingTable tokenPostings, Set<Integer> linkingDocuments, Map<String, String> spellingCorrections, List<PatentDocument> rankedDocumentMap) {
-		super(tokenPostings, linkingDocuments, spellingCorrections);
+		this.tokenPostings = tokenPostings;
+		this.linkingDocuments = linkingDocuments;
+		this.spellingCorrections = spellingCorrections;
 		this.rankedDocuments = rankedDocumentMap;
 	}
 	
+	
+	@Override
+	public PostingTable getPostings() {
+		return tokenPostings;
+	}
+
+	@Override
+	public Set<Integer> getLinkingDocuments() {
+		return this.linkingDocuments;
+	}
+
+	@Override
+	public Map<String, String> getSpellingCorrections() {
+		return spellingCorrections;
+	}	
 	
 	/**
 	 * Gets the ordered list of ranked documents.

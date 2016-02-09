@@ -209,7 +209,7 @@ public class TokenPostings {
 				positionMap = EagerPositionMap.load(reader);
 			}
 			else {
-				positionMap = LazyPositionMap.load(reader);
+				positionMap = EagerPositionMap.load(reader);
 			}
 			
 			postings.put(documentId, positionMap);

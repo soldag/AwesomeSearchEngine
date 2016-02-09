@@ -10,8 +10,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.tuple.Pair;
+
 import com.google.common.collect.Sets;
 
+import gnu.trove.map.TObjectIntMap;
 import indexing.citations.CitationIndexReader;
 import indexing.invertedindex.InvertedIndexReader;
 import postings.ContentType;
@@ -29,7 +32,6 @@ import querying.queries.PrfQuery;
 import querying.queries.Query;
 import querying.queries.QueryParser;
 import querying.ranking.DocumentRanker;
-import querying.results.QueryResult;
 import querying.results.RankedQueryResult;
 import querying.spellingcorrection.SpellingCorrector;
 import textprocessing.TextPreprocessor;
@@ -103,7 +105,7 @@ public class QueryProcessor {
 	 * @throws IOException
 	 */
 	private RankedQueryResult search(Query query, int resultLimit) throws IOException {
-		QueryResult unrankedResult = this.searchUnweighted(query, resultLimit);
+		UnrankedQueryResult unrankedResult = this.searchUnweighted(query, resultLimit);
 		
 		// Rank result depending on query type
 		RankedQueryResult result;
@@ -222,6 +224,7 @@ public class QueryProcessor {
 		PostingTable resultTokenPostings = null;
 		PostingTable lastTokenPostings = null;
 		Map<String, String> spellingCorrections = null;
+		TObjectIntMap<String> collectionFrequencies = null;
 		
 		for(String token: query.getQueryTokens()) {
 			// Search for token
@@ -231,6 +234,7 @@ public class QueryProcessor {
 				// Add all postings of first token
 				resultTokenPostings = lastTokenPostings = result.getPostings();
 				spellingCorrections = result.getSpellingCorrections();
+				collectionFrequencies = result.getCollectionFrequencies();
 			}
 			else {
 				// Filter out those tokens, that are not part of the phrase and store valid postings in a new table
@@ -249,7 +253,7 @@ public class QueryProcessor {
 								
 								if(this.areSuccessive(lastPositions, currentPositions)) {
 									PositionMap currentPositionMap = new EagerPositionMap();
-									positionMap.put(contentType, currentPositions);
+									currentPositionMap.put(contentType, currentPositions);
 									
 									newTokenPostings.put(currentToken, documentId, currentPositionMap);
 								}
@@ -271,8 +275,9 @@ public class QueryProcessor {
 					return new UnrankedQueryResult();
 				}
 				
-				// Add spelling corrections
+				// Add spelling corrections and collection frequencies
 				spellingCorrections.putAll(result.getSpellingCorrections());
+				collectionFrequencies.putAll(result.getCollectionFrequencies());
 				
 				// Overwrite lastPostings with new ones for the next iteration
 				lastTokenPostings = newTokenPostings; 
@@ -284,7 +289,7 @@ public class QueryProcessor {
 			return new UnrankedQueryResult();
 		}
 		
-		return new UnrankedQueryResult(resultTokenPostings, spellingCorrections);
+		return new UnrankedQueryResult(resultTokenPostings, spellingCorrections, collectionFrequencies);
 	}
 	
 	/**
@@ -371,8 +376,10 @@ public class QueryProcessor {
 				token = this.textPreprocessor.stem(token);
 			}
 			
-			// Get postings
-			PostingTable postings = this.invertedIndexReader.getPostings(token, prefixSearch, false);
+			// Get postings and collection frequencies
+			Pair<PostingTable, TObjectIntMap<String>> indexEntries = this.invertedIndexReader.getPostings(token, prefixSearch, false);
+			PostingTable postings = indexEntries.getLeft();
+			TObjectIntMap<String> collectionFrequencies = indexEntries.getRight();
 			
 			// Spelling correction
 			if(!prefixSearch && postings.isEmpty()) {
@@ -387,10 +394,10 @@ public class QueryProcessor {
 				Map<String, String> spellingCorrections = new HashMap<String, String>();
 				spellingCorrections.put(token, misspelledToken);
 				
-				return new UnrankedQueryResult(postings, spellingCorrections);				
+				return new UnrankedQueryResult(postings, spellingCorrections, collectionFrequencies);				
 			}
 			
-			return new UnrankedQueryResult(postings);
+			return new UnrankedQueryResult(postings, collectionFrequencies);
 			
 		}
 		catch(IOException e) {

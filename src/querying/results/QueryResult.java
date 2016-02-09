@@ -24,17 +24,4 @@ public interface QueryResult {
 	 * @return
 	 */
 	public Map<String, String> getSpellingCorrections();
-	
-	
-	/**
-	 * Determines, whether the current result has a corresponding original result (i.e. when prf is enabled).
-	 * @return
-	 */
-	public boolean hasOriginalResult();
-	
-	/**
-	 * Gets the corresponding original result (i.e. when prf is enabled).
-	 * @return
-	 */
-	public QueryResult getOriginalResult();
 }

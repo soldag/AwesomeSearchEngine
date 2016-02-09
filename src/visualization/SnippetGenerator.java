@@ -79,9 +79,10 @@ public class SnippetGenerator {
 	 */
 	public Snippet generate(PatentContentDocument document, QueryResult result) {
 		// If prf is enabled, use original result for snippet generation.
-		if(result.hasOriginalResult()) {
+		// TODO: fix or remove!
+		/*if(result.hasOriginalResult()) {
 			result = result.getOriginalResult();
-		}
+		}*/
 		
 		// Get abstract text split into each tokens and sentences
 		// Map positions of query tokens to abstract sentences

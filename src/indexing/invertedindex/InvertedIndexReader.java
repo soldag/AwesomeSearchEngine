@@ -4,6 +4,8 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 
+import org.apache.commons.lang3.tuple.Pair;
+
 import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import postings.PostingTable;
@@ -87,7 +89,7 @@ public class InvertedIndexReader implements AutoCloseable {
 	
 	
 	/**
-	 * Gets a map of postings per token from inverted index.
+	 * Gets postings and collection frequency per token from inverted index.
 	 * Additionally, prefix search can be enabled. In this case, all tokens, that start with the given token, are also taken into account.
 	 * @param token
 	 * @param prefixSearch
@@ -95,13 +97,13 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @return Table of postings
 	 * @throws IOException
 	 */
-	public PostingTable getPostings(String token, boolean prefixSearch, boolean loadPositions) throws IOException {
+	public Pair<PostingTable, TObjectIntMap<String>> getPostings(String token, boolean prefixSearch, boolean loadPositions) throws IOException {
 		long offset = this.seekList.get(token);
 		return this.getPostings(token, offset, prefixSearch, loadPositions);
 	}
 
 	/**
-	 * Gets a map of postings per token from inverted index by specifying a start offset in the index file. 
+	 * Gets postings and collection frequency per token from inverted index by specifying a start offset in the index file. 
 	 * Additionally, prefix search can be enabled. In this case, all tokens, that start with the given token, are also taken into account.
 	 * @param token
 	 * @param startOffset
@@ -110,8 +112,9 @@ public class InvertedIndexReader implements AutoCloseable {
 	 * @return Table of postings
 	 * @throws IOException
 	 */
-	private PostingTable getPostings(String token, long startOffset, boolean prefixSearch, boolean loadPositions) throws IOException {
+	private Pair<PostingTable, TObjectIntMap<String>> getPostings(String token, long startOffset, boolean prefixSearch, boolean loadPositions) throws IOException {
 		PostingTable postings = new PostingTable();
+		TObjectIntMap<String> collectionFrequencies = new TObjectIntHashMap<String>();
 		
 		this.indexFile.seek(startOffset);
 		while(true) {
@@ -121,12 +124,14 @@ public class InvertedIndexReader implements AutoCloseable {
 				if(prefixSearch) {
 					if(readToken.startsWith(token)) {
 						TokenPostings readPostings = TokenPostings.load(this.indexFile.getSkippingAreaReader(), loadPositions);
+						collectionFrequencies.put(readToken, readPostings.getTotalOccurencesCount());
 						postings.putAll(readToken, readPostings);
 						continue;
 					}
 				}			
 				else if(readToken.equals(token)) {
 					TokenPostings readPostings = TokenPostings.load(this.indexFile.getSkippingAreaReader(), loadPositions);
+					collectionFrequencies.put(readToken, readPostings.getTotalOccurencesCount());
 					postings.putAll(readToken, readPostings);
 					break;
 				}
@@ -142,7 +147,17 @@ public class InvertedIndexReader implements AutoCloseable {
 			}
 		}
 		
-		return postings;
+		return Pair.of(postings, collectionFrequencies);
+	}
+	
+	
+	/**
+	 * Gets the number of occurrences of the specified token in the whole corpus.
+	 * @param token
+	 * @return
+	 */
+	public int getCollectionFrequency(String token) {
+		return 0;
 	}
 	
 

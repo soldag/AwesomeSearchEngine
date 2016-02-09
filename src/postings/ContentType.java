@@ -3,10 +3,10 @@ package postings;
 import java.util.Arrays;
 
 public enum ContentType {
-	Title("us-bibliographic-data-grant/invention-title", 0.4),
-	Abstract("abstract/p", 0.3),
-	Claims("claims/claim/claim-text", 0.2),
-	Description("description/p", 0.1);
+	Title("us-bibliographic-data-grant/invention-title", 0.1),
+	Abstract("abstract/p", 0.4),
+	Claims("claims/claim/claim-text", 0.3),
+	Description("description/p", 0.2);
 	
 	
 	/**

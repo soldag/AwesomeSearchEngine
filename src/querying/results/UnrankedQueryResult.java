@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
+import gnu.trove.map.TObjectIntMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
 import postings.PostingTable;
 
 public class UnrankedQueryResult implements QueryResult {
@@ -30,6 +32,11 @@ public class UnrankedQueryResult implements QueryResult {
 	private final Map<String, String> spellingCorrections;
 	
 	/**
+	 * Contains the token frequencies in the whole corpus.
+	 */
+	private final TObjectIntMap<String> collectionFrequencies;
+	
+	/**
 	 * Contains the corresponding original result (i.e. when prf is enabled), if present.
 	 */
 	private final QueryResult originalQueryResult;
@@ -39,24 +46,26 @@ public class UnrankedQueryResult implements QueryResult {
 	 * Creates a new, empty QueryResult instance.
 	 */
 	public UnrankedQueryResult() {
-		this(new PostingTable());
+		this(new PostingTable(), new TObjectIntHashMap<String>());
 	}
 	
 	/**
 	 * Creates a new QueryResult instance exclusively for token-queries.
 	 * @param tokenPostings
+	 * @param collectionFrequencies
 	 */
-	public UnrankedQueryResult(PostingTable tokenPostings) {
-		this(tokenPostings, new HashMap<String, String>());
+	public UnrankedQueryResult(PostingTable tokenPostings, TObjectIntMap<String> collectionFrequencies) {
+		this(tokenPostings, new HashMap<String, String>(), collectionFrequencies);
 	}
 	
 	/**
 	 * Creates a new QueryResult instance exclusively for token-queries.
 	 * @param tokenPostings
 	 * @param spellingCorrections
+	 * @param collectionFrequencies
 	 */
-	public UnrankedQueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections) {
-		this(tokenPostings, new HashSet<Integer>(), spellingCorrections);
+	public UnrankedQueryResult(PostingTable tokenPostings, Map<String, String> spellingCorrections, TObjectIntMap<String> collectionFrequencies) {
+		this(tokenPostings, new HashSet<Integer>(), spellingCorrections, collectionFrequencies);
 	}
 	
 	/**
@@ -64,7 +73,7 @@ public class UnrankedQueryResult implements QueryResult {
 	 * @param linkingDocuments
 	 */
 	public UnrankedQueryResult(Set<Integer> linkingDocuments) {
-		this(new PostingTable(), linkingDocuments, new HashMap<String, String>());
+		this(new PostingTable(), linkingDocuments, new HashMap<String, String>(), new TObjectIntHashMap<String>());
 	}
 	
 	/**
@@ -72,9 +81,10 @@ public class UnrankedQueryResult implements QueryResult {
 	 * @param postingTable
 	 * @param linkingDocuments
 	 * @param spellingCorrections
+	 * @param collectionFrequencies
 	 */
-	public UnrankedQueryResult(PostingTable postingTable, Set<Integer> linkingDocuments, Map<String, String> spellingCorrections) {
-		this(postingTable, linkingDocuments, spellingCorrections, null);
+	public UnrankedQueryResult(PostingTable postingTable, Set<Integer> linkingDocuments, Map<String, String> spellingCorrections, TObjectIntMap<String> collectionFrequencies) {
+		this(postingTable, linkingDocuments, spellingCorrections, collectionFrequencies, null);
 	}
 	
 	/**
@@ -82,12 +92,15 @@ public class UnrankedQueryResult implements QueryResult {
 	 * @param postingTable
 	 * @param linkingDocuments
 	 * @param spellingCorrections
+	 * @param collectionFrequencies
 	 * @param originalQueryResult
 	 */
 	public UnrankedQueryResult(PostingTable postingTable, Set<Integer> linkingDocuments, 
-			Map<String, String> spellingCorrections, QueryResult originalQueryResult) {
+			Map<String, String> spellingCorrections, TObjectIntMap<String> collectionFrequencies, 
+			QueryResult originalQueryResult) {
 		this.tokenPostings = postingTable;
 		this.linkingDocuments = linkingDocuments;
+		this.collectionFrequencies = collectionFrequencies;
 		this.originalQueryResult = originalQueryResult;
 		
 		// Assure, that spelling corrections only include tokens that are part of the posting table
@@ -103,8 +116,9 @@ public class UnrankedQueryResult implements QueryResult {
 	 * @param originalResult
 	 * @return
 	 */
-	public static UnrankedQueryResult fromResults(QueryResult result, QueryResult originalResult) {
-		return new UnrankedQueryResult(result.getPostings(), result.getLinkingDocuments(), result.getSpellingCorrections(), originalResult);
+	public static UnrankedQueryResult fromResults(UnrankedQueryResult result, QueryResult originalResult) {
+		return new UnrankedQueryResult(result.getPostings(), result.getLinkingDocuments(), 
+				result.getSpellingCorrections(), result.getCollectionFrequencies(), originalResult);
 	}
 	
 	
@@ -123,13 +137,26 @@ public class UnrankedQueryResult implements QueryResult {
 		return spellingCorrections;
 	}
 
-
-	@Override
+	/**
+	 * Gets the token frequencies in the whole corpus.
+	 * @return
+	 */
+	public TObjectIntMap<String> getCollectionFrequencies() {
+		return this.collectionFrequencies;
+	}
+	
+	/**
+     * Determines, whether the current result has a corresponding original result (i.e. when prf is enabled).
+   	 * @return
+	 */
 	public boolean hasOriginalResult() {
 		return this.originalQueryResult != null;
 	}
 
-	@Override
+	/**
+     * Gets the corresponding original result (i.e. when prf is enabled).
+   	 * @return
+	 */
 	public QueryResult getOriginalResult() {
 		return this.originalQueryResult;
 	}
@@ -154,7 +181,8 @@ public class UnrankedQueryResult implements QueryResult {
 		}
 		
 		
-		return new UnrankedQueryResult(disjunctedTokenPostings, linkingDocuments, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(disjunctedTokenPostings, linkingDocuments, 
+				disjunctSpellingCorrections(results), disjunctCollectionFrequencies(results));
 	}
 	
 	/**
@@ -179,7 +207,8 @@ public class UnrankedQueryResult implements QueryResult {
 		}
 		linkingDocuments.retainAll(documentIds);
 		
-		return new UnrankedQueryResult(conjunctedTokenPostings, linkingDocuments, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(conjunctedTokenPostings, linkingDocuments, 
+				disjunctSpellingCorrections(results), disjunctCollectionFrequencies(results));
 	}
 	
 	/**
@@ -206,7 +235,8 @@ public class UnrankedQueryResult implements QueryResult {
 		}
 		linkingDocuments.retainAll(documentIds);		
 		
-		return new UnrankedQueryResult(conjunctedTokenPostings, linkingDocuments, disjunctSpellingCorrections(results));
+		return new UnrankedQueryResult(conjunctedTokenPostings, linkingDocuments, 
+				disjunctSpellingCorrections(results), disjunctCollectionFrequencies(results));
 	}
 	
 	/**
@@ -229,7 +259,7 @@ public class UnrankedQueryResult implements QueryResult {
 	}
 	
 	/**
-	 * Disjuncts the spelling corrections of multiple QueryResult instances.
+	 * Disjuncts the spelling corrections of multiple UnrankedQueryResult instances.
 	 * @param results
 	 * @return
 	 */
@@ -237,5 +267,19 @@ public class UnrankedQueryResult implements QueryResult {
 		return Arrays.stream(results)
 				.flatMap(result -> result.getSpellingCorrections().entrySet().stream())
 				.collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
+	}
+	
+	/**
+	 * Disjuncts the collection frequencies of multiple UnrankedQueryResult instances.
+	 * @param results
+	 * @return
+	 */
+	private static TObjectIntMap<String> disjunctCollectionFrequencies(UnrankedQueryResult...results) {
+		TObjectIntMap<String> collectionFrequencies = new TObjectIntHashMap<String>();
+		Arrays.stream(results)
+				.map(result -> result.getCollectionFrequencies())
+				.forEach(map -> collectionFrequencies.putAll(map));
+		
+		return collectionFrequencies;
 	}
 }
