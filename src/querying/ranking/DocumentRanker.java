@@ -71,8 +71,7 @@ public class DocumentRanker {
 			{
 				final int count = i;
 				rankingDocumentIds.addAll(resultPostings.documentIdSet().stream()
-													.filter(document -> resultPostings.ofDocument(document).entrySet().stream()
-																			.filter(x -> x.getValue().size() > 0).count() == count)
+													.filter(document -> resultPostings.ofDocument(document).tokenSet().size() == count)
 													.collect(Collectors.toSet()));
 				i--;
 			}
