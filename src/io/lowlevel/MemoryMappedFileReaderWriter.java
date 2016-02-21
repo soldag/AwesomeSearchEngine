@@ -65,6 +65,11 @@ public class MemoryMappedFileReaderWriter implements FileReader, FileWriter {
 		
 		return length;
 	}
+
+	@Override
+	public byte[] readToEnd() throws IOException {
+		return this.buffer.array();
+	}
 	
 	@Override
 	public long getFilePointer() throws IOException {

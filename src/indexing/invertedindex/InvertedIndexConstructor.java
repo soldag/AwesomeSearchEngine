@@ -1,9 +1,11 @@
 package indexing.invertedindex;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Set;
 
 import indexing.generic.GenericIndexConstructor;
+import io.FileReaderWriterFactory;
 import io.index.IndexWriter;
 import postings.ContentType;
 import postings.PostingTable;
@@ -15,6 +17,8 @@ public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 	 * Contains the actual inverted index.
 	 */
 	private PostingTable invertedIndex = new PostingTable();
+	
+	private IndexWriter positionalIndexWriter;
 	
 	
 	/**
@@ -50,6 +54,31 @@ public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 	public Set<String> keys() {
 		return this.invertedIndex.tokenSet();
 	}
+	
+	/**
+	 * Writes frequency index and positional index to file.
+	 * @param frequencyIndexFile
+	 * @param positionalIndexFile
+	 * @throws IOException
+	 */
+	public void save(File frequencyIndexFile, File positionalIndexFile) throws IOException {
+		this.saveWithSeekList(frequencyIndexFile, positionalIndexFile, null);
+	}
+	
+	/**
+	 * Writes frequency index, positional index and seek list to file.
+	 * @param frequencyIndexFile
+	 * @param positionalIndexFile
+	 * @param seekListFile
+	 * @throws IOException
+	 */
+	public void saveWithSeekList(File frequencyIndexFile, File positionalIndexFile, File seekListFile) throws IOException {
+		this.positionalIndexWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(positionalIndexFile, this.isCompressed());
+		this.saveWithSeekList(frequencyIndexFile, seekListFile);
+		
+		this.positionalIndexWriter.close();
+		this.positionalIndexWriter = null;
+	}
 
 	@Override
 	protected void writeEntry(String key, IndexWriter indexWriter) throws IOException {
@@ -58,7 +87,9 @@ public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 		
 		// Write postings
 		TokenPostings postings = this.invertedIndex.ofToken(key);
-		postings.save(indexWriter);
+		indexWriter.startSkippingArea();
+		postings.save(indexWriter, this.positionalIndexWriter);
+		indexWriter.endSkippingArea();
 	}
 	
 	@Override

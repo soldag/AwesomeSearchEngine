@@ -17,4 +17,9 @@ public interface FileReader extends FileOperator {
 	 * @throws IOException
 	 */
 	public byte readByte() throws IOException;
+	
+	/**
+	 * Reads complete file from current position to end.
+	 */
+	public byte[] readToEnd() throws IOException;
 }

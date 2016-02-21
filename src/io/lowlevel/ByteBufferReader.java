@@ -56,4 +56,8 @@ public class ByteBufferReader implements FileReader {
 		return this.buffer.get();
 	}
 
+	@Override
+	public byte[] readToEnd() throws IOException {
+		return this.buffer.array();
+	}
 }

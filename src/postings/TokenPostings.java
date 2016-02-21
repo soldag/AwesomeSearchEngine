@@ -183,22 +183,23 @@ public class TokenPostings {
 	
 	/**
 	 * Loads postings for a specific token from a given file reader. 
-	 * @param reader
+	 * @param frequencyIndexReader
+	 * @param positionalIndexReader
 	 * @param loadPositions
 	 * @return
 	 * @throws IOException
 	 */
-	public static TokenPostings load(IndexReader reader, boolean loadPositions) throws IOException {
+	public static TokenPostings load(IndexReader frequencyIndexReader, IndexReader positionalIndexReader, boolean loadPositions) throws IOException {
 		// Read total occurrences count
-		int totalOccurrencesCount = reader.readInt();
+		int totalOccurrencesCount = frequencyIndexReader.readInt();
 		
 		// Load postings
 		int lastDocumentId = 0;
 		Map<Integer, PositionMap> postings = new HashMap<Integer, PositionMap>();
-		while(reader.getFilePointer() < reader.length()) {
+		while(frequencyIndexReader.getFilePointer() < frequencyIndexReader.length()) {
 			// Read document id
-			int documentId = reader.readInt();
-			if(reader.isCompressed()) {
+			int documentId = frequencyIndexReader.readInt();
+			if(frequencyIndexReader.isCompressed()) {
 				documentId += lastDocumentId;
 				lastDocumentId = documentId;
 			}
@@ -206,10 +207,10 @@ public class TokenPostings {
 			// Read positions grouped by content type
 			PositionMap positionMap; 
 			if(loadPositions) {
-				positionMap = EagerPositionMap.load(reader);
+				positionMap = EagerPositionMap.load(frequencyIndexReader, positionalIndexReader);
 			}
 			else {
-				positionMap = EagerPositionMap.load(reader);
+				positionMap = LazyPositionMap.load(frequencyIndexReader, positionalIndexReader);
 			}
 			
 			postings.put(documentId, positionMap);
@@ -220,15 +221,13 @@ public class TokenPostings {
 	
 	/**
 	 * Saves the postings using the given file writer.
-	 * @param writer
+	 * @param frequencyIndexWriter
+	 * @param positionalIndexWriter
 	 * @throws IOException
 	 */
-	public void save(IndexWriter writer) throws IOException {
-		// Start skipping area
-		writer.startSkippingArea();
-		
+	public void save(IndexWriter frequencyIndexWriter, IndexWriter positionalIndexWriter) throws IOException {		
 		// Write total occurrences count
-		writer.writeInt(this.getTotalOccurencesCount());
+		frequencyIndexWriter.writeInt(this.getTotalOccurencesCount());
 		
 		// Write postings
 		int lastDocumentId = 0;
@@ -237,18 +236,19 @@ public class TokenPostings {
 			PositionMap positionMap = this.ofDocument(documentId);
 			
 			// Write document id
-			if(writer.isCompressed()) {
+			if(frequencyIndexWriter.isCompressed()) {
 				int originalDocumentId = documentId;
 				documentId -= lastDocumentId;
 				lastDocumentId = originalDocumentId;
 			}
-			writer.writeInt(documentId);
+			frequencyIndexWriter.writeInt(documentId);
 			
 			// Write positions
-			positionMap.save(writer);
+			if(positionalIndexWriter != null) {
+				positionalIndexWriter.startSkippingArea();
+				positionMap.save(frequencyIndexWriter, positionalIndexWriter);
+				positionalIndexWriter.endSkippingArea();
+			}
 		}
-		
-		// End skipping area
-		writer.endSkippingArea();
 	}
 }

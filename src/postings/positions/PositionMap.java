@@ -75,9 +75,9 @@ public interface PositionMap {
 	
 	/**
 	 * Writes current position map to given index writer.
-	 * @param writer
-	 * @return
-	 * @throws IOException 
+	 * @param frequencyIndexWriter
+	 * @param positionalIndexWriter
+	 * @throws IOException
 	 */
-	public void save(IndexWriter indexWriter) throws IOException;
+	public void save(IndexWriter frequencyIndexWriter, IndexWriter positionalIndexWriter) throws IOException;
 }

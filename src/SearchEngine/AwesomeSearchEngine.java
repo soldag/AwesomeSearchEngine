@@ -88,8 +88,9 @@ public class AwesomeSearchEngine extends SearchEngine {
 	/**
 	 *  Contain the necessary index files.
 	 */
-	private final File indexFile = this.teamDirectoryPath.resolve("inverted_index.bin").toFile();
-	private final File indexSeekListFile = this.teamDirectoryPath.resolve("inverted_index_seek_list.bin").toFile();
+	private final File frequencyIndexFile = this.teamDirectoryPath.resolve("frequency_index.bin").toFile();
+	private final File positionalIndexFile = this.teamDirectoryPath.resolve("positional_index.bin").toFile();
+	private final File frequencyIndexSeekListFile = this.teamDirectoryPath.resolve("frequency_index_seek_list.bin").toFile();
 	private final File documentMapFile = this.teamDirectoryPath.resolve("document_map.bin").toFile();
 	private final File documentMapSeekListFile = this.teamDirectoryPath.resolve("document_map_seek_list.bin").toFile();
 	private final File contentsIndexFile = this.teamDirectoryPath.resolve("contents_index.bin").toFile();
@@ -133,8 +134,9 @@ public class AwesomeSearchEngine extends SearchEngine {
     		this.documentIndexer = new DocumentIndexer(
     						this.getTextPreprocessor(), 
     						this.getPageRankCalculator(),
-    						this.indexFile, 
-    						this.indexSeekListFile, 
+    						this.frequencyIndexFile, 
+    						this.positionalIndexFile,
+    						this.frequencyIndexSeekListFile, 
     						this.documentMapFile, 
     						this.documentMapSeekListFile, 
     						this.contentsIndexFile,
@@ -344,7 +346,7 @@ public class AwesomeSearchEngine extends SearchEngine {
      */
     private boolean loadIndex(boolean compress) { 	
     	try {
-    		this.invertedIndexReader = new InvertedIndexReader(this.indexFile, this.indexSeekListFile, compress);
+    		this.invertedIndexReader = new InvertedIndexReader(this.frequencyIndexFile, this.positionalIndexFile, this.frequencyIndexSeekListFile, compress);
     		this.documentMapReader = new DocumentMapReader(this.documentMapFile, this.documentMapSeekListFile, compress);
     		this.contentsIndexReader = new ContentsIndexReader(this.contentsIndexFile, this.contentsIndexSeekListFile, compress);
     		this.citationIndexReader = new CitationIndexReader(this.citationIndexFile, this.citationIndexSeekListFile, compress);

@@ -89,43 +89,50 @@ public class EagerPositionMap implements PositionMap {
 	
 	
 	/**
-	 * Loads positions from given file reader. File pointer has to be at the beginning of the position map.
-	 * @param reader
+	 * Loads positions from given file readers. File pointer has to be at the beginning of the position map.
+	 * @param frequencyIndexReader
+	 * @param positionalIndexReader
 	 * @return
 	 * @throws IOException
 	 */
-	public static EagerPositionMap load(IndexReader indexReader) throws IOException {
+	public static EagerPositionMap load(IndexReader frequencyIndexReader, IndexReader positionalIndexReader) throws IOException {
 		// Read numbers of positions per content type
 		Map<ContentType, Integer> positionCounts = new HashMap<ContentType, Integer>();
 		for(ContentType contentType: ContentType.orderedValues()) {
-			int count = indexReader.readInt();
-			positionCounts.put(contentType, count);
+			int count = frequencyIndexReader.readInt();
+			if(count > 0) {
+				positionCounts.put(contentType, count);
+			}
 		}
 		
-		return EagerPositionMap.load(indexReader, positionCounts);
+		// Get offset for corresponding positions in positional index and read those positions
+		long positionsOffset = frequencyIndexReader.readLong();
+		positionalIndexReader.seek(positionsOffset);
+		
+		return EagerPositionMap.load(positionalIndexReader.getSkippingAreaReader(), positionCounts);
 	}
 	/**
-	 * Loads positions from given file reader. File pointer has to be directly after the position counts.
-	 * @param reader
+	 * Loads positions from given file readers. File pointer has to be directly before the positions.
+	 * @param positionalIndexWriter
+	 * @param positionCounts
 	 * @return
 	 * @throws IOException
 	 */
-	public static EagerPositionMap load(IndexReader indexReader, Map<ContentType, Integer> positionCounts) throws IOException {
-		// Skip skipping area length
-		indexReader.getSkippingAreaLength();
-		
+	public static EagerPositionMap load(IndexReader positionalIndexWriter, Map<ContentType, Integer> positionCounts) throws IOException {
 		// Read single positions
 		EagerPositionMap positionMap = new EagerPositionMap();
 		for(ContentType contentType: ContentType.orderedValues()) {
-			int lastPosition = 0;
-			int count = positionCounts.get(contentType);
-			for(int i = 0; i < count; i++) {
-				int position = indexReader.readInt();
-				if(indexReader.isCompressed()) {
-					position += lastPosition;
-					lastPosition = position;
+			if(positionCounts.containsKey(contentType)) {
+				int lastPosition = 0;
+				int count = positionCounts.get(contentType);
+				for(int i = 0; i < count; i++) {
+					int position = positionalIndexWriter.readInt();
+					if(positionalIndexWriter.isCompressed()) {
+						position += lastPosition;
+						lastPosition = position;
+					}
+					positionMap.put(contentType, position);
 				}
-				positionMap.put(contentType, position);
 			}
 		}
 		
@@ -133,28 +140,27 @@ public class EagerPositionMap implements PositionMap {
 	}
 	
 	@Override
-	public void save(IndexWriter indexWriter) throws IOException {
-		// Write numbers of positions per content type
+	public void save(IndexWriter frequencyIndexWriter, IndexWriter positionalIndexWriter) throws IOException {
+		// Write numbers of positions per content type to frequency index
 		for(ContentType contentType: ContentType.orderedValues()) {
 			int count = 0;
 			if(this.containsContentType(contentType)) {
 				count = this.size(contentType);
 			}
-			indexWriter.writeInt(count);
+			frequencyIndexWriter.writeInt(count);
 		}
 		
-		// Write single positions
-		indexWriter.startSkippingArea();
+		// Write single positions to positional index and pointer to frequency index
+		frequencyIndexWriter.writeLong(positionalIndexWriter.getFilePointer());
 		for(ContentType contentType: ContentType.orderedValues()) {
 			int[] positions = this.ofContentType(contentType);
 			for(int i = 0; i < positions.length; i++) {
 				int position = positions[i];
-				if(indexWriter.isCompressed() && i > 0) {
+				if(positionalIndexWriter.isCompressed() && i > 0) {
 					position -= positions[i - 1];
 				}
-				indexWriter.writeInt(position);
+				positionalIndexWriter.writeInt(position);
 			}
 		}
-		indexWriter.endSkippingArea();
 	}
 }

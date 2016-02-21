@@ -42,12 +42,21 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 	
 	
 	/**
+	 * Determines, whether the index should be compressed.
+	 * @return
+	 */
+	public boolean isCompressed() {
+		return this.compress;
+	}
+	
+	
+	/**
 	 * Write index to file.
 	 * @param indexFile
 	 * @throws IOException
 	 */
-	public void writeToFile(File indexFile) throws IOException {
-		this.writeToFile(indexFile, null);
+	public void save(File indexFile) throws IOException {
+		this.saveWithSeekList(indexFile, null);
 	}
 	
 	/**
@@ -56,12 +65,12 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 	 * @param seekListFile
 	 * @throws IOException
 	 */
-	public void writeToFile(File indexFile, File seekListFile) throws IOException {
+	public void saveWithSeekList(File indexFile, File seekListFile) throws IOException {
 		// Determine, if seek list should be created
 		boolean createSeekList = seekListFile != null && this.seekList != null;	
 		
 		// Open index file
-		try (IndexWriter indexWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(indexFile, this.compress)) {
+		try (IndexWriter indexWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(indexFile, this.isCompressed())) {
 			// Write size
 			indexWriter.writeInt(this.size());
 			
@@ -80,7 +89,7 @@ public abstract class GenericIndexConstructor<T extends Comparable<T>> {
 		
 		// Write seek list to file
 		if(createSeekList) {
-			try(IndexWriter seekListWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(seekListFile, this.compress)) {
+			try(IndexWriter seekListWriter = FileReaderWriterFactory.getInstance().getDirectIndexWriter(seekListFile, this.isCompressed())) {
 				this.seekList.save(seekListWriter);
 			}
 		}

@@ -34,6 +34,18 @@ public class DirectFileReaderWriter implements FileReader, FileWriter {
 	}
 
 	@Override
+	public byte[] readToEnd() throws IOException {
+		long length = this.file.length() - this.file.getFilePointer();
+		if(length > Integer.MAX_VALUE) {
+			throw new IOException("Number of remaining bytes is larger than Integer.MAX_VALUE.");
+		}
+		byte[] buffer = new byte[(int)length];
+		this.file.read(buffer);
+		
+		return buffer;
+	}
+
+	@Override
 	public void write(byte[] bytes) throws IOException {
 		this.file.write(bytes);
 	}

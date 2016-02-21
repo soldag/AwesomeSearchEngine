@@ -157,6 +157,11 @@ public class BufferedFileReader implements FileReader {
 	}
 
 	@Override
+	public byte[] readToEnd() throws IOException {
+		return this.fileReader.readToEnd();
+	}
+
+	@Override
 	public long length() throws IOException {
 		return this.fileReader.length();
 	}

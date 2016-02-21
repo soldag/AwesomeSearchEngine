@@ -12,9 +12,9 @@ import postings.ContentType;
 
 public class LazyPositionMap implements PositionMap {
 	
-	private IndexReader indexReader;
+	private IndexReader positionalIndexReader;
 	
-	private long offset;
+	private long positionsOffset;
 	
 	private Map<ContentType, Integer> positionCounts;
 	
@@ -23,13 +23,13 @@ public class LazyPositionMap implements PositionMap {
 	
 	/**
 	 * Creates a new LazyPositionMap instance.
-	 * @param indexReader
-	 * @param offset
+	 * @param positionalIndexReader
+	 * @param positionsOffset
 	 * @param positionCounts
 	 */
-	private LazyPositionMap(IndexReader indexReader, long offset, Map<ContentType, Integer> positionCounts) {
-		this.indexReader = indexReader;
-		this.offset = offset;
+	private LazyPositionMap(IndexReader positionalIndexReader, long positionsOffset, Map<ContentType, Integer> positionCounts) {
+		this.positionalIndexReader = positionalIndexReader;
+		this.positionsOffset = positionsOffset;
 		this.positionCounts = positionCounts;
 	}
 	
@@ -102,8 +102,8 @@ public class LazyPositionMap implements PositionMap {
 	private PositionMap getPositionMap() {
 		if(this.positionMap == null) {
 			try {
-				this.indexReader.seek(this.offset);
-				this.positionMap = EagerPositionMap.load(this.indexReader, this.positionCounts);
+				this.positionalIndexReader.seek(this.positionsOffset);
+				this.positionMap = EagerPositionMap.load(this.positionalIndexReader, this.positionCounts);
 			} catch (IOException e) {
 				this.positionMap = null;
 			}
@@ -115,29 +115,27 @@ public class LazyPositionMap implements PositionMap {
 	
 	/**
 	 * Loads position information necessary for lazy initialization from given file reader. 
-	 * @param indexReader
+	 * @param frequencyIndexReader
+	 * @param positionalIndexReader
 	 * @return
 	 * @throws IOException
 	 */
-	public static LazyPositionMap load(IndexReader indexReader) throws IOException {		
+	public static LazyPositionMap load(IndexReader frequencyIndexReader, IndexReader positionalIndexReader) throws IOException {		
 		// Load number of positions per content type
 		Map<ContentType, Integer> positionCounts = new HashMap<ContentType, Integer>();
 		for(ContentType contentType: ContentType.orderedValues()) {
-			int count = indexReader.readInt();
+			int count = frequencyIndexReader.readInt();
 			positionCounts.put(contentType, count);
 		}
 		
-		// Get offset
-		long offset = indexReader.getFilePointer();
+		// Get offset for corresponding positions in positional index.
+		long positionsOffset = frequencyIndexReader.readLong();
 		
-		// Skip positions
-		indexReader.skipSkippingArea();
-		
-		return new LazyPositionMap(indexReader, offset, positionCounts);
+		return new LazyPositionMap(positionalIndexReader, positionsOffset, positionCounts);
 	}
 
 	@Override
-	public void save(IndexWriter indexWriter) throws IOException {
-		this.getPositionMap().save(indexWriter);
+	public void save(IndexWriter frequencyIndexWriter, IndexWriter positionalIndexWriter) throws IOException {
+		this.getPositionMap().save(frequencyIndexWriter, positionalIndexWriter);
 	}
 }

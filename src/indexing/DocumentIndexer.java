@@ -7,6 +7,8 @@ import java.util.Map;
 
 import javax.xml.stream.XMLStreamException;
 
+import org.apache.commons.lang3.tuple.Pair;
+
 import documents.PatentContentDocument;
 import documents.PatentDocument;
 import gnu.trove.list.TIntList;
@@ -41,7 +43,8 @@ public class DocumentIndexer {
 	/**
 	 * Contains the prefix for temporary index files.
 	 */
-	private static final String TEMP_INVERTED_INDEX_PREFIX = "awse_index_%d";
+	private static final String TEMP_FREQUENCY_INDEX_PREFIX = "awse_frequency_%d";
+	private static final String TEMP_POSITIONAL_INDEX_PREFIX = "awse_positional_%d";
 	private static final String TEMP_CONTENTS_INDEX_PREFIX = "awse_contents_%d";
 	
 	/**
@@ -66,14 +69,15 @@ public class DocumentIndexer {
 	/**
 	 *  Contain index files that should be constructed.
 	 */
-	private File indexFile;
-	private File indexSeekListFile;
-	private File documentMapFile;
-	private File documentMapSeekListFile;
-	private File contentsIndexFile;
-	private File contentsIndexSeekListFile;
-	private File citationIndexFile;
-	private File citationIndexSeekListFile;
+	private final File frequencyIndexFile;
+	private final File positionalIndexFile;
+	private final File frequencyIndexSeekListFile;
+	private final File documentMapFile;
+	private final File documentMapSeekListFile;
+	private final File contentsIndexFile;
+	private final File contentsIndexSeekListFile;
+	private final File citationIndexFile;
+	private final File citationIndexSeekListFile;
 	
 	/**
 	 * Determines, whether the index should be compressed or not.
@@ -89,29 +93,31 @@ public class DocumentIndexer {
 	/**
 	 * Contains all created temporary index files.
 	 */
-	private List<File> tempInvertedIndexFiles = new ArrayList<File>();
+	private List<Pair<File, File>> tempInvertedIndexFiles = new ArrayList<Pair<File, File>>();
 	private List<File> tempContentsIndexFiles = new ArrayList<File>();
 	
 	/**
 	 * Creates a new DocumentIndexer instance.
 	 * @param textProcessor
 	 * @param pageRankCalculator
-	 * @param indexFile
-	 * @param seekListFile
+	 * @param frequencyIndexFile
+	 * @param frequencyIndexSeekListFile
 	 * @param documentMapFile
 	 * @param documentMapSeekListFile
 	 * @param citationIndexFile
 	 * @param citationIndexSeekListFile
 	 * @param compress
 	 */
-	public DocumentIndexer(TextPreprocessor textProcessor, PageRankCalculator pageRankCalculator, File indexFile, File seekListFile, 
+	public DocumentIndexer(TextPreprocessor textProcessor, PageRankCalculator pageRankCalculator, 
+			File frequencyIndexFile, File positionalIndexFile, File frequencyIndexSeekListFile, 
 			File documentMapFile, File documentMapSeekListFile, File contentsIndexFile, File contentsIndexSeekListFile, 
 			File citationIndexFile, File citationIndexSeekListFile, boolean compress) {
 		this.textPreprocessor = textProcessor;
 		this.pageRankCalculator = pageRankCalculator;
 		
-		this.indexFile = indexFile;
-		this.indexSeekListFile = seekListFile;
+		this.frequencyIndexFile = frequencyIndexFile;
+		this.positionalIndexFile = positionalIndexFile;
+		this.frequencyIndexSeekListFile = frequencyIndexSeekListFile;
 		this.documentMapSeekListFile = documentMapSeekListFile;
 		this.documentMapFile = documentMapFile;
 		this.contentsIndexFile = contentsIndexFile;
@@ -244,7 +250,7 @@ public class DocumentIndexer {
 		for(PatentDocument document: documents) {
 			this.documentMapConstructor.add(document);
 		}
-		this.documentMapConstructor.writeToFile(this.documentMapFile, this.documentMapSeekListFile);
+		this.documentMapConstructor.saveWithSeekList(this.documentMapFile, this.documentMapSeekListFile);
 	}
 	
 	/**
@@ -263,7 +269,7 @@ public class DocumentIndexer {
 				}
 			});
 		}
-		this.citationIndexConstructor.writeToFile(this.citationIndexFile, this.citationIndexSeekListFile);
+		this.citationIndexConstructor.saveWithSeekList(this.citationIndexFile, this.citationIndexSeekListFile);
 	}
 	
 	
@@ -272,9 +278,10 @@ public class DocumentIndexer {
 	 * @throws IOException
 	 */	
 	private void writeTemporaryInvertedIndex() throws IOException {
-		File invertedIndexFile = File.createTempFile(TEMP_INVERTED_INDEX_PREFIX, "");
-		this.tempInvertedIndexFiles.add(invertedIndexFile);		
-		this.invertedIndexConstructor.writeToFile(invertedIndexFile);
+		File frequencyIndexFile = File.createTempFile(TEMP_FREQUENCY_INDEX_PREFIX, "");
+		File positionalIndexFile = File.createTempFile(TEMP_POSITIONAL_INDEX_PREFIX, "");
+		this.tempInvertedIndexFiles.add(Pair.of(frequencyIndexFile, positionalIndexFile));		
+		this.invertedIndexConstructor.save(frequencyIndexFile, positionalIndexFile);
 		this.invertedIndexConstructor.clear();
 	}
 	
@@ -285,7 +292,7 @@ public class DocumentIndexer {
 	private void writeTemporaryContentsIndex() throws IOException {
 		File contentsIndexFile = File.createTempFile(TEMP_CONTENTS_INDEX_PREFIX, "");
 		this.tempContentsIndexFiles.add(contentsIndexFile);
-		this.contentsIndexConstructor.writeToFile(contentsIndexFile);
+		this.contentsIndexConstructor.save(contentsIndexFile);
 		this.contentsIndexConstructor.clear();
 	}
 	
@@ -295,7 +302,7 @@ public class DocumentIndexer {
 	 */
 	private void writeFinalInvertedIndex() throws IOException {
 		if(this.tempInvertedIndexFiles.isEmpty()) {
-			this.invertedIndexConstructor.writeToFile(this.indexFile, this.indexSeekListFile);
+			this.invertedIndexConstructor.saveWithSeekList(this.frequencyIndexFile, this.positionalIndexFile, this.frequencyIndexSeekListFile);
 			this.invertedIndexConstructor.clear();
 		}
 		else {
@@ -305,7 +312,7 @@ public class DocumentIndexer {
 			
 			System.out.println("Merge inverted index files...");
 			InvertedIndexMerger indexMerger = new InvertedIndexMerger(this.compress);
-			indexMerger.merge(this.indexFile, this.tempInvertedIndexFiles, this.indexSeekListFile);
+			indexMerger.merge(this.frequencyIndexFile, this.positionalIndexFile, this.tempInvertedIndexFiles, this.frequencyIndexSeekListFile);
 		}
 	}
 	
@@ -315,7 +322,7 @@ public class DocumentIndexer {
 	 */
 	private void writeFinalContentsIndex() throws IOException {
 		if(this.tempContentsIndexFiles.isEmpty()) {
-			this.contentsIndexConstructor.writeToFile(this.contentsIndexFile, this.contentsIndexSeekListFile);
+			this.contentsIndexConstructor.saveWithSeekList(this.contentsIndexFile, this.contentsIndexSeekListFile);
 			this.contentsIndexConstructor.clear();
 		}
 		else {
@@ -325,7 +332,7 @@ public class DocumentIndexer {
 			
 			System.out.println("Merge contents index files...");
 			ContentsIndexMerger indexMerger = new ContentsIndexMerger(this.compress);
-			indexMerger.merge(this.contentsIndexFile, this.tempContentsIndexFiles, this.indexSeekListFile);
+			indexMerger.merge(this.contentsIndexFile, this.tempContentsIndexFiles, this.frequencyIndexSeekListFile);
 		}
 	}
 	
@@ -335,9 +342,12 @@ public class DocumentIndexer {
 	 */
 	public void clearTemporaryIndexes() throws IOException {
 		// Inverted index
-		for(File indexFile: this.tempInvertedIndexFiles) {
-			if(indexFile.exists()) {
-				indexFile.delete();
+		for(Pair<File, File> indexFiles: this.tempInvertedIndexFiles) {
+			if(indexFiles.getLeft().exists()) {
+				indexFiles.getLeft().delete();
+			}
+			if(indexFiles.getRight().exists()) {
+				indexFiles.getRight().delete();
 			}
 		}
 		this.tempInvertedIndexFiles.clear();
@@ -355,11 +365,14 @@ public class DocumentIndexer {
 	 * Deletes all existing index files.
 	 */
 	public void deleteIndexFiles() {
-		if(this.indexFile.exists()) {
-			this.indexFile.delete();
+		if(this.frequencyIndexFile.exists()) {
+			this.frequencyIndexFile.delete();
 		}
-		if(this.indexSeekListFile.exists()) {
-			this.indexSeekListFile.delete();
+		if(this.positionalIndexFile.exists()) {
+			this.positionalIndexFile.delete();
+		}
+		if(this.frequencyIndexSeekListFile.exists()) {
+			this.frequencyIndexSeekListFile.delete();
 		}
 		
 		if(this.documentMapSeekListFile.exists()) {

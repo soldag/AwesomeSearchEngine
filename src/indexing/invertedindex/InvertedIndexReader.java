@@ -17,9 +17,14 @@ import io.index.IndexReader;
 public class InvertedIndexReader implements AutoCloseable {
 	
 	/**
-	 * Contains the file reader for the index file.
+	 * Contains the file reader for the frequency index.
 	 */
-	private IndexReader indexFile;
+	private IndexReader frequencyIndexFile;
+	
+	/**
+	 * Contains the file reader for the positional index.
+	 */
+	private IndexReader positionalIndexReader;
 	
 	/**
 	 * Contains the corresponding seek list.
@@ -34,14 +39,16 @@ public class InvertedIndexReader implements AutoCloseable {
 	
 	/**
 	 * Creates a new InvertedIndexReader instance.
-	 * @param indexFile
+	 * @param frequencyIndexFile
+	 * @param positionalIndexFile
 	 * @param seekListFile
 	 * @param isCompressed
 	 * @throws IOException
 	 */
-	public InvertedIndexReader(File indexFile, File seekListFile, boolean isCompressed) throws IOException {
-		this.indexFile = FileReaderWriterFactory.getInstance().getDirectIndexReader(indexFile, isCompressed);
-		this.totalTokenCount = this.indexFile.readInt();
+	public InvertedIndexReader(File frequencyIndexFile, File positionalIndexFile, File seekListFile, boolean isCompressed) throws IOException {
+		this.frequencyIndexFile = FileReaderWriterFactory.getInstance().getDirectIndexReader(frequencyIndexFile, isCompressed);
+		this.positionalIndexReader = FileReaderWriterFactory.getInstance().getDirectIndexReader(positionalIndexFile, isCompressed);
+		this.totalTokenCount = this.frequencyIndexFile.readInt();
 		
 		this.seekList = new InvertedIndexSeekList();
 		this.seekList.load(FileReaderWriterFactory.getInstance().getDirectIndexReader(seekListFile, isCompressed));
@@ -65,19 +72,19 @@ public class InvertedIndexReader implements AutoCloseable {
 	 */
 	public TObjectIntMap<String> getTokens(String prefix) throws IOException {
 		TObjectIntMap<String> tokens = new TObjectIntHashMap<String>();		
-		this.indexFile.seek(this.seekList.get(prefix));
+		this.frequencyIndexFile.seek(this.seekList.get(prefix));
 		while(true) {
 			try {
-				String token = this.indexFile.readString();
+				String token = this.frequencyIndexFile.readString();
 				if(token.startsWith(prefix)) {
-					int occurrencesCount = this.indexFile.readInt();
+					int occurrencesCount = this.frequencyIndexFile.readInt();
 					tokens.put(token, occurrencesCount);
 				}				
 				else if(token.compareTo(prefix) > 0){
 					break;
 				}
 				
-				this.indexFile.skipSkippingArea();
+				this.frequencyIndexFile.skipSkippingArea();
 			}
 			catch(EOFException e) {
 				break;
@@ -116,21 +123,21 @@ public class InvertedIndexReader implements AutoCloseable {
 		PostingTable postings = new PostingTable();
 		TObjectIntMap<String> collectionFrequencies = new TObjectIntHashMap<String>();
 		
-		this.indexFile.seek(startOffset);
+		this.frequencyIndexFile.seek(startOffset);
 		while(true) {
 			try {
-				String readToken = this.indexFile.readString();
+				String readToken = this.frequencyIndexFile.readString();
 				
 				if(prefixSearch) {
 					if(readToken.startsWith(token)) {
-						TokenPostings readPostings = TokenPostings.load(this.indexFile.getSkippingAreaReader(), loadPositions);
+						TokenPostings readPostings = TokenPostings.load(this.frequencyIndexFile.getSkippingAreaReader(), this.positionalIndexReader, loadPositions);
 						collectionFrequencies.put(readToken, readPostings.getTotalOccurencesCount());
 						postings.putAll(readToken, readPostings);
 						continue;
 					}
 				}			
 				else if(readToken.equals(token)) {
-					TokenPostings readPostings = TokenPostings.load(this.indexFile.getSkippingAreaReader(), loadPositions);
+					TokenPostings readPostings = TokenPostings.load(this.frequencyIndexFile.getSkippingAreaReader(), this.positionalIndexReader, loadPositions);
 					collectionFrequencies.put(readToken, readPostings.getTotalOccurencesCount());
 					postings.putAll(readToken, readPostings);
 					break;
@@ -140,7 +147,7 @@ public class InvertedIndexReader implements AutoCloseable {
 					break;
 				}
 				
-				this.indexFile.skipSkippingArea();
+				this.frequencyIndexFile.skipSkippingArea();
 			}
 			catch(EOFException e) {
 				break;
@@ -163,6 +170,6 @@ public class InvertedIndexReader implements AutoCloseable {
 
 	@Override
 	public void close() throws IOException {
-		this.indexFile.close();
+		this.frequencyIndexFile.close();
 	}	
 }
