@@ -41,7 +41,7 @@ public class LazyPositionMap implements PositionMap {
 
 	@Override
 	public boolean containsContentType(ContentType contentType) {
-		return this.positionCounts.get(contentType) > 0;
+		return this.positionCounts.containsKey(contentType);
 	}
 
 	@Override
@@ -103,7 +103,7 @@ public class LazyPositionMap implements PositionMap {
 		if(this.positionMap == null) {
 			try {
 				this.positionalIndexReader.seek(this.positionsOffset);
-				this.positionMap = EagerPositionMap.load(this.positionalIndexReader, this.positionCounts);
+				this.positionMap = EagerPositionMap.load(this.positionalIndexReader.getSkippingAreaReader(), this.positionCounts);
 			} catch (IOException e) {
 				this.positionMap = null;
 			}
@@ -125,7 +125,9 @@ public class LazyPositionMap implements PositionMap {
 		Map<ContentType, Integer> positionCounts = new HashMap<ContentType, Integer>();
 		for(ContentType contentType: ContentType.orderedValues()) {
 			int count = frequencyIndexReader.readInt();
-			positionCounts.put(contentType, count);
+			if(count > 0) {
+				positionCounts.put(contentType, count);
+			}
 		}
 		
 		// Get offset for corresponding positions in positional index.
