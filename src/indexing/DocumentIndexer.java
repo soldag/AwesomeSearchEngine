@@ -278,8 +278,8 @@ public class DocumentIndexer {
 	 * @throws IOException
 	 */	
 	private void writeTemporaryInvertedIndex() throws IOException {
-		File frequencyIndexFile = File.createTempFile(TEMP_FREQUENCY_INDEX_PREFIX, "");
-		File positionalIndexFile = File.createTempFile(TEMP_POSITIONAL_INDEX_PREFIX, "");
+		File frequencyIndexFile = this.createTempFile(TEMP_FREQUENCY_INDEX_PREFIX);
+		File positionalIndexFile = this.createTempFile(TEMP_POSITIONAL_INDEX_PREFIX);
 		this.tempInvertedIndexFiles.add(Pair.of(frequencyIndexFile, positionalIndexFile));		
 		this.invertedIndexConstructor.save(frequencyIndexFile, positionalIndexFile);
 		this.invertedIndexConstructor.clear();
@@ -290,10 +290,20 @@ public class DocumentIndexer {
 	 * @throws IOException
 	 */	
 	private void writeTemporaryContentsIndex() throws IOException {
-		File contentsIndexFile = File.createTempFile(TEMP_CONTENTS_INDEX_PREFIX, "");
+		File contentsIndexFile = this.createTempFile(TEMP_CONTENTS_INDEX_PREFIX);
 		this.tempContentsIndexFiles.add(contentsIndexFile);
 		this.contentsIndexConstructor.save(contentsIndexFile);
 		this.contentsIndexConstructor.clear();
+	}
+	
+	/**
+	 * Creates a temporary file with the given prefix.
+	 * @param prefix
+	 * @return
+	 * @throws IOException
+	 */
+	private File createTempFile(String prefix) throws IOException {
+		return File.createTempFile(prefix, "");
 	}
 	
 	/**
@@ -332,7 +342,7 @@ public class DocumentIndexer {
 			
 			System.out.println("Merge contents index files...");
 			ContentsIndexMerger indexMerger = new ContentsIndexMerger(this.compress);
-			indexMerger.merge(this.contentsIndexFile, this.tempContentsIndexFiles, this.frequencyIndexSeekListFile);
+			indexMerger.merge(this.contentsIndexFile, this.tempContentsIndexFiles, this.contentsIndexSeekListFile);
 		}
 	}
 	

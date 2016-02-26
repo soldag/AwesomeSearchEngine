@@ -228,7 +228,7 @@ public class QueryProcessor {
 		
 		for(String token: query.getQueryTokens()) {
 			// Search for token
-			UnrankedQueryResult result = this.searchToken(token);
+			UnrankedQueryResult result = this.searchToken(token, true);
 			
 			if(resultTokenPostings == null) {
 				// Add all postings of first token
@@ -355,7 +355,18 @@ public class QueryProcessor {
 	 * @return 
 	 */
 	private UnrankedQueryResult searchToken(String token) {
-		return this.searchToken(token, null);
+		return this.searchToken(token, false);
+	}
+	
+	
+	/**
+	 * Gets all postings of a given token from index.
+	 * @param token
+	 * @param loadPositions
+	 * @return 
+	 */
+	private UnrankedQueryResult searchToken(String token, boolean loadPositions) {
+		return this.searchToken(token, null, loadPositions);
 	}
 	
 	/**
@@ -365,7 +376,7 @@ public class QueryProcessor {
 	 * @param misspelledToken
 	 * @return 
 	 */
-	private UnrankedQueryResult searchToken(String token, String misspelledToken) {
+	private UnrankedQueryResult searchToken(String token, String misspelledToken, boolean loadPositions) {
 		try {
 			// Stem token or remove wildcard character (if prefix search)
 			boolean prefixSearch = token.endsWith("*");
@@ -377,7 +388,7 @@ public class QueryProcessor {
 			}
 			
 			// Get postings and collection frequencies
-			Pair<PostingTable, TObjectIntMap<String>> indexEntries = this.invertedIndexReader.getPostings(token, prefixSearch, false);
+			Pair<PostingTable, TObjectIntMap<String>> indexEntries = this.invertedIndexReader.getPostings(token, prefixSearch, loadPositions);
 			PostingTable postings = indexEntries.getLeft();
 			TObjectIntMap<String> collectionFrequencies = indexEntries.getRight();
 			
@@ -385,7 +396,7 @@ public class QueryProcessor {
 			if(!prefixSearch && postings.isEmpty()) {
 				String correctedToken = this.spellingCorrector.correctToken(token); 
 				if(correctedToken != null) {
-					return searchToken(correctedToken, token);
+					return searchToken(correctedToken, token, loadPositions);
 				}
 			}
 			

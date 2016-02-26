@@ -81,15 +81,15 @@ public class InvertedIndexConstructor extends GenericIndexConstructor<String> {
 	}
 
 	@Override
-	protected void writeEntry(String key, IndexWriter indexWriter) throws IOException {
+	protected void writeEntry(String key, IndexWriter frequencyIndexWriter) throws IOException {
 		// Write token
-		indexWriter.writeString(key);
+		frequencyIndexWriter.writeString(key);
 		
 		// Write postings
 		TokenPostings postings = this.invertedIndex.ofToken(key);
-		indexWriter.startSkippingArea();
-		postings.save(indexWriter, this.positionalIndexWriter);
-		indexWriter.endSkippingArea();
+		frequencyIndexWriter.startSkippingArea();
+		postings.save(frequencyIndexWriter, this.positionalIndexWriter);
+		frequencyIndexWriter.endSkippingArea();
 	}
 	
 	@Override

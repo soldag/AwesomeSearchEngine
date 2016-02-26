@@ -112,13 +112,13 @@ public class EagerPositionMap implements PositionMap {
 		return EagerPositionMap.load(positionalIndexReader.getSkippingAreaReader(), positionCounts);
 	}
 	/**
-	 * Loads positions from given file readers. File pointer has to be directly before the positions.
-	 * @param positionalIndexWriter
+	 * Loads positions from given file reader. File pointer has to be directly before the positions.
+	 * @param positionalIndexReader
 	 * @param positionCounts
 	 * @return
 	 * @throws IOException
 	 */
-	public static EagerPositionMap load(IndexReader positionalIndexWriter, Map<ContentType, Integer> positionCounts) throws IOException {
+	public static EagerPositionMap load(IndexReader positionalIndexReader, Map<ContentType, Integer> positionCounts) throws IOException {
 		// Read single positions
 		EagerPositionMap positionMap = new EagerPositionMap();
 		for(ContentType contentType: ContentType.orderedValues()) {
@@ -126,8 +126,8 @@ public class EagerPositionMap implements PositionMap {
 				int lastPosition = 0;
 				int count = positionCounts.get(contentType);
 				for(int i = 0; i < count; i++) {
-					int position = positionalIndexWriter.readInt();
-					if(positionalIndexWriter.isCompressed()) {
+					int position = positionalIndexReader.readInt();
+					if(positionalIndexReader.isCompressed()) {
 						position += lastPosition;
 						lastPosition = position;
 					}
