@@ -31,6 +31,10 @@ public class PatentContentLookup {
 	 */
 	public PatentContentDocument loadContent(PatentDocument document) throws IOException {
 		EnumMap<ContentType, String> contents = this.indexReader.getContents(document.getId());
-		return new PatentContentDocument(document, contents);
+		if(contents != null) {
+			return new PatentContentDocument(document, contents);
+		}
+		
+		return null;
 	}
 }

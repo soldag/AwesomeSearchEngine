@@ -43,26 +43,38 @@ public class ResultFormatter {
 	 * @return
 	 * @throws IOException
 	 */
-	public ArrayList<String> format(RankedQueryResult result) throws IOException {
+	public ArrayList<String> format(RankedQueryResult result) {
 		ArrayList<String> formattedResults = new ArrayList<String>();
 		for(PatentDocument document: result.getRankedDocuments()) {
 			// Load contents of document
-			PatentContentDocument contentDocument = this.patentContentLookup.loadContent(document);
+			PatentContentDocument contentDocument;
+			try {
+				contentDocument = this.patentContentLookup.loadContent(document);
+			}
+			catch(IOException e) {
+				formattedResults.add(Integer.toString(document.getId()));
+				continue;
+			}
 			
-			// Get properties
-			int id = document.getId();
-			String title = contentDocument.getContent(ContentType.Title);
-			Snippet snippet = this.snippetGenerator.generate(contentDocument, result);
-			
-			// Format properties
-			StringBuilder resultBuilder = new StringBuilder();
-			resultBuilder.append(id);
-			resultBuilder.append(" ");
-			resultBuilder.append(this.formatTitle(title, document, result));
-			resultBuilder.append(System.getProperty("line.separator"));
-			resultBuilder.append(snippet.toFormattedString());
-			
-			formattedResults.add(resultBuilder.toString());
+			if(contentDocument != null) {			
+				// Get properties
+				int id = document.getId();
+				String title = contentDocument.getContent(ContentType.Title);
+				Snippet snippet = this.snippetGenerator.generate(contentDocument, result);
+				
+				// Format properties
+				StringBuilder resultBuilder = new StringBuilder();
+				resultBuilder.append(id);
+				resultBuilder.append(" ");
+				resultBuilder.append(this.formatTitle(title, document, result));
+				resultBuilder.append(System.getProperty("line.separator"));
+				resultBuilder.append(snippet.toFormattedString());
+				
+				formattedResults.add(resultBuilder.toString());
+			}
+			else {
+				formattedResults.add(Integer.toString(document.getId()));
+			}
 		}
 		
 		return formattedResults;
