@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.tartarus.snowball.ext.PorterStemmer;
+import org.tartarus.snowball.ext.EnglishStemmer;
 
 public class TextPreprocessor {
 	
@@ -28,9 +28,9 @@ public class TextPreprocessor {
 	private PatentAnalyzer preservingAnalyzer;
 	
 	/**
-	 * Contains a porter stemmer instance.
+	 * Contains a snowball stemmer instance.
 	 */
-	private PorterStemmer stemmer;
+	private EnglishStemmer stemmer;
 	
 	
 	/**
@@ -39,7 +39,7 @@ public class TextPreprocessor {
 	public TextPreprocessor() {
 		this.defaultAnalyzer = new PatentAnalyzer();
 		this.preservingAnalyzer = new PatentAnalyzer(true);
-		this.stemmer = new PorterStemmer();
+		this.stemmer = new EnglishStemmer();
 	}
 	
 	
