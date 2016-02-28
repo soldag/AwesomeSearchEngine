@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import documents.PatentContentDocument;
 import documents.PatentDocument;
@@ -107,7 +109,20 @@ public class ResultFormatter {
 			// Highlight query tokens in title
 			for(int position: queryTokenPositions) {
 				String token = tokenizedTitle.get(position);
-				title = title.replaceAll("\\b" + token + "\\b", ResultStyle.ANSI_COLOR_GREEN + token + ResultStyle.ANSI_COLOR_RESET);
+				Pattern regex = Pattern.compile("(?i)\\b" + token + "\\b");
+				Matcher matcher = regex.matcher(title);
+				int lastEndIndex = 0;
+				StringBuilder titleBuilder = new StringBuilder();
+				while(matcher.find()) {
+					titleBuilder.append(title.substring(lastEndIndex, matcher.start()));
+					titleBuilder.append(ResultStyle.ANSI_COLOR_GREEN);
+					titleBuilder.append(matcher.group());
+					titleBuilder.append(ResultStyle.ANSI_COLOR_RESET);
+					
+					lastEndIndex = matcher.end();
+				}
+				titleBuilder.append(title.substring(lastEndIndex));
+				title = titleBuilder.toString();
 			}
 		}
 		

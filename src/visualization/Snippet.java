@@ -2,6 +2,8 @@ package visualization;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Snippet {
 	
@@ -51,11 +53,24 @@ public class Snippet {
 	 * @return
 	 */
 	public String toFormattedString() {
-		String formattedSnippet = this.snippet;
+		String snippet = this.snippet;
 		for(String queryToken: this.queryTokens) {
-			formattedSnippet = formattedSnippet.replaceAll("\\b" + queryToken + "\\b", ResultStyle.ANSI_COLOR_GREEN + queryToken + ResultStyle.ANSI_COLOR_RESET);
+			Pattern regex = Pattern.compile("(?i)\\b" + queryToken + "\\b");
+			Matcher matcher = regex.matcher(snippet);
+			int lastEndIndex = 0;
+			StringBuilder formattedSnippetBuilder = new StringBuilder();
+			while(matcher.find()) {
+				formattedSnippetBuilder.append(snippet.substring(lastEndIndex, matcher.start()));
+				formattedSnippetBuilder.append(ResultStyle.ANSI_COLOR_GREEN);
+				formattedSnippetBuilder.append(matcher.group());
+				formattedSnippetBuilder.append(ResultStyle.ANSI_COLOR_RESET);
+				
+				lastEndIndex = matcher.end();
+			}
+			formattedSnippetBuilder.append(snippet.substring(lastEndIndex));
+			snippet = formattedSnippetBuilder.toString();
 		}
 
-		return formattedSnippet;
+		return snippet;
 	}
 }
