@@ -53,7 +53,7 @@ public class DocumentRanker {
 
 	
 	/**
-	 * Weights the given query result using query-likelihoof and page rank measures.
+	 * Weights the given query result using query-likelihood and page rank measures.
 	 * @param result
 	 * @param resultLimit
 	 * @param collectionTokenCount
@@ -140,7 +140,7 @@ public class DocumentRanker {
 		double tokenWeight = Arrays.stream(ContentType.values())
 								.mapToDouble(contentType -> contentType.getWeightingFactor() * 
 															this.weightDocumentByTokens(document, contentType, result, collectionTokenCount))
-								.sum();		
+								.sum();
 		
 		return tokenWeight;
 	}
@@ -162,7 +162,8 @@ public class DocumentRanker {
 												document.getTokensCount(contentType), 
 												result.getCollectionFrequencies().get(token), 
 												collectionTokenCount))
-						.reduce(1, (x,y) -> x*y);
+						.map(Math::log)
+						.sum();
 	}
 	
 	/**
@@ -208,7 +209,7 @@ public class DocumentRanker {
 	 * @return
 	 */
 	private double queryLikelihood(double tokenDocumentFrequency, double documentsLength, double tokenCollectionFrequency, double collectionLength) {
-		return Math.log1p((1 - QL_LAMBDA) * (tokenDocumentFrequency / documentsLength) + QL_LAMBDA * (tokenCollectionFrequency / collectionLength));
+		return (1 - QL_LAMBDA) * (tokenDocumentFrequency / documentsLength) + QL_LAMBDA * (tokenCollectionFrequency / collectionLength);
 	}
 	
 	
