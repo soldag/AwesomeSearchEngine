@@ -62,7 +62,14 @@ public class EagerPositionMap implements PositionMap {
 
 	@Override
 	public void putAll(PositionMap positionMap) {
-		this.positions.putAll(positionMap.positions());
+		for(Map.Entry<ContentType, TIntList> entry: positionMap.positions().entrySet()) {
+			if(this.positions.containsKey(entry.getKey())) {
+				this.positions.get(entry.getKey()).addAll(entry.getValue());
+			}
+			else {
+				this.positions.put(entry.getKey(), entry.getValue());
+			}
+		}
 	}
 	
 	
