@@ -59,6 +59,9 @@ public class ContentsIndexMerger {
 				int documentId = firstDocumnentIds.get(nextDocumentIdIndex);
 				byte[] contentsBytes = currentFile.getSkippingAreaReader().readToEnd();
 				
+				// Write seek list entry
+				seekList.put(documentId, destinationFileWriter.getFilePointer());
+				
 				// Write document id and content
 				destinationFileWriter.writeInt(documentId);
 				destinationFileWriter.startSkippingArea();
