@@ -77,14 +77,18 @@ public class InvertedIndexReader implements AutoCloseable {
 			try {
 				String token = this.frequencyIndexFile.readString();
 				if(token.startsWith(prefix)) {
+					long nextTokenOffset = this.frequencyIndexFile.getSkippingAreaLength() + this.frequencyIndexFile.getFilePointer();
 					int occurrencesCount = this.frequencyIndexFile.readInt();
 					tokens.put(token, occurrencesCount);
+					
+					this.frequencyIndexFile.seek(nextTokenOffset);
 				}				
 				else if(token.compareTo(prefix) > 0){
 					break;
 				}
-				
-				this.frequencyIndexFile.skipSkippingArea();
+				else {				
+					this.frequencyIndexFile.skipSkippingArea();
+				}
 			}
 			catch(EOFException e) {
 				break;

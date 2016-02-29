@@ -20,6 +20,11 @@ public class MostSimilarTokenProcedure implements TObjectIntProcedure<String> {
 	 */
 	private DamerauLevenshteinCalculator damerauLevenshtein;
 	
+	/**
+	 * Contains the original, mispelled token.
+	 */
+	private String misspelledToken;
+	
 	
 	/**
 	 * Define default values for determination of most similar string.
@@ -32,34 +37,36 @@ public class MostSimilarTokenProcedure implements TObjectIntProcedure<String> {
 	/**
 	 * Creates a new MostSimilarTokenProcedure instance.
 	 * @param damerauLevenshtein
+	 * @param misspelledToken
 	 */
-	public MostSimilarTokenProcedure(DamerauLevenshteinCalculator damerauLevenshtein) {
+	public MostSimilarTokenProcedure(DamerauLevenshteinCalculator damerauLevenshtein, String misspelledToken) {
 		this.damerauLevenshtein = damerauLevenshtein;
+		this.misspelledToken = misspelledToken;
 	}
 	
 
 	@Override
 	public boolean execute(String token, int occurrencesCount) {
-		if (Math.abs(token.length() - token.length()) <= MAX_LENGTH_DIFFERENCE) {
-			int distance = this.damerauLevenshtein.execute(token, token);
+		if (Math.abs(this.misspelledToken.length() - token.length()) <= MAX_LENGTH_DIFFERENCE) {
+			int distance = this.damerauLevenshtein.execute(this.misspelledToken, token);
 			
 			if(distance > MAX_DISTANCE) {
-				return false;
+				return true;
 			}
 			if(distance < minDistance) {
 				// New minimum
-				minDistance = distance;
-				minDistanceToken = token;
+				this.minDistance = distance;
+				this.minDistanceToken = token;
 			}
 			else if(distance == minDistance) {
 				// Since the edit distances are the same, take number of occurrences in the whole collection into account.
 				if(occurrencesCount > minDistanceTokenOccurrences) {
-					minDistance = distance;
-					minDistanceToken = token;
+					this.minDistance = distance;
+					this.minDistanceToken = token;
 				}
 			}
 		}
-		return false;
+		return true;
 	}
 
 	

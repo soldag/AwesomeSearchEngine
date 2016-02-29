@@ -41,7 +41,7 @@ public class SpellingCorrector {
 		TObjectIntMap<String> tokenCandidates = this.indexReader.getTokens(startCharacter);
 
 		// Get the candidate with the lowest edit distance
-		MostSimilarTokenProcedure mostSimilarTokenProcedure = new MostSimilarTokenProcedure(this.damerauLevenshtein);
+		MostSimilarTokenProcedure mostSimilarTokenProcedure = new MostSimilarTokenProcedure(this.damerauLevenshtein, misspelledToken);
 		tokenCandidates.forEachEntry(mostSimilarTokenProcedure);
 		
 		return mostSimilarTokenProcedure.getMostSimilarToken();
