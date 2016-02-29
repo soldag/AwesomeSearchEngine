@@ -425,10 +425,11 @@ public class QueryProcessor {
 	 * @throws IOException
 	 */
 	private PrfQuery extendPrfQuery(final PrfQuery query, RankedQueryResult originalResult) throws IOException {
-		List<String> additionalTokens = originalResult.getRankedDocuments().stream()
+		String concatenatedSnippets = originalResult.getRankedDocuments().stream()
 										.limit(query.getPrf())
-										.map(document -> this.snippetGenerator.generate(document, originalResult))
-										.flatMap(x -> this.getMostFrequentTokens(x.toString(), PRF_MOST_FREQUENT_TOKENS).stream())
+										.map(document -> this.snippetGenerator.generate(document, originalResult).toString())
+										.collect(Collectors.joining(" "));
+		List<String> additionalTokens = this.getMostFrequentTokens(concatenatedSnippets, PRF_MOST_FREQUENT_TOKENS).stream()
 										.filter(token -> !query.containsToken(token))
 										.collect(Collectors.toList());
 		
